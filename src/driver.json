@@ -1,0 +1,38 @@
+{
+  "driver_id": "self_control",
+  "version": "0.4.0",
+  "icon": "uc:integration",
+  "min_core_api": "0.20.0",
+  "name": {
+    "en": "Remote Self-Control"
+  },
+  "description": {
+    "en": "Lets the remote control itself: button backlight level and color, display brightness and timeout, sleep, wake, sound and haptics, plus Smart Controls: conditional buttons you build in a browser."
+  },
+  "developer": {
+    "name": "Sat32blk",
+    "url": "https://github.com/Sat32blk/uc-remote-self-control"
+  },
+  "setup_data_schema": {
+    "title": {
+      "en": "Remote Self-Control setup"
+    },
+    "settings": [
+      {
+        "id": "info",
+        "label": {
+          "en": "Setup process"
+        },
+        "field": {
+          "label": {
+            "value": {
+              "en": "This integration changes the remote's own settings and adds Smart Controls (conditional buttons). On the next screen it asks for the web-configurator PIN once, to create an API key it keeps on the remote. The PIN itself is not stored."
+            }
+          }
+        }
+      }
+    ]
+  },
+  "release_date": "2026-10-13",
+  "home_page": "https://github.com/Sat32blk/uc-remote-self-control"
+}

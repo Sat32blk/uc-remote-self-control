@@ -1,0 +1,90 @@
+{
+  "aliases": {
+    "shield": "uc_androidtv_driver.main.YOUR_SHIELD_ID",
+    "tv": "samsungtv_driver.main.media_player.YOUR_TV_ID",
+    "marantz": "uc_denon_driver.main.media_player.YOUR_RECEIVER_ID"
+  },
+  "buttons": [
+    {
+      "id": "smart_play_pause",
+      "name": "Smart Play/Pause",
+      "cases": [
+        { "if": { "entity": "shield", "is": "OFF" },
+          "do": [
+            { "cmd": "media_player.on", "entity": "shield" }
+          ] },
+        { "else": [
+            { "cmd": "media_player.play_pause", "entity": "shield" }
+          ] }
+      ]
+    },
+    {
+      "id": "smart_volume_up",
+      "name": "Smart Volume Up",
+      "cases": [
+        { "if": { "entity": "marantz", "is": "ON" },
+          "do": [ { "cmd": "media_player.volume_up", "entity": "marantz" } ] },
+        { "else": [ { "cmd": "media_player.volume_up", "entity": "tv" } ] }
+      ]
+    },
+    {
+      "id": "smart_volume_down",
+      "name": "Smart Volume Down",
+      "cases": [
+        { "if": { "entity": "marantz", "is": "ON" },
+          "do": [ { "cmd": "media_player.volume_down", "entity": "marantz" } ] },
+        { "else": [ { "cmd": "media_player.volume_down", "entity": "tv" } ] }
+      ]
+    },
+    {
+      "id": "smart_night_mode",
+      "name": "Night Mode",
+      "cases": [
+        { "if": { "var": "night_mode", "is": "on" },
+          "do": [
+            { "self": "backlight_color", "option": "Ice blue" },
+            { "self": "backlight_level", "option": "100 %" },
+            { "self": "display_auto_brightness", "state": "on" },
+            { "self": "sound_effects", "state": "on" },
+            { "set_var": "night_mode", "to": "off" }
+          ] },
+        { "else": [
+            { "self": "backlight_color", "option": "Movie red" },
+            { "self": "backlight_level", "option": "10 %" },
+            { "self": "display_level", "option": "30 %" },
+            { "self": "sound_effects", "state": "off" },
+            { "set_var": "night_mode", "to": "on" }
+          ] }
+      ]
+    },
+    {
+      "id": "smart_shield_input",
+      "name": "Shield Input",
+      "cases": [
+        { "if": { "all": [ { "entity": "tv", "is_not": "OFF" }, { "entity": "marantz", "is_not": "OFF" } ] },
+          "do": [
+            { "cmd": "media_player.select_source", "entity": "marantz", "params": { "source": "SHIELD" } }
+          ] },
+        { "else": [
+            { "cmd": "media_player.on", "entity": "tv" },
+            { "cmd": "media_player.on", "entity": "marantz" },
+            { "wait_until": { "entity": "marantz", "is_not": "OFF" }, "timeout": 10000 },
+            { "delay": 1000 },
+            { "cmd": "media_player.select_source", "entity": "marantz", "params": { "source": "SHIELD" } }
+          ] }
+      ]
+    },
+    {
+      "id": "smart_sound_mode",
+      "name": "Sound Mode Cycle",
+      "cases": [
+        { "if": { "entity": "marantz", "is": "OFF" }, "do": [] },
+        { "if": { "entity": "marantz", "attr": "sound_mode", "is": "STEREO" },
+          "do": [ { "cmd": "media_player.select_sound_mode", "entity": "marantz", "params": { "mode": "MOVIE" } } ] },
+        { "if": { "entity": "marantz", "attr": "sound_mode", "is": "MOVIE" },
+          "do": [ { "cmd": "media_player.select_sound_mode", "entity": "marantz", "params": { "mode": "DIRECT" } } ] },
+        { "else": [ { "cmd": "media_player.select_sound_mode", "entity": "marantz", "params": { "mode": "STEREO" } } ] }
+      ]
+    }
+  ]
+}

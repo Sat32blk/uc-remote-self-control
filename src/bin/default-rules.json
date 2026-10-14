@@ -1,0 +1,10 @@
+{
+  "buttons": [
+    {
+      "id": "smart_test_button",
+      "name": "Smart Test Button",
+      "if": true,
+      "do": [ { "self": "backlight_color", "option": "next" } ]
+    }
+  ]
+}

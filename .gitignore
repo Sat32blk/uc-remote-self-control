@@ -1,0 +1,5 @@
+node_modules/
+build/
+dist/
+*.tar.gz
+src/bin/driver.json

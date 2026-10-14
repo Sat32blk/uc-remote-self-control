@@ -1,0 +1,70 @@
+{
+  "buttons": [
+    {
+      "id": "smart_night_mode",
+      "name": "Night Mode",
+      "cases": [
+        { "if": { "var": "night_mode", "is": "on" },
+          "do": [
+            { "restore_settings": "before_night_mode" },
+            { "set_var": "night_mode", "to": "off" }
+          ] },
+        { "else": [
+            { "save_settings": "before_night_mode" },
+            { "self": "backlight_color", "option": "Movie red" },
+            { "self": "backlight_level", "option": "10 %" },
+            { "self": "display_level", "option": "30 %" },
+            { "self": "sound_effects", "state": "off" },
+            { "set_var": "night_mode", "to": "on" }
+          ] }
+      ]
+    },
+    {
+      "id": "smart_quiet_mode",
+      "name": "Quiet Mode",
+      "cases": [
+        { "if": { "var": "quiet_mode", "is": "on" },
+          "do": [
+            { "restore_settings": "before_quiet_mode" },
+            { "set_var": "quiet_mode", "to": "off" }
+          ] },
+        { "else": [
+            { "save_settings": "before_quiet_mode" },
+            { "self": "sound_effects", "state": "off" },
+            { "self": "haptic", "state": "off" },
+            { "set_var": "quiet_mode", "to": "on" }
+          ] }
+      ]
+    },
+    {
+      "id": "smart_backlight_color_cycle",
+      "name": "Backlight Color Cycle",
+      "if": true,
+      "do": [ { "self": "backlight_color", "option": "next" } ]
+    },
+    {
+      "id": "smart_display_brighter",
+      "name": "Display Brighter",
+      "if": true,
+      "do": [ { "self": "display_level", "option": "up" } ]
+    },
+    {
+      "id": "smart_display_dimmer",
+      "name": "Display Dimmer",
+      "if": true,
+      "do": [ { "self": "display_level", "option": "down" } ]
+    },
+    {
+      "id": "smart_backlight_brighter",
+      "name": "Backlight Brighter",
+      "if": true,
+      "do": [ { "self": "backlight_level", "option": "up" } ]
+    },
+    {
+      "id": "smart_backlight_dimmer",
+      "name": "Backlight Dimmer",
+      "if": true,
+      "do": [ { "self": "backlight_level", "option": "down" } ]
+    }
+  ]
+}

@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Smart Controls Builder</title>
+<style>
+/* Layout: sign-in card, then two panes: rule editor (left) and save/test/rules text (right, sticky); stacks on phones. */
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --inset: #eef0f3; --line: #d6dae0; --fg: #1c2027; --muted: #5b6370;
+  --accent: #b86a00; --accent-ink: #ffffff; --accent-soft: #fbedd8; --danger: #b4231b; --ok: #1d7a3e;
+  --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111418; --panel: #181c21; --inset: #20252c; --line: #2f3640; --fg: #e8eaed; --muted: #9aa3ad;
+    --accent: #f2a541; --accent-ink: #111418; --accent-soft: #3a2a12; --danger: #ff7b72; --ok: #5bd28a; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font-ui); padding-inline: 16px; padding-block: calc(env(safe-area-inset-top, 0px) + 20px) calc(env(safe-area-inset-bottom, 0px) + 40px); }
+.wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; justify-content: space-between; }
+header .t { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+h1 { margin: 0; font-size: 24px; font-weight: 600; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 72ch; }
+.panes { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.editor { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.side { flex: 1 1 340px; min-width: 0; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 960px) { .side { position: static; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.panel h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.hint, .note { margin: 0; color: var(--muted); font-size: 13px; }
+pre.json { margin: 0; background: var(--inset); border-radius: 8px; padding: 12px; font: 12.5px/1.45 var(--font-mono); max-height: 40vh; overflow: auto; white-space: pre; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.status { font-size: 13px; min-height: 1.4em; overflow-wrap: anywhere; }
+.status.ok { color: var(--ok); } .status.err { color: var(--danger); }
+ul.errors { overflow-wrap: anywhere; margin: 0; padding-left: 18px; color: var(--danger); font-size: 13px; font-family: var(--font-mono); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.card-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.card-head .grow { flex: 1 1 200px; min-width: 0; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); letter-spacing: .02em; }
+input, select, textarea { font: inherit; color: var(--fg); background: var(--inset); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; min-height: 36px; max-width: 100%; }
+select { max-width: 260px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input.num { width: 100px; }
+input.mono, textarea { font-family: var(--font-mono); font-size: 13px; }
+button { font: inherit; font-size: 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 6px 12px; min-height: 36px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.ghost { border-color: transparent; background: transparent; color: var(--muted); padding: 6px 8px; }
+button.ghost:hover { color: var(--danger); }
+button.small { min-height: 30px; padding: 3px 10px; font-size: 13px; }
+.branch { border-radius: 10px; background: var(--inset); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.branch-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tag { font: 600 12px/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; padding: 5px 8px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); }
+.tag.else { background: var(--line); color: var(--fg); }
+.lines { display: flex; flex-direction: column; gap: 8px; }
+.line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.line .sep { color: var(--muted); font-size: 13px; }
+.line textarea { flex: 1 1 260px; min-height: 60px; }
+.subhead { font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.empty { color: var(--muted); font-size: 13px; font-style: italic; }
+.result { font: 12.5px/1.4 var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+.login { max-width: 420px; margin: 40px auto; }
+details summary { cursor: pointer; font-weight: 500; }
+details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
+.badge { font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { button { transition: border-color .15s; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="t">
+      <h1>Smart Controls Builder</h1>
+      <p>Conditional buttons for the Remote Self-Control integration. Each button checks your devices or the remote, then runs the first branch that matches.</p>
+    </div>
+    <div class="row" id="session-bar" hidden>
+      <span class="badge" id="device-count"></span>
+      <button class="small" id="reload" type="button">Reload devices</button>
+      <button class="small" id="logout" type="button">Log out</button>
+    </div>
+  </header>
+
+  <form class="panel login" id="login" hidden>
+    <h2>Log in</h2>
+    <p class="hint">Enter the web-configurator PIN. Find it on the remote under Settings → Web configurator.</p>
+    <label class="f" for="pin">PIN<input id="pin" type="password" inputmode="numeric" autocomplete="current-password" required></label>
+    <div class="row"><button class="primary" type="submit">Log in</button><span id="login-status" class="status" role="status"></span></div>
+  </form>
+
+  <div class="panes" id="app" hidden>
+    <section class="editor" aria-label="Smart controls">
+      <div id="buttons"></div>
+      <div class="row">
+        <button class="primary" id="add-button" type="button">Add smart control</button>
+        <select id="template" aria-label="Add from a template">
+          <option value="">Add from a template…</option>
+        </select>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="panel">
+        <h2>Save to the remote</h2>
+        <p class="hint" id="dirty-note">No unsaved changes.</p>
+        <div class="row">
+          <button class="primary" id="save" type="button">Save</button>
+          <button id="revert" type="button">Discard changes</button>
+        </div>
+        <div id="save-status" class="status" role="status"></div>
+        <ul class="errors" id="save-errors" hidden></ul>
+        <p class="note">After saving, add new controls to the integration (Integrations → Remote Self-Control → add entities) and to the activities that use them. Smart controls run in the background, so they can't switch the remote's screen to another activity.</p>
+      </div>
+      <div class="panel">
+        <h2>Last test</h2>
+        <div class="result" id="test-result">Use a control's Test button to run it once on the remote.</div>
+      </div>
+      <details class="panel">
+        <summary>Rules text (import / export)</summary>
+        <p class="hint">Copy this to back up or share your controls, or paste rules here and load them.</p>
+        <div class="row"><button class="small" id="copy" type="button">Copy</button><span id="copy-status" class="status"></span></div>
+        <pre class="json" id="json" tabindex="0"></pre>
+        <textarea id="import-text" class="mono" placeholder="Paste rules JSON to load"></textarea>
+        <div class="row">
+          <button class="small" id="import" type="button">Load pasted rules</button>
+          <button class="small" id="defaults" type="button">Load the defaults</button>
+          <span id="import-status" class="status"></span>
+        </div>
+      </details>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = (s) => document.querySelector(s);
+const OPS = { is: "is", is_not: "is not", ">": "is above", "<": "is below", contains: "contains" };
+let CAT = { devices: [], activities: [], controls: {}, settings: {} };
+let DEV = {};           // id -> device
+let buttons = [];       // editor model
+let saved = "";         // JSON of the last saved rules, for dirty tracking
+
+// ---------------------------------------------------------------------------
+// API
+// ---------------------------------------------------------------------------
+async function api(method, url, body) {
+  const res = await fetch(url, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" });
+  let data = {};
+  try { data = await res.json(); } catch {}
+  if (res.status === 401 && url !== "/api/login") { showLogin("Your session ended. Log in again."); throw new Error("not logged in"); }
+  return { status: res.status, ok: res.ok, data };
+}
+
+// ---------------------------------------------------------------------------
+// Model <-> rules JSON
+// ---------------------------------------------------------------------------
+const opOf = (o) => Object.keys(OPS).find((k) => k in o) || ("in" in o ? "in" : "is");
+const valOf = (o, op) => (Array.isArray(o[op]) ? o[op].join(", ") : String(o[op] ?? ""));
+
+function condIn(c, A) {
+  if (c && c.entity && !c.all && !c.any) { const op = opOf(c); return { t: "device", ent: A[c.entity] || c.entity, attr: c.attr || "state", op, val: valOf(c, op) }; }
+  if (c && c.activity_on) return { t: "activity", act: A[c.activity_on] || c.activity_on, neg: false };
+  if (c && c.not && c.not.activity_on) return { t: "activity", act: A[c.not.activity_on] || c.not.activity_on, neg: true };
+  if (c && c.time_between) return { t: "time", from: c.time_between[0], to: c.time_between[1] };
+  if (c && c.var) { const op = opOf(c); return { t: "var", name: c.var, op, val: valOf(c, op) }; }
+  if (c && c.control) { const op = opOf(c); return { t: "control", key: c.control, op, val: valOf(c, op) }; }
+  if (c && c.setting) { const op = opOf(c); return { t: "setting", path: c.setting, op, val: valOf(c, op) }; }
+  return { t: "raw", json: JSON.stringify(c) };
+}
+function condOut(c) {
+  const v = (x) => (x !== "" && !isNaN(Number(x)) && (c.op === ">" || c.op === "<") ? Number(x) : x);
+  switch (c.t) {
+    case "device": { const o = { entity: c.ent }; if (c.attr && c.attr !== "state") o.attr = c.attr; o[c.op] = v(c.val); return o; }
+    case "activity": return c.neg ? { not: { activity_on: c.act } } : { activity_on: c.act };
+    case "time": return { time_between: [c.from || "22:00", c.to || "06:00"] };
+    case "var": return { var: c.name || "my_var", [c.op]: v(c.val) };
+    case "control": return { control: c.key, [c.op]: v(c.val) };
+    case "setting": return { setting: c.path, [c.op]: v(c.val) };
+    default: try { return JSON.parse(c.json); } catch { return { invalid_json: c.json }; }
+  }
+}
+function stepIn(a, A) {
+  if (a.cmd && a.entity) return { t: "cmd", ent: A[a.entity] || a.entity, cmd: a.cmd, params: { ...(a.params || {}) } };
+  if (a.self) return { t: "self", key: a.self, val: String(a.option ?? a.state ?? "") };
+  if ("delay" in a) return { t: "delay", ms: Number(a.delay) };
+  if (a.wait_until && a.wait_until.entity && !a.wait_until.all) {
+    const c = condIn(a.wait_until, A);
+    return { t: "wait", ent: c.ent, attr: c.attr, op: c.op, val: c.val, timeout: Number(a.timeout || 8000) };
+  }
+  if (a.set_var) return { t: "setvar", name: a.set_var, to: String(a.to) };
+  if (a.save_settings) return { t: "save", name: a.save_settings };
+  if (a.restore_settings) return { t: "restore", name: a.restore_settings };
+  if (a.stop) return { t: "stop" };
+  return { t: "raw", json: JSON.stringify(a) };
+}
+function stepOut(s) {
+  switch (s.t) {
+    case "cmd": { const o = { cmd: s.cmd, entity: s.ent }; const p = Object.fromEntries(Object.entries(s.params || {}).filter(([, v]) => v !== "" && v !== undefined)); if (Object.keys(p).length) o.params = p; return o; }
+    case "self": return CAT.controls[s.key]?.switch ? { self: s.key, state: s.val || "on" } : { self: s.key, option: s.val };
+    case "delay": return { delay: Number(s.ms) || 0 };
+    case "wait": { const o = { entity: s.ent }; if (s.attr !== "state") o.attr = s.attr; o[s.op] = s.val; return { wait_until: o, timeout: Number(s.timeout) || 8000 }; }
+    case "setvar": return { set_var: s.name || "my_var", to: s.to };
+    case "save": return { save_settings: s.name || "saved" };
+    case "restore": return { restore_settings: s.name || "saved" };
+    case "stop": return { stop: true };
+    default: try { return JSON.parse(s.json); } catch { return { invalid_json: s.json }; }
+  }
+}
+function fromRules(r) {
+  const A = r.aliases || {};
+  return (r.buttons || []).map((b) => {
+    let cases = b.cases;
+    if (!cases) { cases = [{ if: b.if ?? true, do: b.do || [] }]; if (b.else) cases.push({ else: b.else }); }
+    const out = { id: b.id || "", name: b.name || "", cases: [], otherwise: null };
+    for (const c of cases) {
+      if ("else" in c) { out.otherwise = (c.else || []).map((a) => stepIn(a, A)); continue; }
+      let join = "all", conds = [];
+      const cond = c.if;
+      if (cond === true || cond === undefined) conds = [];
+      else if (cond.all || cond.any) { join = cond.all ? "all" : "any"; conds = (cond.all || cond.any).map((x) => condIn(x, A)); }
+      else conds = [condIn(cond, A)];
+      out.cases.push({ join, conds, steps: (c.do || []).map((a) => stepIn(a, A)) });
+    }
+    return out;
+  });
+}
+function toRules(list) {
+  return {
+    buttons: list.map((b) => {
+      const cases = b.cases.map((c) => {
+        const conds = c.conds.map(condOut);
+        const cond = conds.length === 0 ? true : conds.length === 1 ? conds[0] : { [c.join]: conds };
+        return { if: cond, do: c.steps.map(stepOut) };
+      });
+      if (b.otherwise) cases.push({ else: b.otherwise.map(stepOut) });
+      return { id: b.id, name: b.name, cases };
+    })
+  };
+}
+const slug = (s) => {
+  const base = s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return (/^smart(_|$)/.test(base) ? base : "smart_" + base).slice(0, 40).replace(/_+$/, "");
+};
+
+// ---------------------------------------------------------------------------
+// Small DOM helpers
+// ---------------------------------------------------------------------------
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "on") for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn);
+    else if (k === "class") e.className = v;
+    else if (v !== undefined && v !== null && v !== false) e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat()) if (k !== null && k !== undefined) e.append(k.nodeType ? k : document.createTextNode(k));
+  return e;
+};
+let uid = 0;
+const nid = (p) => `${p}-${++uid}`;
+function select(id, options, value, onChange, label) {
+  const s = el("select", { id, "aria-label": label, on: { change: (e) => onChange(e.target.value) } });
+  let found = false;
+  for (const o of options) {
+    if (o.group) { const g = el("optgroup", { label: o.group }); for (const [v, t] of o.items) { const op = el("option", { value: v }, t); if (v === value) { op.selected = true; found = true; } g.append(op); } s.append(g); continue; }
+    const [v, t] = o; const op = el("option", { value: v }, t); if (v === value) { op.selected = true; found = true; } s.append(op);
+  }
+  if (!found && value) { const op = el("option", { value }, value + " (not found)"); op.selected = true; s.prepend(op); }
+  return s;
+}
+function input(id, value, onInput, { label, list, cls, placeholder, type = "text" } = {}) {
+  return el("input", { id, type, value: value ?? "", "aria-label": label, class: cls, placeholder, list, on: { input: (e) => onInput(e.target.value) } });
+}
+const datalist = (id, items) => el("datalist", { id }, (items || []).map((x) => el("option", { value: String(x) })));
+const TYPE_NAMES = { media_player: "Media players", activity: "Activities", macro: "Macros", remote: "Remotes", light: "Lights", switch: "Switches", select: "Lists", cover: "Covers", climate: "Climate", button: "Buttons", sensor: "Sensors", ir_emitter: "IR emitters", voice_assistant: "Voice" };
+function deviceOptions(filter) {
+  const groups = {};
+  for (const d of CAT.devices) { if (filter && !filter(d)) continue; (groups[d.type] = groups[d.type] || []).push([d.id, d.name]); }
+  return Object.entries(groups).map(([t, items]) => ({ group: TYPE_NAMES[t] || t, items }));
+}
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const countText = () => `${plural(CAT.devices.length, "device")} · ${plural(CAT.activities.length, "activity").replace(/activitys$/, "activities")}`;
+const firstDevice = (pred) => CAT.devices.find(pred) || CAT.devices[0];
+
+// ---------------------------------------------------------------------------
+// Editor rendering
+// ---------------------------------------------------------------------------
+function changed(rerender) {
+  const text = JSON.stringify(toRules(buttons), null, 2);
+  $("#json").textContent = text;
+  const dirty = text !== saved;
+  $("#dirty-note").textContent = dirty ? "You have unsaved changes." : "No unsaved changes.";
+  $("#save").disabled = !dirty;
+  $("#revert").disabled = !dirty;
+  if (rerender) render();
+}
+
+function valueInput(id, dev, attr, val, onInput) {
+  const lid = id + "-l";
+  const list = dev && dev.values ? dev.values[attr] : [];
+  return [input(id, val, onInput, { label: "Value", list: lid }), datalist(lid, list)];
+}
+
+function condRow(cond, list, idx) {
+  const id = nid("c");
+  const kinds = [["device", "Device"], ["activity", "Activity"], ["time", "Time of day"], ["control", "This remote's control"], ["setting", "This remote's setting"], ["var", "Memory"], ["raw", "Advanced (JSON)"]];
+  const row = el("div", { class: "line" });
+  row.append(select(id + "-k", kinds, cond.t, (t) => { list[idx] = newCond(t); changed(true); }, "Condition type"));
+  if (cond.t === "device") {
+    const dev = DEV[cond.ent];
+    row.append(select(id + "-d", deviceOptions((d) => d.type !== "activity" && d.type !== "macro"), cond.ent, (v) => { cond.ent = v; cond.attr = "state"; cond.val = ""; changed(true); }, "Device"));
+    const attrs = dev ? Object.keys(dev.values) : [cond.attr];
+    row.append(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), cond.attr, (v) => { cond.attr = v; cond.val = ""; changed(true); }, "What to check"));
+    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; changed(false); }, "Comparison"));
+    row.append(...valueInput(id + "-v", dev, cond.attr, cond.val, (v) => { cond.val = v; changed(false); }));
+  } else if (cond.t === "activity") {
+    row.append(select(id + "-n", [["on", "is running"], ["off", "is not running"]], cond.neg ? "off" : "on", (v) => { cond.neg = v === "off"; changed(false); }, "Running or not"));
+    row.append(select(id + "-a", CAT.activities.map((a) => [a.id, a.name]), cond.act, (v) => { cond.act = v; changed(false); }, "Activity"));
+  } else if (cond.t === "time") {
+    row.append(el("span", { class: "sep" }, "between"), input(id + "-f", cond.from, (v) => { cond.from = v; changed(false); }, { label: "From", type: "time" }),
+      el("span", { class: "sep" }, "and"), input(id + "-t", cond.to, (v) => { cond.to = v; changed(false); }, { label: "To", type: "time" }));
+  } else if (cond.t === "control") {
+    const c = CAT.controls[cond.key];
+    row.append(select(id + "-c", Object.entries(CAT.controls).map(([k, d]) => [k, d.name]), cond.key, (v) => { cond.key = v; cond.val = ""; changed(true); }, "Control"));
+    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; changed(false); }, "Comparison"));
+    const lid = id + "-l";
+    row.append(input(id + "-v", cond.val, (v) => { cond.val = v; changed(false); }, { label: "Value", list: lid }), datalist(lid, c ? (c.switch ? ["on", "off"] : c.options) : []));
+  } else if (cond.t === "setting") {
+    row.append(select(id + "-s", Object.entries(CAT.settings), cond.path, (v) => { cond.path = v; changed(false); }, "Setting"));
+    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; changed(false); }, "Comparison"));
+    row.append(input(id + "-v", cond.val, (v) => { cond.val = v; changed(false); }, { label: "Value", cls: "num" }));
+  } else if (cond.t === "var") {
+    row.append(input(id + "-n", cond.name, (v) => { cond.name = v; changed(false); }, { label: "Memory name", cls: "mono", placeholder: "night_mode" }));
+    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; changed(false); }, "Comparison"));
+    row.append(input(id + "-v", cond.val, (v) => { cond.val = v; changed(false); }, { label: "Value", placeholder: "on" }));
+  } else {
+    row.append(el("textarea", { id: id + "-j", "aria-label": "Condition JSON", on: { input: (e) => { cond.json = e.target.value; changed(false); } } }, cond.json || "{}"));
+  }
+  row.append(el("button", { class: "ghost", type: "button", on: { click: () => { list.splice(idx, 1); changed(true); } } }, "Remove"));
+  return row;
+}
+
+function commandOptions(dev) {
+  const opts = [];
+  if (dev) {
+    if (dev.commands.length) opts.push({ group: "Commands", items: dev.commands.map((c) => [c.id, c.label]) });
+    if (dev.simple.length) opts.push({ group: "Simple commands", items: dev.simple.map((s) => [s, s]) });
+  }
+  return opts;
+}
+
+function stepRow(step, list, idx) {
+  const id = nid("s");
+  const kinds = [["cmd", "Device command"], ["self", "This remote's control"], ["delay", "Wait (time)"], ["wait", "Wait until"], ["setvar", "Set memory"], ["save", "Remember remote settings"], ["restore", "Restore remote settings"], ["stop", "Stop"], ["raw", "Advanced (JSON)"]];
+  const row = el("div", { class: "line" });
+  row.append(select(id + "-k", kinds, step.t, (t) => { list[idx] = newStep(t); changed(true); }, "Step type"));
+  if (step.t === "cmd") {
+    const dev = DEV[step.ent];
+    row.append(select(id + "-d", deviceOptions(), step.ent, (v) => { step.ent = v; const d = DEV[v]; step.cmd = d?.commands[0]?.id || d?.simple[0] || ""; step.params = {}; changed(true); }, "Device"));
+    row.append(select(id + "-c", commandOptions(dev), step.cmd, (v) => { step.cmd = v; step.params = {}; changed(true); }, "Command"));
+    const spec = dev?.commands.find((c) => c.id === step.cmd);
+    for (const p of spec?.params || []) {
+      const pid = id + "-p-" + p.key;
+      const isNum = p.type === "number";
+      if (p.list && p.list.length) row.append(select(pid, [["", p.label + "…"], ...p.list.map((x) => [String(x), String(x)])], String(step.params[p.key] ?? ""), (v) => { step.params[p.key] = v; changed(false); }, p.label));
+      else row.append(input(pid, step.params[p.key], (v) => { step.params[p.key] = isNum && v !== "" ? Number(v) : v; changed(false); }, { label: p.label, type: isNum ? "number" : "text", cls: isNum ? "num" : undefined, placeholder: p.label + (p.unit ? " (" + p.unit + ")" : "") }));
+    }
+  } else if (step.t === "self") {
+    row.append(select(id + "-c", Object.entries(CAT.controls).map(([k, d]) => [k, d.name]), step.key, (v) => { step.key = v; const c = CAT.controls[v]; step.val = c.switch ? "on" : c.options[0]; changed(true); }, "Control"));
+    const c = CAT.controls[step.key];
+    const opts = !c ? [] : c.switch ? [["on", "on"], ["off", "off"], ["toggle", "toggle"]] : [["next", "next (wraps)"], ["previous", "previous (wraps)"], ["up", "up one step"], ["down", "down one step"], ...c.options.map((o) => [o, o])];
+    row.append(select(id + "-v", opts, step.val, (v) => { step.val = v; changed(false); }, "Set to"));
+  } else if (step.t === "delay") {
+    row.append(input(id + "-m", step.ms, (v) => { step.ms = v; changed(false); }, { label: "Milliseconds", type: "number", cls: "num" }), el("span", { class: "sep" }, "ms"));
+  } else if (step.t === "wait") {
+    const dev = DEV[step.ent];
+    row.append(select(id + "-d", deviceOptions((d) => d.type !== "macro"), step.ent, (v) => { step.ent = v; step.attr = "state"; changed(true); }, "Device"));
+    const attrs = dev ? Object.keys(dev.values) : [step.attr];
+    row.append(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), step.attr, (v) => { step.attr = v; changed(true); }, "What to check"));
+    row.append(select(id + "-o", Object.entries(OPS), step.op, (v) => { step.op = v; changed(false); }, "Comparison"));
+    row.append(...valueInput(id + "-v", dev, step.attr, step.val, (v) => { step.val = v; changed(false); }));
+    row.append(el("span", { class: "sep" }, "up to"), input(id + "-t", step.timeout, (v) => { step.timeout = v; changed(false); }, { label: "Timeout ms", type: "number", cls: "num" }), el("span", { class: "sep" }, "ms"));
+  } else if (step.t === "setvar") {
+    row.append(input(id + "-n", step.name, (v) => { step.name = v; changed(false); }, { label: "Memory name", cls: "mono", placeholder: "night_mode" }), el("span", { class: "sep" }, "="),
+      input(id + "-v", step.to, (v) => { step.to = v; changed(false); }, { label: "Value", placeholder: "on" }));
+  } else if (step.t === "save" || step.t === "restore") {
+    row.append(el("span", { class: "sep" }, "backlight, display, sound and haptics as"), input(id + "-n", step.name, (v) => { step.name = v; changed(false); }, { label: "Name", cls: "mono", placeholder: "before_night_mode" }));
+  } else if (step.t === "raw") {
+    row.append(el("textarea", { id: id + "-j", "aria-label": "Step JSON", on: { input: (e) => { step.json = e.target.value; changed(false); } } }, step.json || "{}"));
+  }
+  row.append(
+    el("button", { class: "ghost small", type: "button", "aria-label": "Move step up", disabled: idx === 0, on: { click: () => { [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]]; changed(true); } } }, "↑"),
+    el("button", { class: "ghost", type: "button", on: { click: () => { list.splice(idx, 1); changed(true); } } }, "Remove")
+  );
+  return row;
+}
+
+function newCond(t) {
+  const d = firstDevice((x) => x.type === "media_player");
+  return {
+    device: { t, ent: d?.id || "", attr: "state", op: "is", val: "ON" },
+    activity: { t, act: CAT.activities[0]?.id || "", neg: false },
+    time: { t, from: "22:00", to: "06:00" },
+    control: { t, key: "backlight_color", op: "is", val: "" },
+    setting: { t, path: Object.keys(CAT.settings)[0] || "button.brightness", op: ">", val: "50" },
+    var: { t, name: "my_var", op: "is", val: "on" },
+    raw: { t, json: "{}" }
+  }[t];
+}
+function newStep(t) {
+  const d = firstDevice((x) => x.type === "media_player");
+  return {
+    cmd: { t, ent: d?.id || "", cmd: d?.commands[0]?.id || "", params: {} },
+    self: { t, key: "backlight_color", val: "next" },
+    delay: { t, ms: 500 },
+    wait: { t, ent: d?.id || "", attr: "state", op: "is_not", val: "OFF", timeout: 8000 },
+    setvar: { t, name: "my_var", to: "on" },
+    save: { t, name: "saved" }, restore: { t, name: "saved" },
+    stop: { t }, raw: { t, json: "{}" }
+  }[t];
+}
+
+function stepsBlock(list) {
+  const box = el("div", { class: "lines" });
+  if (!list.length) box.append(el("div", { class: "empty" }, "No steps: this branch does nothing."));
+  list.forEach((s, i) => box.append(stepRow(s, list, i)));
+  return [box, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { list.push(newStep("cmd")); changed(true); } } }, "Add step"))];
+}
+
+function render() {
+  const host = $("#buttons");
+  host.replaceChildren();
+  const wrap = el("div", { class: "lines", style: "gap:14px" });
+  buttons.forEach((b, bi) => {
+    const id = nid("b");
+    const card = el("article", { class: "card", "aria-label": b.name || "Smart control" });
+    const idIn = input(id + "-i", b.id, (v) => { b.id = v; changed(false); }, { label: "Id", cls: "mono" });
+    const nameIn = input(id + "-n", b.name, (v) => { const auto = !b.id || b.id === slug(b.name); b.name = v; if (auto) { b.id = slug(v); idIn.value = b.id; } changed(false); }, { label: "Name", placeholder: "Smart Volume Up" });
+    card.append(el("div", { class: "card-head" },
+      el("label", { class: "f grow", for: id + "-n" }, "Name (shown on the remote)", nameIn),
+      el("label", { class: "f grow", for: id + "-i" }, "Id (letters, digits, _)", idIn),
+      el("button", { class: "small", type: "button", on: { click: () => testButton(b.id) } }, "Test"),
+      el("button", { class: "ghost", type: "button", on: { click: () => { buttons.splice(bi, 1); changed(true); } } }, "Delete")
+    ));
+    b.cases.forEach((c, ci) => {
+      const br = el("div", { class: "branch" });
+      br.append(el("div", { class: "branch-head" },
+        el("span", { class: "tag" }, ci === 0 ? "If" : "Else if"),
+        c.conds.length > 1 ? select(id + "-j" + ci, [["all", "all of these are true"], ["any", "any of these is true"]], c.join, (v) => { c.join = v; changed(false); }, "Combine conditions") : el("span", { class: "sep" }, c.conds.length ? "" : "always"),
+        el("button", { class: "ghost small", type: "button", on: { click: () => { b.cases.splice(ci, 1); changed(true); } } }, "Remove branch")
+      ));
+      const cl = el("div", { class: "lines" });
+      c.conds.forEach((cond, k) => cl.append(condRow(cond, c.conds, k)));
+      br.append(cl, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { c.conds.push(newCond("device")); changed(true); } } }, "Add condition")));
+      br.append(el("div", { class: "subhead" }, "Then"), ...stepsBlock(c.steps));
+      card.append(br);
+    });
+    if (b.otherwise) {
+      const br = el("div", { class: "branch" });
+      br.append(el("div", { class: "branch-head" }, el("span", { class: "tag else" }, "Otherwise"),
+        el("button", { class: "ghost small", type: "button", on: { click: () => { b.otherwise = null; changed(true); } } }, "Remove branch")), ...stepsBlock(b.otherwise));
+      card.append(br);
+    }
+    card.append(el("div", { class: "row" },
+      el("button", { class: "small", type: "button", on: { click: () => { b.cases.push({ join: "all", conds: [newCond("device")], steps: [] }); changed(true); } } }, b.cases.length ? "Add else-if branch" : "Add if branch"),
+      b.otherwise ? null : el("button", { class: "small", type: "button", on: { click: () => { b.otherwise = []; changed(true); } } }, "Add otherwise branch")
+    ));
+    wrap.append(card);
+  });
+  if (!buttons.length) wrap.append(el("p", { class: "empty" }, "No smart controls yet. Add one, start from a template, or load the defaults."));
+  host.append(wrap);
+}
+
+// ---------------------------------------------------------------------------
+// Templates (use the first suitable devices; change them after adding)
+// ---------------------------------------------------------------------------
+const mp = () => CAT.devices.filter((d) => d.type === "media_player");
+const has = (d, cmd) => d && d.commands.some((c) => c.id === cmd);
+const TEMPLATES = {
+  remote_night_mode: { group: "This remote", name: "Night Mode (toggle, restores your settings)", rule: {"name": "Night Mode", "cases": [{"if": {"var": "night_mode", "is": "on"}, "do": [{"restore_settings": "before_night_mode"}, {"set_var": "night_mode", "to": "off"}]}, {"else": [{"save_settings": "before_night_mode"}, {"self": "backlight_color", "option": "Movie red"}, {"self": "backlight_level", "option": "10 %"}, {"self": "display_level", "option": "30 %"}, {"self": "sound_effects", "state": "off"}, {"set_var": "night_mode", "to": "on"}]}]} },
+  remote_quiet_mode: { group: "This remote", name: "Quiet Mode (sounds and haptics off, toggle)", rule: {"name": "Quiet Mode", "cases": [{"if": {"var": "quiet_mode", "is": "on"}, "do": [{"restore_settings": "before_quiet_mode"}, {"set_var": "quiet_mode", "to": "off"}]}, {"else": [{"save_settings": "before_quiet_mode"}, {"self": "sound_effects", "state": "off"}, {"self": "haptic", "state": "off"}, {"set_var": "quiet_mode", "to": "on"}]}]} },
+  remote_backlight_color_cycle: { group: "This remote", name: "Backlight color cycle", rule: {"name": "Backlight Color Cycle", "if": true, "do": [{"self": "backlight_color", "option": "next"}]} },
+  remote_display_brighter: { group: "This remote", name: "Display brighter", rule: {"name": "Display Brighter", "if": true, "do": [{"self": "display_level", "option": "up"}]} },
+  remote_display_dimmer: { group: "This remote", name: "Display dimmer", rule: {"name": "Display Dimmer", "if": true, "do": [{"self": "display_level", "option": "down"}]} },
+  remote_backlight_brighter: { group: "This remote", name: "Backlight brighter", rule: {"name": "Backlight Brighter", "if": true, "do": [{"self": "backlight_level", "option": "up"}]} },
+  remote_backlight_dimmer: { group: "This remote", name: "Backlight dimmer", rule: {"name": "Backlight Dimmer", "if": true, "do": [{"self": "backlight_level", "option": "down"}]} },
+  smart_volume: { group: "Your devices", name: "Smart volume (receiver, else TV)", make: () => {
+    const [a, b] = [mp().find((d) => has(d, "media_player.volume_up")), mp().filter((d) => has(d, "media_player.volume_up"))[1]];
+    return { name: "Smart Volume Up", cases: [{ join: "all", conds: [{ t: "device", ent: a?.id || "", attr: "state", op: "is", val: "ON" }], steps: [{ t: "cmd", ent: a?.id || "", cmd: "media_player.volume_up", params: {} }] }],
+      otherwise: [{ t: "cmd", ent: (b || a)?.id || "", cmd: "media_player.volume_up", params: {} }] }; } },
+  play_pause: { group: "Your devices", name: "Play/pause, or turn on if off", make: () => {
+    const d = mp().find((x) => has(x, "media_player.play_pause")) || mp()[0];
+    return { name: "Smart Play/Pause", cases: [{ join: "all", conds: [{ t: "device", ent: d?.id || "", attr: "state", op: "is", val: "OFF" }], steps: [{ t: "cmd", ent: d?.id || "", cmd: "media_player.on", params: {} }] }],
+      otherwise: [{ t: "cmd", ent: d?.id || "", cmd: "media_player.play_pause", params: {} }] }; } },
+  input_wait: { group: "Your devices", name: "Switch input, turning the device on first", make: () => {
+    const d = mp().find((x) => has(x, "media_player.select_source")) || mp()[0];
+    const src = d?.values.source?.[0] || "";
+    const sel = { t: "cmd", ent: d?.id || "", cmd: "media_player.select_source", params: { source: src } };
+    return { name: "Smart Input", cases: [{ join: "all", conds: [{ t: "device", ent: d?.id || "", attr: "state", op: "is_not", val: "OFF" }], steps: [sel] }],
+      otherwise: [{ t: "cmd", ent: d?.id || "", cmd: "media_player.on", params: {} }, { t: "wait", ent: d?.id || "", attr: "state", op: "is_not", val: "OFF", timeout: 10000 }, { t: "delay", ms: 1000 }, JSON.parse(JSON.stringify(sel))] }; } },
+  sound_cycle: { group: "Your devices", name: "Cycle sound modes", make: () => {
+    const d = mp().find((x) => has(x, "media_player.select_sound_mode")) || mp()[0];
+    const modes = (d?.values.sound_mode || ["STEREO", "MOVIE", "MUSIC"]).slice(0, 3);
+    const cases = modes.map((m, i) => ({ join: "all", conds: [{ t: "device", ent: d?.id || "", attr: "sound_mode", op: "is", val: m }], steps: [{ t: "cmd", ent: d?.id || "", cmd: "media_player.select_sound_mode", params: { mode: modes[(i + 1) % modes.length] } }] }));
+    return { name: "Sound Mode Cycle", cases: [{ join: "all", conds: [{ t: "device", ent: d?.id || "", attr: "state", op: "is", val: "OFF" }], steps: [] }, ...cases], otherwise: [{ t: "cmd", ent: d?.id || "", cmd: "media_player.select_sound_mode", params: { mode: modes[0] } }] }; } },
+  evening_backlight: { group: "This remote", name: "Backlight by time of day", make: () => ({ name: "Evening Backlight",
+    cases: [{ join: "all", conds: [{ t: "time", from: "20:00", to: "07:00" }], steps: [{ t: "self", key: "backlight_color", val: "Amber" }, { t: "self", key: "backlight_level", val: "30 %" }] }],
+    otherwise: [{ t: "self", key: "backlight_color", val: "Cool white" }, { t: "self", key: "backlight_level", val: "100 %" }] }) },
+  activity_aware: { group: "Your devices", name: "Different action per running activity", make: () => {
+    const a = CAT.activities[0]; const d = mp()[0];
+    return { name: "Activity Aware Button", cases: [{ join: "all", conds: [{ t: "activity", act: a?.id || "", neg: false }], steps: [{ t: "cmd", ent: d?.id || "", cmd: d?.commands[0]?.id || "", params: {} }] }], otherwise: [] }; } }
+};
+for (const g of ["This remote", "Your devices"]) {
+  const og = el("optgroup", { label: g });
+  for (const [k, t] of Object.entries(TEMPLATES)) if (t.group === g) og.append(el("option", { value: k }, t.name));
+  $("#template").append(og);
+}
+$("#template").addEventListener("change", (e) => {
+  const t = TEMPLATES[e.target.value];
+  e.target.value = "";
+  if (!t) return;
+  const b = t.rule ? { name: t.rule.name, ...fromRules({ buttons: [{ id: "x", ...t.rule }] })[0] } : t.make();
+  delete b.id;
+  let id = slug(b.name), n = 2;
+  while (buttons.some((x) => x.id === id)) id = slug(b.name) + "_" + n++;
+  buttons.push({ ...b, id });
+  changed(true);
+  setTimeout(() => document.querySelector("#buttons article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+});
+
+// ---------------------------------------------------------------------------
+// Save / test / import
+// ---------------------------------------------------------------------------
+async function save() {
+  const st = $("#save-status"), errs = $("#save-errors");
+  errs.hidden = true; errs.replaceChildren();
+  st.className = "status"; st.textContent = "Saving…";
+  const rules = toRules(buttons);
+  const r = await api("POST", "/api/rules", { rules });
+  if (r.ok) {
+    saved = JSON.stringify(rules, null, 2);
+    st.className = "status ok"; st.textContent = `Saved ${r.data.buttons.length} control${r.data.buttons.length === 1 ? "" : "s"} to the remote.`;
+    changed(false);
+    return true;
+  }
+  st.className = "status err"; st.textContent = r.data.error || "Not saved. Fix these and save again:";
+  for (const e of r.data.errors || []) errs.append(el("li", {}, e));
+  errs.hidden = !(r.data.errors || []).length;
+  return false;
+}
+async function testButton(id) {
+  const out = $("#test-result");
+  if ($("#json").textContent !== saved) {
+    out.textContent = "Saving first…";
+    if (!(await save())) { out.textContent = "Not tested: the rules have errors. Fix them and try again."; return; }
+  }
+  out.textContent = "Running " + id + "…";
+  const r = await api("POST", "/api/test", { id });
+  out.textContent = r.ok ? r.data.summary : "Couldn't run: " + (r.data.error || r.status);
+}
+$("#save").addEventListener("click", save);
+$("#revert").addEventListener("click", () => { buttons = fromRules(JSON.parse(saved)); changed(true); $("#save-status").textContent = ""; });
+$("#add-button").addEventListener("click", () => {
+  let n = buttons.length + 1; while (buttons.some((b) => b.id === "smart_control_" + n)) n++;
+  buttons.push({ id: "smart_control_" + n, name: "Smart Control " + n, cases: [{ join: "all", conds: [newCond("device")], steps: [newStep("cmd")] }], otherwise: [] });
+  changed(true);
+});
+$("#import").addEventListener("click", () => {
+  const st = $("#import-status");
+  try {
+    const r = JSON.parse($("#import-text").value);
+    if (!Array.isArray(r.buttons)) throw new Error('no "buttons" list found');
+    buttons = fromRules(r); changed(true);
+    st.className = "status ok"; st.textContent = `Loaded ${buttons.length}. Save to keep them.`;
+  } catch (e) { st.className = "status err"; st.textContent = "Couldn't load: " + e.message; }
+});
+const defBtn = $("#defaults");
+defBtn.addEventListener("click", async () => {
+  if (defBtn.dataset.armed !== "1") { defBtn.dataset.armed = "1"; defBtn.textContent = "Replace the editor? Click again"; setTimeout(() => { defBtn.dataset.armed = ""; defBtn.textContent = "Load the defaults"; }, 4000); return; }
+  defBtn.dataset.armed = ""; defBtn.textContent = "Load the defaults";
+  const r = await api("GET", "/api/defaults");
+  buttons = fromRules(JSON.parse(r.data.text)); changed(true);
+  $("#import-status").className = "status ok"; $("#import-status").textContent = "Defaults loaded. Save to keep them.";
+});
+$("#copy").addEventListener("click", () => {
+  const st = $("#copy-status");
+  const fallback = () => { const r = document.createRange(); r.selectNodeContents($("#json")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); st.className = "status"; st.textContent = "Selected: press Ctrl+C."; };
+  try { navigator.clipboard.writeText($("#json").textContent).then(() => { st.className = "status ok"; st.textContent = "Copied."; }, fallback); } catch { fallback(); }
+});
+window.addEventListener("beforeunload", (e) => { if ($("#json").textContent && $("#json").textContent !== saved) { e.preventDefault(); e.returnValue = ""; } });
+
+// ---------------------------------------------------------------------------
+// Session
+// ---------------------------------------------------------------------------
+function showLogin(msg) {
+  $("#app").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false;
+  $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
+  $("#pin").focus();
+}
+async function loadAll() {
+  const [cat, rules] = await Promise.all([api("GET", "/api/catalog"), api("GET", "/api/rules")]);
+  if (!cat.ok) { $("#login").hidden = true; $("#app").hidden = false; $("#buttons").replaceChildren(el("p", { class: "status err" }, cat.data.error || "Couldn't read the remote's devices.")); return; }
+  CAT = cat.data;
+  DEV = Object.fromEntries(CAT.devices.map((d) => [d.id, d]));
+  $("#device-count").textContent = countText();
+  let parsed;
+  try { parsed = JSON.parse(rules.data.text); } catch { parsed = { buttons: [] }; }
+  buttons = fromRules(parsed);
+  saved = JSON.stringify(toRules(buttons), null, 2);
+  $("#login").hidden = true; $("#app").hidden = false; $("#session-bar").hidden = false;
+  changed(true);
+}
+$("#login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const st = $("#login-status");
+  st.className = "status"; st.textContent = "Checking…";
+  const r = await api("POST", "/api/login", { pin: $("#pin").value });
+  if (!r.ok) { st.className = "status err"; st.textContent = r.data.error || "Login failed."; return; }
+  $("#pin").value = "";
+  await loadAll();
+});
+$("#logout").addEventListener("click", async () => { await api("POST", "/api/logout"); showLogin(); });
+$("#reload").addEventListener("click", async () => {
+  const keep = toRules(buttons);
+  const cat = await api("GET", "/api/catalog");
+  if (cat.ok) { CAT = cat.data; DEV = Object.fromEntries(CAT.devices.map((d) => [d.id, d])); $("#device-count").textContent = countText(); buttons = fromRules(keep); changed(true); }
+});
+
+(async () => {
+  try {
+    const s = await api("GET", "/api/session");
+    if (s.data.loggedIn) await loadAll(); else showLogin();
+  } catch { showLogin("Couldn't reach the integration. Is the remote awake?"); }
+})();
+})();
+</script>
+</body>
+</html>

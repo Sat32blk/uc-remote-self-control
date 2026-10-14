@@ -1,0 +1,21 @@
+{
+  "name": "uc-remote-self-control",
+  "version": "0.4.0",
+  "description": "Unfolded Circle Remote integration that controls the remote's own settings, with conditional Smart Controls and a built-in builder page.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node test/run-test.js && node test/smart-test.js && node test/return-test.js"
+  },
+  "dependencies": {
+    "@unfoldedcircle/integration-api": "0.5.0"
+  },
+  "devDependencies": {
+    "ws": "^8.22.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sat32blk/uc-remote-self-control.git"
+  }
+}
