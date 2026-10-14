@@ -190,7 +190,7 @@ export function start(port) {
       if (em) {
         const id = decodeURIComponent(em[1]);
         if (!devices[id]) return send(404, { message: "no entity " + id });
-        if (!em[2] && req.method === "GET") return send(200, { entity_id: id, attributes: devices[id] });
+        if (!em[2] && req.method === "GET") return send(200, { entity_id: id, name: { en: NAMES[id] }, attributes: devices[id] });
         if (em[2] && req.method === "PUT") {
           const b = JSON.parse(body);
           commands.push({ entity: id, cmd_id: b.cmd_id, params: b.params });

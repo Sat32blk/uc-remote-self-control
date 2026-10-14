@@ -260,8 +260,29 @@ export class SmartEngine {
     if (!core) throw new Error("not connected to the remote");
     const e = await core.get(`/entities/${encodeURI(id)}`);
     const attrs = (e && e.attributes) || {};
+    this.rememberName(id, e?.name);
     if (cache) cache.set(id, attrs);
     return attrs;
+  }
+
+  rememberName(id, name) {
+    this.names = this.names || {};
+    const n = name && typeof name === "object" ? name.en || Object.values(name)[0] : name;
+    if (n) this.names[id] = String(n);
+  }
+
+  /** Device name for summaries (falls back to the alias or id). */
+  async displayName(ref) {
+    const id = this.resolve(ref);
+    this.names = this.names || {};
+    if (!(id in this.names)) {
+      this.names[id] = "";
+      try {
+        const e = await this.core()?.get(`/entities/${encodeURI(id)}`);
+        this.rememberName(id, e?.name);
+      } catch {}
+    }
+    return this.names[id] || ref;
   }
 
   async test(c, cache) {
@@ -293,7 +314,8 @@ export class SmartEngine {
       const core = this.core();
       if (!core) throw new Error("not connected to the remote");
       await core.request("PUT", `/entities/${encodeURI(id)}/command`, { cmd_id: a.cmd, params: a.params || undefined });
-      trail.push(`${a.entity} ${a.cmd.split(".").pop()}${a.params ? " " + Object.values(a.params).join(",") : ""}`);
+      const what = a.cmd.split(".").pop().replace(/_/g, " ");
+      trail.push(`${await this.displayName(a.entity)} ${what}${a.params ? " " + Object.values(a.params).join(",") : ""}`);
     } else if (a.self) {
       await this.self.run(a.self, a);
       trail.push(`${a.self} → ${a.option ?? a.state}`);
