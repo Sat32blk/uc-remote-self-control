@@ -6,6 +6,7 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
 
 - **Remote settings as entities:** button backlight level and color, display brightness and timeout, sleep timeout, wake sensitivity, Wake on LAN, sound effects and volume, haptics. Use them in activities, macros, pages, buttons and the touch slider.
 - **Smart Controls:** buttons with if / else logic ("if the receiver is on, turn *it* up, otherwise the TV"), built in a browser page the integration serves itself.
+- **State icons:** make a button on a page change its icon with a device's state, like a green power icon while the receiver is on. Pick the button, drop in an image per state.
 - **Return to previous activity:** a ↩ button (on screen or a physical button) that always takes you back to the activity you came from.
 
 > [!WARNING]
@@ -28,6 +29,7 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
   5. [Backlight by time of day](#5-backlight-by-time-of-day)
   6. [Return to the previous activity](#6-return-to-the-previous-activity)
   7. [Display brightness on the touch slider](#7-display-brightness-on-the-touch-slider)
+  8. [A power icon that turns green when the receiver is on](#8-a-power-icon-that-turns-green-when-the-receiver-is-on)
 - [The builder](#the-builder)
 - [Entities](#entities)
 - [Rules reference](#rules-reference)
@@ -143,6 +145,21 @@ Limit: the remote reports an activity "starting" only when it goes from off to o
 2. In an activity's user-interface settings, set the **touch slider** to **Display Brightness**.
 3. Slide to set the screen brightness. It turns display auto brightness off; *off* means the dimmest level.
 
+### 8. A power icon that turns green when the receiver is on
+
+State icons make a button on a page follow a device's state. The button's own icon or text is the **default** look; you drop in an image (and/or type a label) for each state.
+
+1. Put a button on the page of a **single-page** activity, for example a gray power icon or a text button "Receiver". This is what it shows when the receiver is off.
+2. Open the builder and switch to the **State Icons** tab → **Add state icon**.
+3. **The button:** pick the activity, then click the button in the drawing of its page.
+4. **What it shows:** pick the device (your receiver) and what to check (*state*). The builder shows its value right now.
+5. **Looks:** for *ON*, drag in a green power image (any PNG, JPG or SVG; it's resized to 90×90 and uploaded to the remote) and optionally a label like "Receiver ON". Add more states if you like (*STANDBY*, an input name, …).
+6. **Save.** Within about 2 seconds of the receiver turning on, the button shows the green icon; when it turns off it goes back to its default. What the button does when pressed doesn't change.
+
+![State icons in the builder](docs/images/state-icons.png)
+
+Why single-page activities only: when a page of the activity on screen changes, the remote jumps back to that activity's first page (tested on a Remote 3). On a single-page activity the icon simply updates in place, without a flash or reload.
+
 ## The builder
 
 The integration serves its own builder page on your network, at `http://<remote-name>.local:10123/` or `http://<remote-ip>:10123/`. The exact addresses are shown in Integrations → Remote Self-Control → Configure.
@@ -191,6 +208,7 @@ Grouped by area in the web configurator.
 | | Sound Effects | switch | on/off |
 | | Haptic Feedback | switch | on/off |
 | **Remote Navigation** | Previous Activity | sensor | name of the activity used before the current one |
+| *(builder)* | State icons | page buttons | icon/label follows a device's state (single-page activities) |
 | **Remote Smart Controls** | (your Smart Controls) | button | press to run |
 | | Smart Controls: Last Result | sensor | what the last Smart Control did, or its error |
 
@@ -254,9 +272,9 @@ For lists, `option` can also be `next` / `previous` (wraps around) or `up` / `do
 | Environment variable | Default | Purpose |
 |---|---|---|
 | `UC_SELF_BUILDER_PORT` | `10123` | Port of the builder page |
-| `UC_SELF_RETURN_POLL_MS` | `2000` | How often activity states are read for the ↩ button |
+| `UC_SELF_RETURN_POLL_MS` | `2000` | How often activity states (↩ button) and state-icon devices are read |
 
-Files in the integration's config folder: `self_control.json` (address + API key), `smart_rules.json` (your rules; absent = defaults), `smart_vars.json` (remembered values), `return.json` (↩ settings and activity history).
+Files in the integration's config folder: `self_control.json` (address + API key), `smart_rules.json` (your rules; absent = defaults), `smart_vars.json` (remembered values), `return.json` (↩ settings and activity history), `state_icons.json` (state icons and each button's default look).
 
 ## Logs and removal
 
@@ -274,6 +292,7 @@ src/bin/web.js                          builder web server and device catalog
 src/bin/web/builder.html                builder page (no external files; works offline)
 src/bin/tile.js                         puts the Last Result tile on an activity page
 src/bin/returnbtn.js                    return to previous activity (tracking + ↩ buttons)
+src/bin/stateicons.js                   state icons (watch devices, switch button looks)
 src/bin/default-rules.json              default Smart Controls (Smart Test Button)
 examples/                               example rules
 test/                                   fake Core API + Integration-API test client
@@ -284,7 +303,7 @@ Tests (Node 22):
 ```
 npm install                 # dev dependency: ws
 (cd src/bin && npm install)
-npm test                    # settings, Smart Controls + builder API, return button
+npm test                    # settings, Smart Controls + builder API, return button, state icons
 ```
 
 Build the install archive:
@@ -297,6 +316,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **0.5.0:** **State icons**: new *State Icons* tab in the builder. Pick a button on a single-page activity, a device and what to check, then drop an image and/or type a label per state; the button switches look within about 2 seconds and returns to its own look otherwise. Images are resized to 90×90 and uploaded to the remote. Builder renamed *Remote Self-Control Builder* with *Smart Controls* and *State Icons* tabs.
 - **0.4.0:** Return to previous activity: tracks the activities you start and keeps a ↩ text or icon button and/or a physical button pointed at the previous one, set up in the integration's Configure menu. New Previous Activity sensor (area Remote Navigation). Smart Control results name devices instead of showing entity ids.
 - **0.3.2:** new **Display Brightness** light entity so the Remote 3 touch slider can set the display brightness.
 - **0.3.1:** setup option "Add the Last Result tile to an activity".

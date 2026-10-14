@@ -69,6 +69,27 @@ button.small { min-height: 30px; padding: 3px 10px; font-size: 13px; }
 details summary { cursor: pointer; font-weight: 500; }
 details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .badge { font-size: 12px; color: var(--muted); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-weight: 600; padding: 8px 14px; }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.pagegrid { display: grid; gap: 6px; background: #0f1114; padding: 10px; border-radius: 14px; width: min(100%, 320px); }
+.pagegrid .it { position: relative; background: #20252c; color: #c9ced5; border-radius: 8px; font-size: 11px; display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden; padding: 2px; border: 2px solid transparent; min-height: 0; min-width: 0; }
+.pagegrid .it img { height: 85%; max-width: 100%; object-fit: contain; }
+.pagegrid button.it { cursor: pointer; font: inherit; font-size: 11px; color: #e8eaed; }
+.pagegrid button.it:hover { border-color: var(--muted); }
+.pagegrid .it.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.pagegrid .it.off { opacity: .45; }
+.pagegrid .it.bound::after { content: "●"; color: var(--accent); position: absolute; top: 1px; right: 4px; font-size: 10px; }
+.statebox { display: grid; grid-template-columns: minmax(110px, 1fr) 72px minmax(110px, 1fr) auto; gap: 8px; align-items: center; }
+@media (max-width: 560px) { .statebox { grid-template-columns: 1fr 72px; } }
+.drop { width: 72px; height: 72px; border: 2px dashed var(--line); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); text-align: center; cursor: pointer; background: #0f1114; overflow: hidden; position: relative; }
+.drop.over { border-color: var(--accent); }
+.drop img { width: 60px; height: 60px; object-fit: contain; }
+.drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.thumb { width: 72px; height: 72px; border-radius: 10px; background: #0f1114; display: flex; align-items: center; justify-content: center; color: #c9ced5; font-size: 11px; text-align: center; overflow: hidden; }
+.thumb img { width: 60px; height: 60px; object-fit: contain; }
+.live { font-size: 13px; color: var(--muted); }
+.live b { color: var(--fg); }
 @media (prefers-reduced-motion: no-preference) { button { transition: border-color .15s; } }
 </style>
 </head>
@@ -76,8 +97,8 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 <div class="wrap">
   <header>
     <div class="t">
-      <h1>Smart Controls Builder</h1>
-      <p>Conditional buttons for the Remote Self-Control integration. Each button checks your devices or the remote, then runs the first branch that matches.</p>
+      <h1>Remote Self-Control Builder</h1>
+      <p id="tab-intro">Conditional buttons for the Remote Self-Control integration. Each button checks your devices or the remote, then runs the first branch that matches.</p>
     </div>
     <div class="row" id="session-bar" hidden>
       <span class="badge" id="device-count"></span>
@@ -92,6 +113,11 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
     <label class="f" for="pin">PIN<input id="pin" type="password" inputmode="numeric" autocomplete="current-password" required></label>
     <div class="row"><button class="primary" type="submit">Log in</button><span id="login-status" class="status" role="status"></span></div>
   </form>
+
+  <nav class="tabs" id="tabs" role="tablist" hidden>
+    <button type="button" role="tab" id="tab-smart" aria-selected="true" aria-controls="app">Smart Controls</button>
+    <button type="button" role="tab" id="tab-icons" aria-selected="false" aria-controls="icons-app">State Icons</button>
+  </nav>
 
   <div class="panes" id="app" hidden>
     <section class="editor" aria-label="Smart controls">
@@ -132,6 +158,30 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
           <span id="import-status" class="status"></span>
         </div>
       </details>
+    </aside>
+  </div>
+
+  <div class="panes" id="icons-app" hidden>
+    <section class="editor" aria-label="State icons">
+      <div id="icons-list"></div>
+      <div class="row"><button class="primary" id="icon-add" type="button">Add state icon</button></div>
+    </section>
+    <aside class="side">
+      <div class="panel">
+        <h2>Save to the remote</h2>
+        <p class="hint" id="icons-dirty">No unsaved changes.</p>
+        <div class="row">
+          <button class="primary" id="icons-save" type="button">Save</button>
+          <button id="icons-revert" type="button">Discard changes</button>
+        </div>
+        <div id="icons-status" class="status" role="status"></div>
+        <ul class="errors" id="icons-errors" hidden></ul>
+      </div>
+      <div class="panel">
+        <h2>How state icons work</h2>
+        <p class="note">Pick a button on an activity page. Its current icon or text is the <b>default</b> look. Then drop an image (or type a label) for each state of a device, like <i>ON</i> or an input name. The button switches look within about 2 seconds of the change and goes back to its default when no state matches. What the button does when pressed doesn't change.</p>
+        <p class="note">Only activities with <b>one page</b> are offered: when a page of the activity on screen changes, the remote jumps back to that activity's first page, which would interrupt you on activities with more pages.</p>
+      </div>
     </aside>
   </div>
 </div>
@@ -592,13 +642,250 @@ $("#copy").addEventListener("click", () => {
   const fallback = () => { const r = document.createRange(); r.selectNodeContents($("#json")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); st.className = "status"; st.textContent = "Selected: press Ctrl+C."; };
   try { navigator.clipboard.writeText($("#json").textContent).then(() => { st.className = "status ok"; st.textContent = "Copied."; }, fallback); } catch { fallback(); }
 });
-window.addEventListener("beforeunload", (e) => { if ($("#json").textContent && $("#json").textContent !== saved) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("beforeunload", (e) => { if (($("#json").textContent && $("#json").textContent !== saved) || (iconsLoaded && JSON.stringify(iconsOut()) !== iconsSaved)) { e.preventDefault(); e.returnValue = ""; } });
+
+// ---------------------------------------------------------------------------
+// State icons tab
+// ---------------------------------------------------------------------------
+let ICONS = [];          // editor model: [{ id, name, activity, location, entity, attr, states:[{value, icon, text, preview}], status }]
+let ICON_ACTS = [];      // [{ id, name, pageCount, page }]
+let iconsSaved = "[]";
+let iconsLoaded = false;
+
+const iconsOut = () => ICONS.map((b) => ({ id: b.id, name: b.name, activity: b.activity, location: b.location, entity: b.entity, attr: b.attr || "state",
+  states: b.states.map((s) => ({ value: s.value, icon: s.icon || null, text: s.text || null })) }));
+const iconImg = (icon, alt) => el("img", { src: iconUrl(icon), alt: alt || "", on: { error: (e) => e.target.replaceWith(document.createTextNode(String(icon || "").replace(/^custom:/, "").replace(/\.png$/, "").slice(0, 14))) } });
+const iconUrl = (icon) => (icon && icon.startsWith("custom:") ? "/api/icons/image?id=" + encodeURIComponent(icon.slice(7)) : null);
+const actById = (id) => ICON_ACTS.find((a) => a.id === id);
+const itemAt = (act, loc) => act?.page?.items?.find((it) => (it.location?.x ?? 0) === loc?.x && (it.location?.y ?? 0) === loc?.y);
+const slugPart = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 20) || "x";
+
+function iconsChanged(rerender) {
+  const dirty = JSON.stringify(iconsOut()) !== iconsSaved;
+  $("#icons-dirty").textContent = dirty ? "You have unsaved changes." : "No unsaved changes.";
+  $("#icons-save").disabled = !dirty;
+  $("#icons-revert").disabled = !dirty;
+  if (rerender) renderIcons();
+}
+
+function lookThumb(look) {
+  // look: { type, icon, text }
+  const box = el("div", { class: "thumb" });
+  const url = look?.type === "icon" ? iconUrl(look.icon) : null;
+  if (url) box.append(iconImg(look.icon));
+  else box.append(look?.type === "icon" ? (look.icon || "icon") : (look?.text || "text"));
+  return box;
+}
+
+function pageDrawing(b, act) {
+  const page = act.page;
+  const grid = page.grid || { width: 4, height: 6 };
+  const box = el("div", { class: "pagegrid", role: "group", "aria-label": "Page " + (page.name || ""), style: `grid-template-columns: repeat(${grid.width}, 1fr); grid-template-rows: repeat(${grid.height}, 48px);` });
+  for (const it of page.items || []) {
+    const x = it.location?.x ?? 0, y = it.location?.y ?? 0, w = it.size?.width ?? 1, h = it.size?.height ?? 1;
+    const style = `grid-column: ${x + 1} / span ${w}; grid-row: ${y + 1} / span ${h};`;
+    const pickable = it.type === "icon" || it.type === "text";
+    const sel = b.location && b.location.x === x && b.location.y === y;
+    const usedBy = ICONS.find((o) => o !== b && o.activity === act.id && o.location?.x === x && o.location?.y === y);
+    const label = it.type === "text" ? it.text || "text" : it.type === "icon" ? "" : it.type.replace("_", " ");
+    const inner = [];
+    if (it.type === "icon") {
+      const url = iconUrl(it.icon);
+      inner.push(url ? iconImg(it.icon, it.icon) : (it.icon || "icon"));
+    } else inner.push(label);
+    if (!pickable || usedBy) {
+      box.append(el("div", { class: "it off" + (usedBy ? " bound" : ""), style, title: usedBy ? "Already used by " + (usedBy.name || usedBy.id) : "Only icon and text buttons can change" }, ...inner));
+    } else {
+      box.append(el("button", { type: "button", class: "it" + (sel ? " sel bound" : ""), style, "aria-pressed": sel ? "true" : "false", title: "Use this button",
+        on: { click: () => { b.location = { x, y }; iconsChanged(true); } } }, ...inner));
+    }
+  }
+  return box;
+}
+
+async function processImage(file) {
+  // Fit into 90x90 (86x86 drawing area), with near-invisible corner pixels so the remote doesn't crop margins.
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => fail(new Error("not an image")); i.src = url; });
+    const c = document.createElement("canvas");
+    c.width = c.height = 90;
+    const g = c.getContext("2d");
+    const w = img.naturalWidth || 90, h = img.naturalHeight || 90;
+    const k = Math.min(86 / w, 86 / h);
+    g.imageSmoothingQuality = "high";
+    g.drawImage(img, (90 - w * k) / 2, (90 - h * k) / 2, w * k, h * k);
+    g.fillStyle = "rgba(0,0,0,0.004)";
+    g.fillRect(0, 0, 1, 1);
+    g.fillRect(89, 89, 1, 1);
+    const dataUrl = c.toDataURL("image/png");
+    return { dataUrl, base64: dataUrl.split(",")[1] };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function dropZone(b, st) {
+  const z = el("label", { class: "drop", title: "Drop an image or click to choose one" });
+  const show = () => {
+    z.replaceChildren();
+    if (st.preview) z.append(el("img", { src: st.preview, alt: "" }));
+    else if (st.icon) z.append(iconImg(st.icon));
+    else z.append(st.busy ? "Uploading…" : "Drop image");
+    const inp = el("input", { type: "file", accept: "image/png,image/jpeg,image/svg+xml,image/webp,image/gif", "aria-label": "Image for " + (st.value || "state"),
+      on: { change: (e) => e.target.files[0] && take(e.target.files[0]) } });
+    z.append(inp);
+  };
+  const take = async (file) => {
+    const statusEl = $("#icons-status");
+    try {
+      st.busy = true; show();
+      const p = await processImage(file);
+      const dev = DEV[b.entity];
+      const name = `si_${slugPart(dev?.name || b.entity)}_${slugPart(st.value)}_${Math.random().toString(16).slice(2, 6)}.png`;
+      const r = await api("POST", "/api/icons/upload", { name, data: p.base64 });
+      if (!r.ok) throw new Error(r.data.error || "upload failed");
+      st.icon = r.data.icon; st.preview = p.dataUrl;
+      statusEl.className = "status ok"; statusEl.textContent = "Image uploaded to the remote. Save to use it.";
+    } catch (e) {
+      statusEl.className = "status err"; statusEl.textContent = "Couldn't use that image: " + e.message;
+    } finally {
+      st.busy = false; show(); iconsChanged(false);
+    }
+  };
+  z.addEventListener("dragover", (e) => { e.preventDefault(); z.classList.add("over"); });
+  z.addEventListener("dragleave", () => z.classList.remove("over"));
+  z.addEventListener("drop", (e) => { e.preventDefault(); z.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) take(f); });
+  show();
+  return z;
+}
+
+function renderIcons() {
+  const host = $("#icons-list");
+  host.replaceChildren();
+  const wrap = el("div", { class: "lines", style: "gap:14px" });
+  const usable = ICON_ACTS.filter((a) => a.pageCount === 1);
+  const multi = ICON_ACTS.filter((a) => a.pageCount !== 1);
+  ICONS.forEach((b, bi) => {
+    const id = nid("si");
+    const act = actById(b.activity);
+    const dev = DEV[b.entity];
+    const card = el("article", { class: "card", "aria-label": b.name || "State icon" });
+    const nameIn = input(id + "-n", b.name, (v) => { b.name = v; changed2(); }, { label: "Name", placeholder: "Receiver power" });
+    function changed2() { iconsChanged(false); }
+    card.append(el("div", { class: "card-head" },
+      el("label", { class: "f grow", for: id + "-n" }, "Name (only shown here)", nameIn),
+      el("button", { class: "ghost", type: "button", on: { click: () => { ICONS.splice(bi, 1); iconsChanged(true); } } }, "Delete")));
+
+    // 1. where
+    const actOpts = [["", "Pick an activity…"], ...usable.map((a) => [a.id, a.name])];
+    const actSel = select(id + "-a", actOpts, b.activity || "", (v) => { b.activity = v; b.location = null; iconsChanged(true); }, "Activity");
+    for (const a of multi) actSel.append(el("option", { value: a.id, disabled: true }, `${a.name} (${a.pageCount} pages)`));
+    card.append(el("div", { class: "subhead" }, "1 · The button"), el("div", { class: "row" }, el("label", { class: "f", for: id + "-a" }, "Activity (one page only)", actSel)));
+    if (act && act.page) {
+      card.append(el("p", { class: "hint" }, b.location ? "Selected. Click another button to change." : "Click the icon or text button that should change."), pageDrawing(b, act));
+    } else if (b.activity && !act) {
+      card.append(el("p", { class: "status err" }, "That activity is no longer available or now has more than one page."));
+    }
+
+    // 2. what to watch
+    const devOpts = deviceOptions((d) => d.type !== "macro");
+    card.append(el("div", { class: "subhead" }, "2 · What it shows"));
+    const attrs = dev ? Object.keys(dev.values) : [b.attr || "state"];
+    card.append(el("div", { class: "row" },
+      el("label", { class: "f", for: id + "-d" }, "Device", select(id + "-d", [["", "Pick a device…"], ...devOpts], b.entity || "", (v) => { b.entity = v; b.attr = "state"; iconsChanged(true); }, "Device")),
+      el("label", { class: "f", for: id + "-t" }, "What to check", select(id + "-t", attrs.map((a) => [a, a.replace(/_/g, " ")]), b.attr || "state", (v) => { b.attr = v; iconsChanged(true); }, "What to check")),
+      b.status && b.status.value != null ? el("span", { class: "live" }, "Now: ", el("b", {}, String(b.status.value))) : null));
+
+    // 3. states
+    card.append(el("div", { class: "subhead" }, "3 · Looks"));
+    const def = b.default && b.activity === b.savedActivity && b.location && b.savedLocation && b.location.x === b.savedLocation.x && b.location.y === b.savedLocation.y
+      ? b.default : act ? itemAt(act, b.location) : null;
+    const lines = el("div", { class: "lines" });
+    const valuesList = dev && dev.values[b.attr || "state"] ? dev.values[b.attr || "state"] : [];
+    b.states.forEach((st, si) => {
+      const lid = id + "-v" + si + "-l";
+      lines.append(el("div", { class: "line statebox" },
+        el("label", { class: "f" }, "When it is", input(id + "-v" + si, st.value, (v) => { st.value = v; changed2(); }, { label: "State value", list: lid, placeholder: "ON" }), datalist(lid, valuesList)),
+        dropZone(b, st),
+        el("label", { class: "f" }, "Label (optional)", input(id + "-x" + si, st.text, (v) => { st.text = v; changed2(); }, { label: "Label", placeholder: "Receiver ON" })),
+        el("button", { class: "ghost", type: "button", on: { click: () => { b.states.splice(si, 1); iconsChanged(true); } } }, "Remove")));
+    });
+    lines.append(el("div", { class: "line statebox" },
+      el("span", { class: "sep" }, "Anything else (default)"),
+      def ? lookThumb(def) : el("div", { class: "thumb" }, "—"),
+      el("span", { class: "hint" }, "The button's own look, as it is now on the remote."),
+      el("span", {})));
+    card.append(lines, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => {
+      const used = new Set(b.states.map((s) => String(s.value).toLowerCase()));
+      const next = valuesList.find((v) => !used.has(String(v).toLowerCase())) || "";
+      b.states.push({ value: next, icon: null, text: "" }); iconsChanged(true);
+    } } }, "Add state")));
+
+    if (b.status && b.status.error) card.append(el("p", { class: "status err" }, "On the remote: " + b.status.error));
+    else if (b.status && b.status.look) card.append(el("p", { class: "status ok" }, "On the remote: showing " + (b.status.look === "default" ? "the default look" : `"${b.status.look}"`)));
+    wrap.append(card);
+  });
+  if (!ICONS.length) wrap.append(el("p", { class: "empty" }, usable.length ? "No state icons yet. Add one to make a button on a page follow a device's state." : "None of your activities has exactly one page. State icons need an activity with a single page."));
+  host.append(wrap);
+}
+
+async function loadIcons() {
+  $("#icons-list").replaceChildren(el("p", { class: "hint" }, "Loading your activities…"));
+  const r = await api("GET", "/api/icons");
+  if (!r.ok) { $("#icons-list").replaceChildren(el("p", { class: "status err" }, r.data.error || "Couldn't read the activities.")); return; }
+  ICON_ACTS = r.data.activities;
+  ICONS = r.data.icons.map((b) => ({ ...b, savedActivity: b.activity, savedLocation: b.location, states: b.states.map((s) => ({ ...s })) }));
+  iconsSaved = JSON.stringify(iconsOut());
+  iconsLoaded = true;
+  iconsChanged(true);
+}
+
+$("#icon-add").addEventListener("click", () => {
+  let n = ICONS.length + 1; while (ICONS.some((b) => b.id === "icon_" + n)) n++;
+  const first = ICON_ACTS.find((a) => a.pageCount === 1);
+  ICONS.push({ id: "icon_" + n, name: "", activity: first?.id || "", location: null, entity: "", attr: "state", states: [{ value: "ON", icon: null, text: "" }] });
+  iconsChanged(true);
+  setTimeout(() => document.querySelector("#icons-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+});
+$("#icons-revert").addEventListener("click", () => { ICONS = JSON.parse(iconsSaved).map((b) => ({ ...b, status: ICONS.find((x) => x.id === b.id)?.status })); iconsChanged(true); });
+$("#icons-save").addEventListener("click", async () => {
+  const st = $("#icons-status"), errs = $("#icons-errors");
+  errs.hidden = true; errs.replaceChildren();
+  st.className = "status"; st.textContent = "Saving…";
+  const r = await api("POST", "/api/icons", { icons: iconsOut() });
+  if (r.ok) {
+    ICONS = r.data.icons.map((b) => ({ ...b, savedActivity: b.activity, savedLocation: b.location, states: b.states.map((s) => ({ ...s, preview: ICONS.find((x) => x.id === b.id)?.states.find((y) => y.value === s.value)?.preview })) }));
+    iconsSaved = JSON.stringify(iconsOut());
+    st.className = "status ok"; st.textContent = `Saved ${ICONS.length} state icon${ICONS.length === 1 ? "" : "s"}. The buttons update within a few seconds.`;
+    iconsChanged(true);
+    return;
+  }
+  st.className = "status err"; st.textContent = r.data.error || "Not saved. Fix these and save again:";
+  for (const e of r.data.errors || []) errs.append(el("li", {}, e));
+  errs.hidden = !(r.data.errors || []).length;
+});
+
+function showTab(which) {
+  const icons = which === "icons";
+  $("#tab-smart").setAttribute("aria-selected", String(!icons));
+  $("#tab-icons").setAttribute("aria-selected", String(icons));
+  $("#app").hidden = icons;
+  $("#icons-app").hidden = !icons;
+  $("#tab-intro").textContent = icons
+    ? "Make a button on an activity page change its icon with a device's state, like a green power icon when the receiver is on."
+    : "Conditional buttons for the Remote Self-Control integration. Each button checks your devices or the remote, then runs the first branch that matches.";
+  try { localStorage.setItem("scb_tab", which); } catch {}
+  if (icons && !iconsLoaded) loadIcons();
+}
+$("#tab-smart").addEventListener("click", () => showTab("smart"));
+$("#tab-icons").addEventListener("click", () => showTab("icons"));
 
 // ---------------------------------------------------------------------------
 // Session
 // ---------------------------------------------------------------------------
 function showLogin(msg) {
-  $("#app").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false;
+  $("#app").hidden = true; $("#icons-app").hidden = true; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
   $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
   $("#pin").focus();
 }
@@ -612,8 +899,11 @@ async function loadAll() {
   try { parsed = JSON.parse(rules.data.text); } catch { parsed = { buttons: [] }; }
   buttons = fromRules(parsed);
   saved = JSON.stringify(toRules(buttons), null, 2);
-  $("#login").hidden = true; $("#app").hidden = false; $("#session-bar").hidden = false;
+  $("#login").hidden = true; $("#tabs").hidden = false; $("#session-bar").hidden = false;
   changed(true);
+  let tab = "smart";
+  try { tab = localStorage.getItem("scb_tab") || "smart"; } catch {}
+  showTab(tab === "icons" ? "icons" : "smart");
 }
 $("#login").addEventListener("submit", async (e) => {
   e.preventDefault();

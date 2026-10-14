@@ -13,6 +13,7 @@ import { SmartEngine, validateRules } from "./smart.js";
 import { startWebServer, builderUrls } from "./web.js";
 import { listActivities, addTile, PAGE_NAME } from "./tile.js";
 import { ReturnTracker, RETURN_MARK } from "./returnbtn.js";
+import { StateIcons, validateIcons } from "./stateicons.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -49,6 +50,7 @@ let cache = null; // last GET /cfg result
 let pollTimer = null;
 let returnTimer = null;
 let returnTracker = null; // ReturnTracker
+let stateIcons = null; // StateIcons
 let connected = false;
 let standby = false;
 let lastBacklight = 50; // last non-zero backlight %, for "on"
@@ -728,6 +730,7 @@ function startPolling() {
   pollTimer = setInterval(refresh, POLL_MS);
   returnTimer = setInterval(() => {
     if (returnTracker?.enabled) returnTracker.poll().catch((e) => warn("return: reading activities failed:", e.message));
+    if (stateIcons?.enabled) stateIcons.refresh(false);
   }, RETURN_POLL_MS);
 }
 
@@ -1078,6 +1081,7 @@ createEntities();
 const driverJson = fs.existsSync(path.join(HERE, "driver.json")) ? path.join(HERE, "driver.json") : path.join(HERE, "..", "driver.json");
 api.init(driverJson, setupHandler);
 cfgFile = path.join(api.getConfigDirPath(), "self_control.json");
+stateIcons = new StateIcons({ getCore: () => core, file: path.join(api.getConfigDirPath(), "state_icons.json"), log, warn });
 returnTracker = new ReturnTracker({ getCore: () => core, file: path.join(api.getConfigDirPath(), "return.json"), log, warn, onChange: updatePreviousSensor });
 updatePreviousSensor();
 initSmart();
@@ -1103,6 +1107,12 @@ startWebServer({
     "sound.volume": "Sound effects volume (0–100)",
     "haptic.enabled": "Haptic feedback on (true/false)",
     "power_saving.standby_sec": "Sleep timeout (seconds, 0 = never)"
+  },
+  stateIcons: () => stateIcons,
+  validateIcons,
+  onIconsChanged: () => {
+    log(`state icons saved: ${stateIcons.icons.map((b) => b.name || b.id).join(", ") || "none"}`);
+    startPolling();
   },
   loadRulesText: () => ({ text: loadRulesText(), defaults: !fs.existsSync(rulesFile) }),
   defaultRulesText: () => fs.readFileSync(path.join(HERE, "default-rules.json"), "utf8"),

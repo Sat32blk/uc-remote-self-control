@@ -116,7 +116,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, log, warn }) {
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -232,6 +232,41 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       if (errors.length) return send(res, 422, { ok: false, errors });
       saveRules(body.rules);
       send(res, 200, { ok: true, errors: [], buttons: smart().buttons.map((b) => ({ id: b.id, name: b.name })) });
+    },
+    "GET /api/icons": async (req, res) => {
+      if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      send(res, 200, { icons: stateIcons().list(), activities: await stateIcons().activities() });
+    },
+    "POST /api/icons": async (req, res) => {
+      const body = await readJson(req);
+      if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      const v = validateIcons(body);
+      if (v.errors.length) return send(res, 422, { ok: false, errors: v.errors });
+      const r = await stateIcons().replace(v.icons);
+      if (r.errors.length) return send(res, 422, { ok: false, errors: r.errors });
+      onIconsChanged && onIconsChanged();
+      send(res, 200, { ok: true, icons: stateIcons().list() });
+    },
+    "POST /api/icons/upload": async (req, res) => {
+      const body = await readJson(req);
+      const core = getCore();
+      if (!core) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      const name = String(body.name || "");
+      if (!/^[A-Za-z0-9_.\-]{1,80}\.png$/.test(name)) return send(res, 400, { error: "invalid file name" });
+      const png = Buffer.from(String(body.data || ""), "base64");
+      if (png.length < 8 || png.readUInt32BE(0) !== 0x89504e47) return send(res, 400, { error: "not a PNG image" });
+      if (png.length > 32 * 1024) return send(res, 413, { error: "icon is larger than 32 KB" });
+      const id = await core.uploadIcon(name, png);
+      send(res, 200, { icon: "custom:" + id });
+    },
+    "GET /api/icons/image": async (req, res) => {
+      const id = new URL(req.url, "http://x").searchParams.get("id") || "";
+      if (!/^[A-Za-z0-9_.\-]{1,120}$/.test(id)) return send(res, 400, { error: "invalid id" });
+      const core = getCore();
+      if (!core) return send(res, 503, { error: "not connected" });
+      const img = await core.download(`/resources/Icon/${encodeURIComponent(id)}`);
+      res.writeHead(200, { "Content-Type": img.type, "Cache-Control": "private, max-age=3600" });
+      res.end(img.body);
     },
     "POST /api/test": async (req, res) => {
       const body = await readJson(req);

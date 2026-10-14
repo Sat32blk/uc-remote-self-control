@@ -30,11 +30,15 @@ export const selfEntities = { haptic: "Haptic", smart_last_result: "Smart Contro
 
 // Activities with included entities and UI pages.
 export const activities = {
-  "uc.main.act1": { name: { en: "Watch TV" }, state: "OFF", entity_ids: [TV], buttons: { BACK: { short_press: { entity_id: TV, cmd_id: "media_player.back" } }, RECORD: {} }, pages: [{ page_id: "p1", name: "Main", grid: { width: 4, height: 6 }, items: [] }] },
+  "uc.main.act1": { name: { en: "Watch TV" }, state: "OFF", entity_ids: [TV], buttons: { BACK: { short_press: { entity_id: TV, cmd_id: "media_player.back" } }, RECORD: {} }, pages: [{ page_id: "p1", name: "Main", grid: { width: 4, height: 6 }, items: [
+    { type: "icon", icon: "uc:tv", location: { x: 0, y: 0 }, size: { width: 1, height: 1 }, command: { entity_id: TV, cmd_id: "media_player.toggle" } },
+    { type: "text", text: "Receiver", location: { x: 1, y: 0 }, size: { width: 2, height: 1 } }
+  ] }] },
   "uc.main.act2": { name: { en: "Play Music" }, state: "OFF", entity_ids: [MARANTZ], buttons: { BACK: {}, RECORD: {} }, pages: [{ page_id: "p2", name: "Main", grid: { width: 4, height: 1 }, items: [{ type: "text", text: "Full", location: { x: 0, y: 0 }, size: { width: 4, height: 1 } }] }] },
   "uc.main.ro": { name: { en: "Integration Activity" }, editable: false, entity_ids: [], pages: [] }
 };
 let pageSeq = 100;
+export const icons = {}; // uploaded icon id -> raw body
 
 // Command metadata as GET /cfg/entity/commands returns it (subset).
 const mpCmd = (c, params) => ({ id: "media_player." + c, cmd_id: c, name: { en: c.replace(/_/g, " ") }, params });
@@ -129,6 +133,23 @@ export function start(port) {
       if (auth !== "Bearer " + KEY) return send(401, { code: "UNAUTHORIZED" });
       if (url === "/api/cfg" && req.method === "GET") return send(200, cfg);
       if (url === "/api/cfg/entity/commands" && req.method === "GET") return send(200, ENTITY_COMMANDS);
+      if (url === "/api/resources/Icon" && req.method === "POST") {
+        if (!/^multipart\/form-data/.test(req.headers["content-type"] || "")) return send(400, { message: "multipart expected" });
+        const fn = /filename="([^"]+)"/.exec(body);
+        if (!fn) return send(400, { message: "no file" });
+        const id = fn[1].replace(/ /g, "_");
+        if (icons[id]) return send(422, { message: "exists" });
+        icons[id] = body;
+        return send(201, [{ type: "Icon", id, size: body.length }]);
+      }
+      const ri = /^\/api\/resources\/Icon\/([^/?]+)$/.exec(url);
+      if (ri && req.method === "GET") {
+        const id = decodeURIComponent(ri[1]);
+        if (!icons[id]) return send(404, { message: "no icon" });
+        res.writeHead(200, { "Content-Type": "image/png" });
+        // a real (green 2x2) PNG so builder thumbnails render
+        return res.end(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR42mPU2tDwn4GBgYEJxmBkZAQAI48DP5/3hu8AAAAASUVORK5CYII=", "base64"));
+      }
       const am = /^\/api\/activities(?:\?(.*))?$/.exec(url);
       if (am && req.method === "GET") {
         const q = new URLSearchParams(am[1] || "");
