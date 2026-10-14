@@ -164,7 +164,14 @@ Setting it up in the builder:
 
 ![Setting up a state icon in the builder](docs/images/state-icons-builder.gif)
 
-Why single-page activities only: when a page of the activity on screen changes, the remote jumps back to that activity's first page (tested on a Remote 3). On a single-page activity the icon simply updates in place, without a flash or reload.
+**Caveats**
+
+- **Single-page activities only.** On the remote, changing a page of the activity you're looking at sends you back to that activity's first page when it has more than one page. So the builder only lets you pick activities with exactly one page; activities with more pages are listed but greyed out.
+- **If you add a second page later**, the state icon stops updating (it's never forced on a multi-page activity) and the builder shows a warning on it. Remove the extra page, or remove the state icon.
+- **Only icon and text buttons** can change. Media player widgets, sensor tiles and lists can't be used.
+- **About 2 seconds' delay**: the integration checks the device every 2 seconds while the remote is awake. While the remote sleeps nothing is checked; the button catches up within a couple of seconds after it wakes.
+- **The default look is captured when you save.** If you later change that button's icon or text in the web configurator, delete the state icon and add it again so it learns the new look. Don't move the button to another spot; the integration finds it by its position.
+- **Uploaded images stay on the remote** as custom icons (named `si_…`) after you delete a state icon. Delete them in the web configurator if you don't need them.
 
 ## The builder
 
