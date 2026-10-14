@@ -16,6 +16,8 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
 
 ![The ↩ button and the Smart Controls page on the remote (illustration)](docs/images/remote-screens.png)
 
+<p align="center"><img src="docs/images/state-icon-demo.gif" alt="State icon: the power button turns green when the receiver is on" width="320"></p>
+
 *Illustration of what the integration adds to an activity. The screenshots below are of the real builder page, running against a test remote with example devices.*
 
 ## Contents
@@ -33,7 +35,7 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
 - [The builder](#the-builder)
 - [Entities](#entities)
 - [Rules reference](#rules-reference)
-- [Security](#security) · [Configuration](#configuration) · [Logs and removal](#logs-and-removal) · [Development](#development) · [Changes](#changes)
+- [Security](#security) · [Configuration](#configuration) · [Logs and removal](#logs-and-removal) · [Development](#development) · [Changes](#changes) · [Support](#support)
 
 ## Install
 
@@ -156,7 +158,11 @@ State icons make a button on a page follow a device's state. The button's own ic
 5. **Looks:** for *ON*, drag in a green power image (any PNG, JPG or SVG; it's resized to 90×90 and uploaded to the remote) and optionally a label like "Receiver ON". Add more states if you like (*STANDBY*, an input name, …).
 6. **Save.** Within about 2 seconds of the receiver turning on, the button shows the green icon; when it turns off it goes back to its default. What the button does when pressed doesn't change.
 
-![State icons in the builder](docs/images/state-icons.png)
+<p align="center"><img src="docs/images/state-icon-demo.gif" alt="On the remote: press the button, the receiver turns on, the icon turns green" width="320"></p>
+
+Setting it up in the builder:
+
+![Setting up a state icon in the builder](docs/images/state-icons-builder.gif)
 
 Why single-page activities only: when a page of the activity on screen changes, the remote jumps back to that activity's first page (tested on a Remote 3). On a single-page activity the icon simply updates in place, without a flash or reload.
 
@@ -323,3 +329,11 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 - **0.3.0:** Smart Controls are generic: starts with one Smart Test Button; remote-only templates; builder page served by the integration with PIN login, device list, templates, save and test; remember / restore settings; next / previous / up / down; IR simple commands.
 - 0.2.0: Smart Buttons: conditional rules, last-result sensor, rule editor in the setup screen.
 - 0.1.x: remote settings entities, grouped into Remote Display / Remote Buttons / Remote Settings; macro-friendly selects.
+
+## Support
+
+If this integration makes your remote more fun to use, you can buy me a coffee. Thank you! ☕
+
+<p align="center">
+  <a href="https://buymeacoffee.com/sat32blk"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="80"></a>
+</p>

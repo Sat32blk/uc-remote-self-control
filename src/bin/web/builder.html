@@ -673,7 +673,7 @@ function lookThumb(look) {
   const box = el("div", { class: "thumb" });
   const url = look?.type === "icon" ? iconUrl(look.icon) : null;
   if (url) box.append(iconImg(look.icon));
-  else box.append(look?.type === "icon" ? (look.icon || "icon") : (look?.text || "text"));
+  else box.append(look?.type === "icon" ? String(look.icon || "icon").replace(/^uc:/, "") : (look?.text || "text"));
   return box;
 }
 
@@ -691,7 +691,7 @@ function pageDrawing(b, act) {
     const inner = [];
     if (it.type === "icon") {
       const url = iconUrl(it.icon);
-      inner.push(url ? iconImg(it.icon, it.icon) : (it.icon || "icon"));
+      inner.push(url ? iconImg(it.icon, it.icon) : String(it.icon || "icon").replace(/^uc:/, ""));
     } else inner.push(label);
     if (!pickable || usedBy) {
       box.append(el("div", { class: "it off" + (usedBy ? " bound" : ""), style, title: usedBy ? "Already used by " + (usedBy.name || usedBy.id) : "Only icon and text buttons can change" }, ...inner));
