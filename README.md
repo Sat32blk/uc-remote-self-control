@@ -8,6 +8,9 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
 - **Smart Controls:** buttons with if / else logic ("if the receiver is on, turn *it* up, otherwise the TV"), built in a browser page the integration serves itself.
 - **Return to previous activity:** a ↩ button (on screen or a physical button) that always takes you back to the activity you came from.
 
+> [!WARNING]
+> **Beta.** Tested on one Remote 3 so far. The integration changes your remote's settings, activities, pages and button mappings. **Back up your remote's configuration in the web configurator before installing**, so you can restore it if something goes wrong.
+
 > Community project, not affiliated with Unfolded Circle. MIT licensed. It changes the remote's settings through the remote's local Core REST API.
 
 ![The ↩ button and the Smart Controls page on the remote (illustration)](docs/images/remote-screens.png)
@@ -32,6 +35,7 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
 
 ## Install
 
+1. **Back up your remote** in the web configurator and download the backup.
 1. Download `uc-intg-self-control-<version>.tar.gz` from the [latest release](https://github.com/Sat32blk/uc-remote-self-control/releases/latest).
 2. Web configurator → **Integrations → Add new → Install custom** → choose the file.
 3. Start the setup for **Remote Self-Control**. The first screen is information only. On the second, enter the **web-configurator PIN** and leave the address at `127.0.0.1`.
