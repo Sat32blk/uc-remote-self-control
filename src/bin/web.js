@@ -22,6 +22,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { testImage } from "./display.js";
 
 const SESSION_MS = 12 * 60 * 60 * 1000;
 const MAX_BODY = 256 * 1024;
@@ -184,6 +185,13 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "DENY" });
       res.end(html);
     },
+    // Custom Display experiment: public, it's only a generated test picture
+    "GET /display/test.png": async (req, res) => {
+      const n = Number(new URL(req.url, "http://x").searchParams.get("n")) || 0;
+      res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-store" });
+      res.end(testImage(n));
+      log && log(`display: image #${n} fetched by ${req.socket.remoteAddress}`);
+    },
     "GET /api/session": async (req, res) => send(res, 200, { loggedIn: loggedIn(req), configured: !!getCore() }),
     "POST /api/login": async (req, res) => {
       const ip = req.socket.remoteAddress || "?";
@@ -309,7 +317,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       }
     }
   };
-  const PUBLIC = new Set(["GET /", "GET /api/session", "POST /api/login", "POST /api/logout"]);
+  const PUBLIC = new Set(["GET /", "GET /api/session", "POST /api/login", "POST /api/logout", "GET /display/test.png"]);
 
   const server = http.createServer(async (req, res) => {
     const url = (req.url || "/").split("?")[0];
