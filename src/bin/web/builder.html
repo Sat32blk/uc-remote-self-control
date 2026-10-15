@@ -155,8 +155,7 @@ input.missing { border-color: var(--danger); outline: 2px solid var(--danger); }
 
   <nav class="tabs" id="tabs" role="tablist" hidden>
     <button type="button" role="tab" id="tab-smart" aria-selected="true" aria-controls="app">Smart Controls</button>
-    <button type="button" role="tab" id="tab-icons" aria-selected="false" aria-controls="icons-app">State Icons</button>
-    <button type="button" role="tab" id="tab-extras" aria-selected="false" aria-controls="extras-app">Sliders &amp; Menus</button>
+    <button type="button" role="tab" id="tab-icons" aria-selected="false" aria-controls="icons-app">Icons &amp; Sliders</button>
   </nav>
 
   <section class="pane" id="app" hidden aria-label="Smart controls">
@@ -166,10 +165,16 @@ input.missing { border-color: var(--danger); outline: 2px solid var(--danger); }
         <option value="">or start from a template…</option>
       </select>
     </div>
+    <div class="createbar">
+      <button class="primary" id="menu-add" type="button">+ Create quick menu</button>
+      <select id="menu-fill" aria-label="Create a quick menu from a device's list">
+        <option value="">or a quick menu from a device's list…</option>
+      </select>
+    </div>
     <div id="smart-editor"></div>
-    <h2 class="list-title">Your smart controls</h2>
+    <h2 class="list-title">Your smart controls and quick menus</h2>
     <div id="buttons" class="bars"></div>
-    <p class="note">After saving a new control, add it to the integration (Integrations → Remote Self-Control → add entities) and to the activities that use it. Smart controls run in the background, so they can't switch the remote's screen to another activity.</p>
+    <p class="note">After saving a new control or menu, add it to the integration (Integrations → Remote Self-Control → add entities) and to the activities that use it. <b>Smart controls</b> are buttons; <b>quick menus</b> are lists that open a pop-up on a home tile or an activity page, and each choice runs its steps. Both run in the background, so they can't switch the remote's screen to another activity.</p>
     <details class="panel">
       <summary>Rules text (backup / import)</summary>
       <p class="hint">Copy this to back up or share your controls, or paste rules here and load them (this replaces all your smart controls).</p>
@@ -187,35 +192,19 @@ input.missing { border-color: var(--danger); outline: 2px solid var(--danger); }
   <section class="pane" id="icons-app" hidden aria-label="State icons">
     <div class="createbar">
       <button class="primary" id="icon-add" type="button">+ Create state icon</button>
+      <button class="primary" id="slider-add" type="button">+ Create slider</button>
     </div>
     <div id="icons-editor"></div>
-    <h2 class="list-title">Your state icons</h2>
+    <h2 class="list-title">Your state icons and sliders</h2>
     <div id="icons-list" class="bars"></div>
     <details class="panel">
-      <summary>How state icons work</summary>
+      <summary>How state icons and sliders work</summary>
+      <p class="note"><b>Sliders</b> are light entities for a number on one of your devices, like the receiver's volume. Put one on a home page: tapping the tile opens the remote's slider pop-up. On a Remote 3 you can also assign it to an activity's touch slider. New sliders are in the <b>Remote Sliders &amp; Menus</b> group when you add them to the integration.</p>
       <p class="note">Pick a button on an activity page. Its current icon or text is the <b>default</b> look. Then drop an image (or type a label) for each state of a device, like <i>ON</i> or an input name, or pick a <b>level graphic</b> that follows a number. The button switches look within about 2 seconds of the change and goes back to its default when no state matches. What the button does when pressed doesn't change.</p>
       <p class="note">Only activities with <b>one page</b> are offered: when a page of the activity on screen changes, the remote jumps back to that activity's first page, which would interrupt you on activities with more pages.</p>
     </details>
   </section>
 
-  <section class="pane" id="extras-app" hidden aria-label="Sliders and quick menus">
-    <div class="createbar">
-      <button class="primary" id="slider-add" type="button">+ Create slider</button>
-      <button class="primary" id="menu-add" type="button">+ Create quick menu</button>
-      <select id="menu-fill" aria-label="Create a quick menu from a device's list">
-        <option value="">or a quick menu from a device's list…</option>
-      </select>
-    </div>
-    <div id="extras-editor"></div>
-    <h2 class="list-title">Your sliders and quick menus</h2>
-    <div id="extras-list" class="bars"></div>
-    <details class="panel">
-      <summary>Using them on the remote</summary>
-      <p class="note">After saving a new one, add it to the integration (Integrations → Remote Self-Control → add entities). They're in the <b>Remote Sliders &amp; Menus</b> group.</p>
-      <p class="note"><b>Sliders</b> are light entities. Put one on a home page: tapping the tile opens a slider pop-up. On a Remote 3 you can also assign it to the touch slider in an activity.</p>
-      <p class="note"><b>Quick menus</b> are list entities. On a home tile or an activity page they open a list pop-up; picking a choice runs its steps. Steps run in the background, so they can't switch the remote's screen to another activity.</p>
-    </details>
-  </section>
 </div>
 
 <script>
@@ -227,7 +216,7 @@ let CAT = { devices: [], activities: [], controls: {}, settings: {} };
 let DEV = {};           // id -> device
 let buttons = [];       // editor model
 let saved = "";         // JSON of the last saved rules, for dirty tracking
-let notify = (r) => changed(r); // change hook used by the shared step/condition rows (set per tab)
+let notify = (r) => { if (r) { render(); if (iconsLoaded) renderIcons(); } }; // change hook used by the shared step/condition rows
 
 // ---------------------------------------------------------------------------
 // API
@@ -514,6 +503,9 @@ function stepsBlock(list) {
 // ---------------------------------------------------------------------------
 const ED = { smart: null, icons: null, extras: null }; // { item, snap, isNew, kind, msg: { cls, text, errors } }
 const RERENDER = { smart: () => render(), icons: () => renderIcons(), extras: () => renderExtras() };
+// Quick menus are edited in the Smart Controls tab, sliders in the Icons & Sliders tab.
+const paneOf = (tab, kind) => (tab === "smart" || (tab === "extras" && kind === "menu") ? "smart" : "icons");
+const slotSel = (tab) => `#${paneOf(tab, ED[tab]?.kind)}-editor`;
 const edDirty = (tab) => { const e = ED[tab]; return !!e && (e.isNew || JSON.stringify(e.item) !== e.snap); };
 
 function editorBox(tab, { title, card, onSave, onDelete, extra = [] }) {
@@ -542,7 +534,7 @@ function editorBox(tab, { title, card, onSave, onDelete, extra = [] }) {
 function edMsg(tab, cls, text, errors) {
   if (!ED[tab]) return;
   ED[tab].msg = { cls, text, errors: errors || [] };
-  const box = document.querySelector(`#${tab === "smart" ? "smart" : tab}-editor .editbox`);
+  const box = document.querySelector(`${slotSel(tab)} .editbox`);
   if (!box) return;
   const st = box.querySelector(".edstatus");
   st.className = "status edstatus " + (cls || ""); st.textContent = text || "";
@@ -551,9 +543,11 @@ function edMsg(tab, cls, text, errors) {
 }
 function openEdit(tab, item, { isNew = false, kind } = {}) {
   if (ED[tab] && ED[tab].item !== item) cancelEdit(tab, false);
+  // one editor per tab: close the other kind's editor in the same tab
+  for (const t of Object.keys(ED)) if (t !== tab && ED[t] && paneOf(t, ED[t].kind) === paneOf(tab, kind)) cancelEdit(t, false);
   ED[tab] = { item, snap: JSON.stringify(item), isNew, kind, msg: null };
-  RERENDER[tab]();
-  setTimeout(() => { const box = document.querySelector(`#${tab}-editor .editbox`); box?.scrollIntoView({ behavior: "smooth", block: "start" }); if (isNew) box?.querySelector("input")?.focus(); }, 0);
+  render(); if (iconsLoaded) renderIcons();
+  setTimeout(() => { const box = document.querySelector(`${slotSel(tab)} .editbox`); box?.scrollIntoView({ behavior: "smooth", block: "start" }); if (isNew) box?.querySelector("input")?.focus(); }, 0);
 }
 /** The list an item of a tab lives in. */
 const listOf = (tab, kind) => (tab === "smart" ? buttons : tab === "icons" ? ICONS : kind === "menu" ? MENUS : SLIDERS);
@@ -573,7 +567,7 @@ function needName(tab) {
   const e = ED[tab];
   if (String(e.item.name || "").trim()) return true;
   edMsg(tab, "err", NAME_MSG);
-  const inp = document.querySelector(`#${tab}-editor .editbox input`);
+  const inp = document.querySelector(`${slotSel(tab)} .editbox input`);
   if (inp) { inp.classList.add("missing"); inp.focus(); }
   return false;
 }
@@ -666,18 +660,21 @@ function smartCard(b) {
 
 function render() {
   const e = ED.smart;
+  const xm = ED.extras?.kind === "menu" ? ED.extras : null;
   $("#smart-editor").replaceChildren(...(e ? [editorBox("smart", {
     title: e.isNew ? "New smart control" : "Edit: " + (JSON.parse(e.snap).name || "smart control"),
     card: smartCard(e.item),
     onSave: () => saveSmart(true),
     onDelete: deleteSmart,
     extra: [el("button", { type: "button", on: { click: testSmart } }, "Save & test")]
-  })] : []));
+  })] : xm ? [extrasEditorBox()] : []));
   const host = $("#buttons");
-  host.replaceChildren(...buttons.filter((b) => !(e && e.isNew && b === e.item)).map((b) => bar({
-    name: b.name, sub: describeSmart(b), editing: e && e.item === b, flash: flashOnce(b.id), onEdit: () => openEdit("smart", b)
-  })));
-  if (!buttons.length || (buttons.length === 1 && e?.isNew)) host.append(el("p", { class: "empty" }, "No smart controls yet. Create one, start from a template, or load the defaults below."));
+  const rows = buttons.filter((b) => !(e && e.isNew && b === e.item)).map((b) => bar({
+    kind: "Smart", name: b.name, sub: describeSmart(b), editing: e && e.item === b, flash: flashOnce(b.id), onEdit: () => openEdit("smart", b)
+  }));
+  rows.push(...menuBars());
+  host.replaceChildren(...rows);
+  if (!rows.length) host.append(el("p", { class: "empty" }, "No smart controls or quick menus yet. Create one, start from a template, or load the defaults below."));
 }
 async function postRules() {
   const rules = toRules(buttons);
@@ -1169,16 +1166,19 @@ function iconState(b) {
 }
 function renderIcons() {
   const e = ED.icons;
+  const xs = ED.extras?.kind === "slider" ? ED.extras : null;
   $("#icons-editor").replaceChildren(...(e ? [editorBox("icons", {
     title: e.isNew ? "New state icon" : "Edit: " + (JSON.parse(e.snap).name || "state icon"),
     card: iconCard(e.item),
     onSave: saveIcons,
     onDelete: deleteIcon
-  })] : []));
+  })] : xs ? [extrasEditorBox()] : []));
   const host = $("#icons-list");
   const shown = ICONS.filter((b) => !(e && e.isNew && b === e.item));
-  host.replaceChildren(...shown.map((b) => { const st = iconState(b); return bar({ name: b.name || b.id, sub: describeIcon(b), state: st?.text, stateErr: st?.err, editing: e && e.item === b, flash: flashOnce(b.id), onEdit: () => openEdit("icons", b) }); }));
-  if (!shown.length) host.append(el("p", { class: "empty" }, ICON_ACTS.some((a) => a.pageCount === 1) ? "No state icons yet. Create one to make a button on a page follow a device's state." : "None of your activities has exactly one page. State icons need an activity with a single page."));
+  const rows = shown.map((b) => { const st = iconState(b); return bar({ kind: "Icon", name: b.name || b.id, sub: describeIcon(b), state: st?.text, stateErr: st?.err, editing: e && e.item === b, flash: flashOnce(b.id), onEdit: () => openEdit("icons", b) }); });
+  rows.push(...sliderBars());
+  host.replaceChildren(...rows);
+  if (!rows.length) host.append(el("p", { class: "empty" }, "No state icons or sliders yet. A state icon makes a button on a page follow a device's state (it needs an activity with a single page); a slider controls a number on a device, like receiver volume, with the remote's slider pop-up."));
 }
 
 const iconsFromServer = (list, keepPreview = []) => list.map((b) => ({ ...b, savedActivity: b.activity, savedLocation: b.location,
@@ -1437,21 +1437,27 @@ function describeSlider(s) {
   return `${devName(s.entity)} ${s.attr ? s.attr.replace(/_/g, " ") : "(remembered)"} · ${s.min}–${s.max} · ${how}`;
 }
 const describeMenu = (m) => `${m.options.length} choice${m.options.length === 1 ? "" : "s"}: ${m.options.map((o) => o.label).join(", ")}`;
-function renderExtras() {
+function extrasEditorBox() {
   const e = ED.extras;
-  const isMenu = e?.kind === "menu";
-  $("#extras-editor").replaceChildren(...(e ? [editorBox("extras", {
-    title: (e.isNew ? "New " : "Edit: ") + (e.isNew ? (isMenu ? "quick menu" : "slider") : JSON.parse(e.snap).name || (isMenu ? "quick menu" : "slider")),
+  const isMenu = e.kind === "menu";
+  return editorBox("extras", {
+    title: (e.isNew ? "New " + (isMenu ? "quick menu" : "slider") : "Edit: " + (JSON.parse(e.snap).name || (isMenu ? "quick menu" : "slider"))),
     card: isMenu ? menuCard(e.item) : sliderCard(e.item),
     onSave: () => saveExtras(true),
     onDelete: deleteExtra
-  })] : []));
-  const host = $("#extras-list");
-  const rows = [];
-  for (const s of SLIDERS) if (!(e && e.isNew && s === e.item)) rows.push(bar({ kind: "Slider", name: s.name, sub: describeSlider(s), state: XSTATUS[s.id]?.error || (XSTATUS[s.id]?.value != null ? "now " + XSTATUS[s.id].value : ""), stateErr: !!XSTATUS[s.id]?.error, editing: e && e.item === s, flash: flashOnce(s.id), onEdit: () => openEdit("extras", s, { kind: "slider" }) }));
-  for (const m of MENUS) if (!(e && e.isNew && m === e.item)) rows.push(bar({ kind: "Menu", name: m.name, sub: describeMenu(m), state: XSTATUS[m.id]?.error || (XSTATUS[m.id]?.current ? "showing " + XSTATUS[m.id].current : ""), stateErr: !!XSTATUS[m.id]?.error, editing: e && e.item === m, flash: flashOnce(m.id), onEdit: () => openEdit("extras", m, { kind: "menu" }) }));
-  host.replaceChildren(...rows);
-  if (!rows.length) host.append(el("p", { class: "empty" }, "No sliders or quick menus yet. A slider controls a number on a device (like receiver volume) with the remote's slider pop-up; a quick menu pops up a list of choices that each run steps."));
+  });
+}
+function sliderBars() {
+  const e = ED.extras;
+  return SLIDERS.filter((s) => !(e && e.isNew && s === e.item)).map((s) => bar({ kind: "Slider", name: s.name, sub: describeSlider(s), state: XSTATUS[s.id]?.error || (XSTATUS[s.id]?.value != null ? "now " + XSTATUS[s.id].value : ""), stateErr: !!XSTATUS[s.id]?.error, editing: e && e.item === s, flash: flashOnce(s.id), onEdit: () => openEdit("extras", s, { kind: "slider" }) }));
+}
+function menuBars() {
+  const e = ED.extras;
+  return MENUS.filter((m) => !(e && e.isNew && m === e.item)).map((m) => bar({ kind: "Menu", name: m.name, sub: describeMenu(m), state: XSTATUS[m.id]?.error || (XSTATUS[m.id]?.current ? "showing " + XSTATUS[m.id].current : ""), stateErr: !!XSTATUS[m.id]?.error, editing: e && e.item === m, flash: flashOnce(m.id), onEdit: () => openEdit("extras", m, { kind: "menu" }) }));
+}
+function renderExtras() {
+  render();
+  if (iconsLoaded) renderIcons();
 }
 
 // "Add from a device's list": commands whose parameter has a list of values (inputs, sound modes, list options).
@@ -1517,7 +1523,7 @@ async function deleteExtra() {
 }
 async function loadExtras() {
   const r = await api("GET", "/api/extras");
-  if (!r.ok) { $("#extras-list").replaceChildren(el("p", { class: "status err" }, r.data.error || "Couldn't read the sliders and menus.")); return; }
+  if (!r.ok) { console.warn("sliders/menus:", r.data.error); return; }
   extrasIn(r.data);
   XSTATUS = r.data.status || {};
   extrasLoaded = true;
@@ -1526,21 +1532,19 @@ async function loadExtras() {
 }
 
 const TABS = {
-  smart: { pane: "#app", intro: "Conditional buttons for the Remote Self-Control integration. Each button checks your devices or the remote, then runs the first branch that matches." },
-  icons: { pane: "#icons-app", intro: "Make a button on an activity page change its icon with a device's state, like a green power icon when the receiver is on." },
-  extras: { pane: "#extras-app", intro: "Sliders for any number on your devices (like receiver volume) and quick menus that pop up a list of choices, using the remote's own pop-ups." }
+  smart: { pane: "#app", intro: "Buttons and pop-up menus for the Remote Self-Control integration. A smart control checks your devices or the remote, then runs the first branch that matches; a quick menu runs the steps of the choice you pick." },
+  icons: { pane: "#icons-app", intro: "Show and control your devices: state icons make a button on a page follow a device's state (like a green power icon); sliders control a number like the receiver's volume with the remote's slider pop-up." }
 };
 function showTab(which) {
+  if (which === "extras") which = "icons"; // older builder versions had a separate tab
   if (!TABS[which]) which = "smart";
   for (const [k, t] of Object.entries(TABS)) {
     $("#tab-" + k).setAttribute("aria-selected", String(k === which));
     $(t.pane).hidden = k !== which;
   }
   $("#tab-intro").textContent = TABS[which].intro;
-  notify = which === "extras" ? extrasChanged : changed;
   try { localStorage.setItem("scb_tab", which); } catch {}
-  if (which === "icons" && !iconsLoaded) loadIcons();
-  if (which === "extras") { if (!extrasLoaded) loadExtras(); else renderExtras(); }
+  if (which === "icons") { if (!iconsLoaded) loadIcons(); else renderIcons(); }
   if (which === "smart") render();
 }
 for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () => showTab(k));
@@ -1549,7 +1553,7 @@ for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () =
 // Session
 // ---------------------------------------------------------------------------
 function showLogin(msg) {
-  $("#app").hidden = true; $("#icons-app").hidden = true; $("#extras-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
+  $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
   $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
   $("#pin").focus();
 }
@@ -1565,6 +1569,7 @@ async function loadAll() {
   saved = JSON.stringify(toRules(buttons), null, 2);
   $("#json").textContent = saved;
   $("#login").hidden = true; $("#tabs").hidden = false; $("#session-bar").hidden = false;
+  await loadExtras();
   changed(true);
   let tab = "smart";
   try { tab = localStorage.getItem("scb_tab") || "smart"; } catch {}
