@@ -896,7 +896,7 @@ async function returnPage(errors) {
         value: {
           en:
             "The integration watches which activity you start (whether or not the old one turns off) and keeps a **↩** button in the activities you tick pointed at the activity you used before. Pressing it opens that activity.\n\n" +
-            "- **On screen:** a text button \"↩ <previous activity>\" or a back-arrow icon is added to the first free spot of each activity's first page. Move it anywhere you like; any text button starting with ↩ is kept up to date.\n" +
+            "- **On screen:** a text button \"↩ <previous activity>\" or a back-arrow icon is added to the first free spot of each activity's first page. Move it anywhere you like; any text button starting with ↩ is kept up to date. If a page has no free spot, it's left as it is (no rows are added).\n" +
             "- **Physical button:** replaces what that button does in the ticked activities (short or long press).\n" +
             "- The previous activity is added to each ticked activity's devices automatically.\n\nUntick every activity to turn this off."
         }
@@ -919,6 +919,14 @@ async function returnPage(errors) {
     id: "button",
     label: { en: "Physical button" },
     field: { dropdown: { value: returnTracker.cfg.button || "NONE", items: [{ id: "NONE", label: { en: "None" } }, ...btns.map((b) => ({ id: b, label: { en: b.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()) } }))] } }
+  });
+  page.push({
+    id: "scope",
+    label: { en: "Use the physical button" },
+    field: { dropdown: { value: returnTracker.cfg.buttonScope || "all", items: [
+      { id: "all", label: { en: "In every ticked activity" } },
+      { id: "nofit", label: { en: "Only where the on-screen button doesn't fit" } }
+    ] } }
   });
   page.push({
     id: "press",
@@ -1038,6 +1046,7 @@ async function setupHandler(msg) {
       const screen = ["text", "icon", "none"].includes(v.screen) ? v.screen : "text";
       const button = /^[A-Z0-9_]{1,20}$/.test(String(v.button || "")) ? String(v.button) : "NONE";
       const press = v.press === "long_press" ? "long_press" : "short_press";
+      const buttonScope = v.scope === "nofit" ? "nofit" : "all";
       if (!hosts.length) {
         returnTracker.cfg.hosts = [];
         returnTracker.save();
@@ -1046,7 +1055,7 @@ async function setupHandler(msg) {
       }
       if (screen === "none" && button === "NONE") return await returnPage(["Choose an on-screen button, a physical button, or both."]);
       try {
-        await returnTracker.configure({ hosts, screen, button, press });
+        await returnTracker.configure({ hosts, screen, button, press, buttonScope });
         log(`return: on for ${hosts.map((h) => returnTracker.nameOf(h)).join(", ")}; screen ${screen}; button ${button} ${press}`);
         startPolling();
         return new uc.SetupComplete();

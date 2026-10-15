@@ -14,7 +14,9 @@
 //
 // ↩ items on screen: any text item whose text starts with "↩", or an icon item with icon "uc:back"
 // and an activity.start (or no) command, on any page of a host. Users can move them around.
-// A physical button (short or long press) can be set per host as well.
+// A physical button (short or long press) can be set as well: in every host, or only in hosts whose
+// page has no room for the on-screen button. The page's grid is never changed: adding a row would
+// resize every button and break pages built from tiled pictures.
 
 import fs from "node:fs";
 
@@ -74,7 +76,7 @@ export class ReturnTracker {
     this.busy = Promise.resolve();
     const saved = this.read();
     this.history = saved.history || [];
-    this.cfg = { hosts: [], screen: "text", button: "NONE", press: "short_press", ...(saved.cfg || {}) };
+    this.cfg = { hosts: [], screen: "text", button: "NONE", press: "short_press", buttonScope: "all", ...(saved.cfg || {}) };
     this.hostState = saved.hostState || {}; // host -> { target, placed }
   }
 
@@ -171,6 +173,7 @@ export class ReturnTracker {
     const command = target ? { entity_id: target, cmd_id: CMD } : undefined;
     const label = `${RETURN_MARK} ${target ? this.nameOf(target) : "Previous"}`.slice(0, 50);
 
+    hs.onScreen = false;
     if (this.cfg.screen !== "none") {
       const pages = (await core.get(`/activities/${enc}/ui/pages`)) || [];
       let found = 0;
@@ -188,33 +191,41 @@ export class ReturnTracker {
         });
         if (changed) await core.patch(`/activities/${enc}/ui/pages/${encodeURIComponent(p.page_id)}`, { items });
       }
+      if (found) hs.onScreen = true;
       if (!found && !hs.placed && pages.length) {
         const p = pages[0];
         const isIcon = this.cfg.screen === "icon";
-        const w = isIcon ? 1 : 2;
         const grid = { width: p.grid?.width || 4, height: p.grid?.height || 6 };
-        let spot = freeSpot(grid, p.items, w, 1);
-        if (!spot) {
-          grid.height += 1;
-          spot = { x: 0, y: grid.height - 1 };
+        // a text button needs 2 cells; fall back to the 1-cell icon when only one is free
+        let spot = isIcon ? freeSpot(grid, p.items, 1, 1) : freeSpot(grid, p.items, 2, 1);
+        let useIcon = isIcon;
+        if (!spot && !isIcon) {
+          spot = freeSpot(grid, p.items, 1, 1);
+          useIcon = !!spot;
         }
-        const item = isIcon
-          ? { type: "icon", icon: RETURN_ICON, location: spot, size: { width: 1, height: 1 } }
-          : { type: "text", text: label, location: spot, size: { width: w, height: 1 } };
-        if (command) item.command = command;
-        await core.patch(`/activities/${enc}/ui/pages/${encodeURIComponent(p.page_id)}`, { grid, items: [...(p.items || []), item] });
-        this.log(`return: placed ${isIcon ? "an icon" : "a text"} button on "${p.name || "page 1"}" of ${this.nameOf(host)} at ${spot.x},${spot.y}`);
+        if (spot) {
+          const item = useIcon
+            ? { type: "icon", icon: RETURN_ICON, location: spot, size: { width: 1, height: 1 } }
+            : { type: "text", text: label, location: spot, size: { width: 2, height: 1 } };
+          if (command) item.command = command;
+          await core.patch(`/activities/${enc}/ui/pages/${encodeURIComponent(p.page_id)}`, { items: [...(p.items || []), item] });
+          hs.onScreen = true;
+          this.log(`return: placed ${useIcon ? "an icon" : "a text"} button on "${p.name || "page 1"}" of ${this.nameOf(host)} at ${spot.x},${spot.y}`);
+        } else {
+          this.warn(`return: no free spot on "${p.name || "page 1"}" of ${this.nameOf(host)}; the page is left as it is. Use a physical button for this activity, or make room and run the setup again.`);
+        }
       }
       hs.placed = true;
     }
-    if (this.cfg.button && this.cfg.button !== "NONE" && command) {
+    const physical = this.cfg.button && this.cfg.button !== "NONE" && (this.cfg.buttonScope !== "nofit" || !hs.onScreen);
+    if (physical && command) {
       await core.patch(`/activities/${enc}/buttons/${encodeURIComponent(this.cfg.button)}`, { [this.cfg.press === "long_press" ? "long_press" : "short_press"]: command });
     }
   }
 
   /** New settings from the setup screen; places buttons and points them right away. */
-  async configure({ hosts, screen, button, press }) {
-    this.cfg = { hosts, screen, button, press };
+  async configure({ hosts, screen, button, press, buttonScope }) {
+    this.cfg = { hosts, screen, button, press, buttonScope: buttonScope === "nofit" ? "nofit" : "all" };
     for (const h of hosts) this.hostState[h] = { placed: false };
     this.save();
     if (!this.states) await this.poll().catch(() => {});

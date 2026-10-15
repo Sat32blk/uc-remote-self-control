@@ -121,8 +121,8 @@ Jump from *Watch TV* to a *Home Assistant* or *Music* activity and back with one
 
 1. Integrations → Remote Self-Control → **Configure** → **Return to previous activity: set up the ↩ button**.
 2. Tick the activities that should have the button.
-3. Choose the **on-screen button**: a text button "↩ <previous activity>" or a back-arrow icon. It's added to the first free spot of each activity's first page; move it wherever you like in the web configurator.
-4. Optionally choose a **physical button** (short or long press). It replaces what that button does in the ticked activities.
+3. Choose the **on-screen button**: a text button "↩ <previous activity>" or a back-arrow icon. It's added to the first free spot of each activity's first page; move it wherever you like in the web configurator. A text button needs two free cells side by side; with only one, the icon is used. **The page's grid is never changed**: if there's no free spot, nothing is added (important for pages built from tiled pictures).
+4. Optionally choose a **physical button** (short or long press), used **in every ticked activity** or **only where the on-screen button doesn't fit**. It replaces what that button does in those activities.
 
 From then on the integration keeps every ↩ button pointed at the activity you came from:
 
@@ -370,7 +370,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
-- **0.6.0:** **Sliders & quick menus**: new *Sliders & Menus* tab in the builder. 12 tile icons for sliders and menus, and **level graphics** (12 designs × 6 colors) as a new kind of state icon that shows a number as a bar, gauge, dots and more. Sliders are light entities mapped to a number on any device (one "set value" command, or repeated up/down presses), with the remote's slider pop-up on home tiles and the Remote 3 touch slider; they follow the device's value. Quick menus are select entities whose choices run Smart Control steps, with an optional condition that marks the current choice; *Add from a device's list* builds one from a device's inputs or sound modes.
+- **0.6.0:** ↩ buttons no longer add a row to a full page (that resized every button and broke picture-tile pages); new option to use the physical button only where the on-screen button doesn't fit. **Sliders & quick menus**: new *Sliders & Menus* tab in the builder. 12 tile icons for sliders and menus, and **level graphics** (12 designs × 6 colors) as a new kind of state icon that shows a number as a bar, gauge, dots and more. Sliders are light entities mapped to a number on any device (one "set value" command, or repeated up/down presses), with the remote's slider pop-up on home tiles and the Remote 3 touch slider; they follow the device's value. Quick menus are select entities whose choices run Smart Control steps, with an optional condition that marks the current choice; *Add from a device's list* builds one from a device's inputs or sound modes.
 - **0.5.0:** **State icons**: new *State Icons* tab in the builder. Pick a button on a single-page activity, a device and what to check, then drop an image and/or type a label per state; the button switches look within about 2 seconds and returns to its own look otherwise. Images are resized to 90×90 and uploaded to the remote. Builder renamed *Remote Self-Control Builder* with *Smart Controls* and *State Icons* tabs.
 - **0.4.0:** Return to previous activity: tracks the activities you start and keeps a ↩ text or icon button and/or a physical button pointed at the previous one, set up in the integration's Configure menu. New Previous Activity sensor (area Remote Navigation). Smart Control results name devices instead of showing entity ids.
 - **0.3.2:** new **Display Brightness** light entity so the Remote 3 touch slider can set the display brightness.

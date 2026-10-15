@@ -87,31 +87,34 @@ const btnItems = r.page.find((x) => x.id === "button")?.field.dropdown.items.map
 ok(btnItems[0] === "NONE" && btnItems.includes("BACK") && btnItems.includes("RECORD"), "physical button list from the remote: " + btnItems.join(","));
 ok(r.page.find((x) => x.id === "screen")?.field.dropdown.items.map((i) => i.id).join() === "text,icon,none", "on-screen choice: text, icon, none");
 ok(r.page.find((x) => x.id === "press")?.field.dropdown.items.map((i) => i.id).join() === "short_press,long_press", "press: short, long");
+ok(r.page.find((x) => x.id === "scope")?.field.dropdown.items.map((i) => i.id).join() === "all,nofit", "physical button scope: every activity, or only where the screen button doesn't fit");
 
 r = await returnSetup({ host_0: "true", host_1: "true", screen: "none", button: "NONE", press: "short_press" });
 const err = r.after?.msg_data.require_user_action?.input?.settings?.find((x) => x.id === "errors");
 ok(err && /on-screen button, a physical button/.test(err.field.label.value.en), "nothing to show -> asks for a screen or physical button");
 
-r = await returnSetup({ host_0: "true", host_1: "true", screen: "text", button: "RECORD", press: "short_press" });
+r = await returnSetup({ host_0: "true", host_1: "true", screen: "text", button: "RECORD", press: "short_press", scope: "nofit" });
 ok(r.after?.msg_data.state === "OK", "return button set up for both activities");
 const tvItem = () => activities[TV_ACT].pages[0].items.find(isReturnItem);
 const musicItem = () => activities[MUSIC].pages[0].items.find(isReturnItem);
 ok(tvItem()?.text === "↩ Previous" && JSON.stringify(tvItem().location) === '{"x":0,"y":5}' && tvItem().size.width === 2 && !tvItem().command, "Watch TV: text button placed bottom-left, no target yet");
-ok(activities[MUSIC].pages[0].grid.height === 2 && JSON.stringify(musicItem()?.location) === '{"x":0,"y":1}', "Play Music: page was full, so a row was added for the button");
+ok(activities[MUSIC].pages[0].grid.height === 1 && !musicItem() && activities[MUSIC].pages[0].items.length === 1, "Play Music: page is full, so it's left exactly as it was (no row added, no button)");
+ok(/no free spot/.test(drvLog), "the log says why Play Music got no on-screen button");
 
 // ---- start Watch TV ---------------------------------------------------------------
 activities[TV_ACT].state = "ON";
 await sleep(1200);
-ok(musicItem()?.command?.entity_id === TV_ACT && musicItem().command.cmd_id === "activity.start" && musicItem().text === "↩ Watch TV", "Play Music's ↩ already points at Watch TV (current)");
+const musicRec = () => activities[MUSIC].buttons.RECORD?.short_press;
+ok(musicRec()?.entity_id === TV_ACT && musicRec().cmd_id === "activity.start", "Play Music's ↩ (RECORD, no room on screen) already points at Watch TV (current)");
 ok(activities[MUSIC].entity_ids.includes(TV_ACT) && activities[MUSIC].entity_ids.includes("uc_denon_driver.main.media_player.YOUR_RECEIVER_ID"), "Watch TV added to Play Music's devices, existing kept");
-ok(activities[MUSIC].buttons.RECORD.short_press?.entity_id === TV_ACT, "Play Music: RECORD short press -> Watch TV");
+ok(!activities[TV_ACT].buttons.RECORD?.short_press, "Watch TV has its ↩ on screen, so its RECORD button is left alone");
 
 // ---- start Play Music (Watch TV stays on) ---------------------------------------
 activities[MUSIC].state = "ON";
 await sleep(1200);
 ok(tvItem()?.command?.entity_id === MUSIC && tvItem().text === "↩ Play Music", "Watch TV's ↩ now points at Play Music");
-ok(musicItem()?.command?.entity_id === TV_ACT, "Play Music's ↩ still points at Watch TV (old activity not turned off)");
-ok(activities[TV_ACT].buttons.RECORD.short_press?.entity_id === MUSIC && activities[TV_ACT].buttons.BACK.short_press.cmd_id === "media_player.back", "Watch TV: RECORD -> Play Music; BACK untouched");
+ok(musicRec()?.entity_id === TV_ACT, "Play Music's ↩ still points at Watch TV (old activity not turned off)");
+ok(!activities[TV_ACT].buttons.RECORD?.short_press && activities[TV_ACT].buttons.BACK.short_press.cmd_id === "media_player.back", "Watch TV: RECORD and BACK untouched");
 ok((await prevValue()) === "Watch TV", "Previous Activity sensor: Watch TV");
 
 // ---- old one turned off, then started again ---------------------------------------
@@ -120,7 +123,7 @@ activities[MUSIC].state = "OFF";
 await sleep(700);
 activities[TV_ACT].state = "ON";
 await sleep(1200);
-ok(musicItem()?.command?.entity_id === TV_ACT && tvItem()?.command?.entity_id === MUSIC, "after turning off and back on: still the last two");
+ok(musicRec()?.entity_id === TV_ACT && tvItem()?.command?.entity_id === MUSIC, "after turning off and back on: still the last two");
 ok((await prevValue()) === "Play Music", "Previous Activity sensor: Play Music");
 
 // ---- user moved the button -----------------------------------------------------------
