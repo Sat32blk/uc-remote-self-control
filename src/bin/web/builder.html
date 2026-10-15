@@ -102,6 +102,30 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .tpick { width: 48px; height: 48px; min-height: 48px; padding: 0; display: flex; align-items: center; justify-content: center; background: #0f1114; border: 2px solid transparent; border-radius: 10px; }
 .tpick.none { width: auto; padding: 0 10px; color: #c9ced5; font-size: 12px; }
 .tpick.sel { border-color: var(--accent); }
+.pane { display: flex; flex-direction: column; gap: 14px; max-width: 980px; width: 100%; }
+.createbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.createbar select { max-width: 320px; }
+.list-title { margin: 8px 0 0; font-size: 15px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+.bars { display: flex; flex-direction: column; gap: 8px; }
+.bar { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.bar.editing { border-color: var(--accent); background: var(--accent-soft); }
+.bar.flash { border-color: var(--ok); }
+.bar-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bar-top { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.bar-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-sub { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-state { flex: none; font-size: 12px; color: var(--muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-state.err { color: var(--danger); }
+.kind { flex: none; font: 600 11px/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; padding: 4px 6px; border-radius: 4px; background: var(--inset); color: var(--muted); }
+@media (max-width: 560px) { .bar-state { display: none; } }
+.editbox { background: var(--panel); border: 2px solid var(--accent); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.editbox-head { display: flex; align-items: center; gap: 8px; }
+.editbox-head h2 { margin: 0; font-size: 17px; flex: 1; }
+.editbox > .card { border: 0; padding: 0; }
+.editbox-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
+.editbox-foot .grow { flex: 1; }
+button.danger { color: var(--danger); }
+input.missing { border-color: var(--danger); outline: 2px solid var(--danger); }
 .section-title { margin: 6px 0 0; font-size: 17px; font-weight: 600; }
 .fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .choice { border-radius: 10px; background: var(--inset); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -135,111 +159,63 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
     <button type="button" role="tab" id="tab-extras" aria-selected="false" aria-controls="extras-app">Sliders &amp; Menus</button>
   </nav>
 
-  <div class="panes" id="app" hidden>
-    <section class="editor" aria-label="Smart controls">
-      <div id="buttons"></div>
+  <section class="pane" id="app" hidden aria-label="Smart controls">
+    <div class="createbar">
+      <button class="primary" id="add-button" type="button">+ Create smart control</button>
+      <select id="template" aria-label="Create from a template">
+        <option value="">or start from a template…</option>
+      </select>
+    </div>
+    <div id="smart-editor"></div>
+    <h2 class="list-title">Your smart controls</h2>
+    <div id="buttons" class="bars"></div>
+    <p class="note">After saving a new control, add it to the integration (Integrations → Remote Self-Control → add entities) and to the activities that use it. Smart controls run in the background, so they can't switch the remote's screen to another activity.</p>
+    <details class="panel">
+      <summary>Rules text (backup / import)</summary>
+      <p class="hint">Copy this to back up or share your controls, or paste rules here and load them (this replaces all your smart controls).</p>
+      <div class="row"><button class="small" id="copy" type="button">Copy</button><span id="copy-status" class="status"></span></div>
+      <pre class="json" id="json" tabindex="0"></pre>
+      <textarea id="import-text" class="mono" placeholder="Paste rules JSON to load"></textarea>
       <div class="row">
-        <button class="primary" id="add-button" type="button">Add smart control</button>
-        <select id="template" aria-label="Add from a template">
-          <option value="">Add from a template…</option>
-        </select>
+        <button class="small" id="import" type="button">Load pasted rules</button>
+        <button class="small" id="defaults" type="button">Load the defaults</button>
+        <span id="import-status" class="status"></span>
       </div>
-    </section>
+    </details>
+  </section>
 
-    <aside class="side">
-      <div class="panel">
-        <h2>Save to the remote</h2>
-        <p class="hint" id="dirty-note">No unsaved changes.</p>
-        <div class="row">
-          <button class="primary" id="save" type="button">Save</button>
-          <button id="revert" type="button">Discard changes</button>
-        </div>
-        <div id="save-status" class="status" role="status"></div>
-        <ul class="errors" id="save-errors" hidden></ul>
-        <p class="note">After saving, add new controls to the integration (Integrations → Remote Self-Control → add entities) and to the activities that use them. Smart controls run in the background, so they can't switch the remote's screen to another activity.</p>
-      </div>
-      <div class="panel">
-        <h2>Last test</h2>
-        <div class="result" id="test-result">Use a control's Test button to run it once on the remote.</div>
-      </div>
-      <details class="panel">
-        <summary>Rules text (import / export)</summary>
-        <p class="hint">Copy this to back up or share your controls, or paste rules here and load them.</p>
-        <div class="row"><button class="small" id="copy" type="button">Copy</button><span id="copy-status" class="status"></span></div>
-        <pre class="json" id="json" tabindex="0"></pre>
-        <textarea id="import-text" class="mono" placeholder="Paste rules JSON to load"></textarea>
-        <div class="row">
-          <button class="small" id="import" type="button">Load pasted rules</button>
-          <button class="small" id="defaults" type="button">Load the defaults</button>
-          <span id="import-status" class="status"></span>
-        </div>
-      </details>
-    </aside>
-  </div>
+  <section class="pane" id="icons-app" hidden aria-label="State icons">
+    <div class="createbar">
+      <button class="primary" id="icon-add" type="button">+ Create state icon</button>
+    </div>
+    <div id="icons-editor"></div>
+    <h2 class="list-title">Your state icons</h2>
+    <div id="icons-list" class="bars"></div>
+    <details class="panel">
+      <summary>How state icons work</summary>
+      <p class="note">Pick a button on an activity page. Its current icon or text is the <b>default</b> look. Then drop an image (or type a label) for each state of a device, like <i>ON</i> or an input name, or pick a <b>level graphic</b> that follows a number. The button switches look within about 2 seconds of the change and goes back to its default when no state matches. What the button does when pressed doesn't change.</p>
+      <p class="note">Only activities with <b>one page</b> are offered: when a page of the activity on screen changes, the remote jumps back to that activity's first page, which would interrupt you on activities with more pages.</p>
+    </details>
+  </section>
 
-  <div class="panes" id="icons-app" hidden>
-    <section class="editor" aria-label="State icons">
-      <div id="icons-list"></div>
-      <div class="row"><button class="primary" id="icon-add" type="button">Add state icon</button></div>
-    </section>
-    <aside class="side">
-      <div class="panel">
-        <h2>Save to the remote</h2>
-        <p class="hint" id="icons-dirty">No unsaved changes.</p>
-        <div class="row">
-          <button class="primary" id="icons-save" type="button">Save</button>
-          <button id="icons-revert" type="button">Discard changes</button>
-        </div>
-        <div id="icons-status" class="status" role="status"></div>
-        <ul class="errors" id="icons-errors" hidden></ul>
-      </div>
-      <div class="panel">
-        <h2>How state icons work</h2>
-        <p class="note">Pick a button on an activity page. Its current icon or text is the <b>default</b> look. Then drop an image (or type a label) for each state of a device, like <i>ON</i> or an input name. The button switches look within about 2 seconds of the change and goes back to its default when no state matches. What the button does when pressed doesn't change.</p>
-        <p class="note">Only activities with <b>one page</b> are offered: when a page of the activity on screen changes, the remote jumps back to that activity's first page, which would interrupt you on activities with more pages.</p>
-      </div>
-    </aside>
-  </div>
-
-  <div class="panes" id="extras-app" hidden>
-    <section class="editor" aria-label="Sliders and quick menus">
-      <h2 class="section-title">Sliders</h2>
-      <div id="sliders-list"></div>
-      <div class="row">
-        <button class="primary" id="slider-add" type="button">Add slider</button>
-      </div>
-      <h2 class="section-title">Quick menus</h2>
-      <div id="menus-list"></div>
-      <div class="row">
-        <button class="primary" id="menu-add" type="button">Add quick menu</button>
-        <select id="menu-fill" aria-label="Add a menu from a device's list">
-          <option value="">Add from a device's list…</option>
-        </select>
-      </div>
-    </section>
-    <aside class="side">
-      <div class="panel">
-        <h2>Save to the remote</h2>
-        <p class="hint" id="extras-dirty">No unsaved changes.</p>
-        <div class="row">
-          <button class="primary" id="extras-save" type="button">Save</button>
-          <button id="extras-revert" type="button">Discard changes</button>
-        </div>
-        <div id="extras-status" class="status" role="status"></div>
-        <ul class="errors" id="extras-errors" hidden></ul>
-      </div>
-      <div class="panel">
-        <h2>Last test</h2>
-        <div class="result" id="extras-result">Use Set on a slider or Run on a choice to try it on the remote.</div>
-      </div>
-      <div class="panel">
-        <h2>Using them on the remote</h2>
-        <p class="note">After saving, add the new entities to the integration (Integrations → Remote Self-Control → add entities). They're in the <b>Remote Sliders &amp; Menus</b> group.</p>
-        <p class="note"><b>Sliders</b> are light entities. Put one on a home page: tapping the tile opens a slider pop-up. On a Remote 3 you can also assign it to the touch slider in an activity.</p>
-        <p class="note"><b>Quick menus</b> are list entities. On a home tile or an activity page they open a list pop-up; picking a choice runs its steps. Steps run in the background, so they can't switch the remote's screen to another activity.</p>
-      </div>
-    </aside>
-  </div>
+  <section class="pane" id="extras-app" hidden aria-label="Sliders and quick menus">
+    <div class="createbar">
+      <button class="primary" id="slider-add" type="button">+ Create slider</button>
+      <button class="primary" id="menu-add" type="button">+ Create quick menu</button>
+      <select id="menu-fill" aria-label="Create a quick menu from a device's list">
+        <option value="">or a quick menu from a device's list…</option>
+      </select>
+    </div>
+    <div id="extras-editor"></div>
+    <h2 class="list-title">Your sliders and quick menus</h2>
+    <div id="extras-list" class="bars"></div>
+    <details class="panel">
+      <summary>Using them on the remote</summary>
+      <p class="note">After saving a new one, add it to the integration (Integrations → Remote Self-Control → add entities). They're in the <b>Remote Sliders &amp; Menus</b> group.</p>
+      <p class="note"><b>Sliders</b> are light entities. Put one on a home page: tapping the tile opens a slider pop-up. On a Remote 3 you can also assign it to the touch slider in an activity.</p>
+      <p class="note"><b>Quick menus</b> are list entities. On a home tile or an activity page they open a list pop-up; picking a choice runs its steps. Steps run in the background, so they can't switch the remote's screen to another activity.</p>
+    </details>
+  </section>
 </div>
 
 <script>
@@ -398,12 +374,6 @@ const firstDevice = (pred) => CAT.devices.find(pred) || CAT.devices[0];
 // Editor rendering
 // ---------------------------------------------------------------------------
 function changed(rerender) {
-  const text = JSON.stringify(toRules(buttons), null, 2);
-  $("#json").textContent = text;
-  const dirty = text !== saved;
-  $("#dirty-note").textContent = dirty ? "You have unsaved changes." : "No unsaved changes.";
-  $("#save").disabled = !dirty;
-  $("#revert").disabled = !dirty;
   if (rerender) render();
 }
 
@@ -539,48 +509,210 @@ function stepsBlock(list) {
   return [box, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { list.push(newStep("cmd")); notify(true); } } }, "Add step"))];
 }
 
-function render() {
-  const host = $("#buttons");
-  host.replaceChildren();
-  const wrap = el("div", { class: "lines", style: "gap:14px" });
-  buttons.forEach((b, bi) => {
-    const id = nid("b");
-    const card = el("article", { class: "card", "aria-label": b.name || "Smart control" });
-    const idIn = input(id + "-i", b.id, (v) => { b.id = v; changed(false); }, { label: "Id", cls: "mono" });
-    const nameIn = input(id + "-n", b.name, (v) => { const auto = !b.id || b.id === slug(b.name); b.name = v; if (auto) { b.id = slug(v); idIn.value = b.id; } changed(false); }, { label: "Name", placeholder: "Smart Volume Up" });
-    card.append(el("div", { class: "card-head" },
-      el("label", { class: "f grow", for: id + "-n" }, "Name (shown on the remote)", nameIn),
-      el("label", { class: "f grow", for: id + "-i" }, "Id (letters, digits, _)", idIn),
-      el("button", { class: "small", type: "button", on: { click: () => testButton(b.id) } }, "Test"),
-      el("button", { class: "ghost", type: "button", on: { click: () => { buttons.splice(bi, 1); changed(true); } } }, "Delete")
-    ));
-    b.cases.forEach((c, ci) => {
-      const br = el("div", { class: "branch" });
-      br.append(el("div", { class: "branch-head" },
-        el("span", { class: "tag" }, ci === 0 ? "If" : "Else if"),
-        c.conds.length > 1 ? select(id + "-j" + ci, [["all", "all of these are true"], ["any", "any of these is true"]], c.join, (v) => { c.join = v; changed(false); }, "Combine conditions") : el("span", { class: "sep" }, c.conds.length ? "" : "always"),
-        el("button", { class: "ghost small", type: "button", on: { click: () => { b.cases.splice(ci, 1); changed(true); } } }, "Remove branch")
-      ));
-      const cl = el("div", { class: "lines" });
-      c.conds.forEach((cond, k) => cl.append(condRow(cond, c.conds, k)));
-      br.append(cl, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { c.conds.push(newCond("device")); changed(true); } } }, "Add condition")));
-      br.append(el("div", { class: "subhead" }, "Then"), ...stepsBlock(c.steps));
-      card.append(br);
+// ---------------------------------------------------------------------------
+// Create / edit pattern: one editor box at the top of a tab, saved items as bars below.
+// ---------------------------------------------------------------------------
+const ED = { smart: null, icons: null, extras: null }; // { item, snap, isNew, kind, msg: { cls, text, errors } }
+const RERENDER = { smart: () => render(), icons: () => renderIcons(), extras: () => renderExtras() };
+const edDirty = (tab) => { const e = ED[tab]; return !!e && (e.isNew || JSON.stringify(e.item) !== e.snap); };
+
+function editorBox(tab, { title, card, onSave, onDelete, extra = [] }) {
+  const e = ED[tab];
+  const status = el("div", { class: "status edstatus" + (e.msg?.cls ? " " + e.msg.cls : ""), role: "status" }, e.msg?.text || "");
+  const errs = el("ul", { class: "errors" }, (e.msg?.errors || []).map((x) => el("li", {}, x)));
+  errs.hidden = !(e.msg?.errors || []).length;
+  let del = null;
+  if (!e.isNew) {
+    del = el("button", { class: "ghost danger", type: "button" }, "Delete");
+    del.addEventListener("click", () => {
+      if (del.dataset.armed === "1") return onDelete();
+      del.dataset.armed = "1"; del.textContent = "Click again to delete";
+      setTimeout(() => { del.dataset.armed = ""; del.textContent = "Delete"; }, 4000);
     });
-    if (b.otherwise) {
-      const br = el("div", { class: "branch" });
-      br.append(el("div", { class: "branch-head" }, el("span", { class: "tag else" }, "Otherwise"),
-        el("button", { class: "ghost small", type: "button", on: { click: () => { b.otherwise = null; changed(true); } } }, "Remove branch")), ...stepsBlock(b.otherwise));
-      card.append(br);
-    }
-    card.append(el("div", { class: "row" },
-      el("button", { class: "small", type: "button", on: { click: () => { b.cases.push({ join: "all", conds: [newCond("device")], steps: [] }); changed(true); } } }, b.cases.length ? "Add else-if branch" : "Add if branch"),
-      b.otherwise ? null : el("button", { class: "small", type: "button", on: { click: () => { b.otherwise = []; changed(true); } } }, "Add otherwise branch")
+  }
+  return el("section", { class: "editbox", "aria-label": title },
+    el("div", { class: "editbox-head" }, el("h2", {}, title), el("button", { class: "ghost", type: "button", "aria-label": "Close without saving", title: "Close without saving", on: { click: () => cancelEdit(tab) } }, "✕")),
+    card,
+    el("div", { class: "editbox-foot" },
+      el("button", { class: "primary", type: "button", on: { click: onSave } }, e.isNew ? "Save" : "Save changes"),
+      el("button", { type: "button", on: { click: () => cancelEdit(tab) } }, "Cancel"),
+      ...extra, el("span", { class: "grow" }), del),
+    status, errs);
+}
+function edMsg(tab, cls, text, errors) {
+  if (!ED[tab]) return;
+  ED[tab].msg = { cls, text, errors: errors || [] };
+  const box = document.querySelector(`#${tab === "smart" ? "smart" : tab}-editor .editbox`);
+  if (!box) return;
+  const st = box.querySelector(".edstatus");
+  st.className = "status edstatus " + (cls || ""); st.textContent = text || "";
+  const ul = box.querySelector(":scope > ul.errors");
+  ul.replaceChildren(...(errors || []).map((x) => el("li", {}, x))); ul.hidden = !(errors || []).length;
+}
+function openEdit(tab, item, { isNew = false, kind } = {}) {
+  if (ED[tab] && ED[tab].item !== item) cancelEdit(tab, false);
+  ED[tab] = { item, snap: JSON.stringify(item), isNew, kind, msg: null };
+  RERENDER[tab]();
+  setTimeout(() => { const box = document.querySelector(`#${tab}-editor .editbox`); box?.scrollIntoView({ behavior: "smooth", block: "start" }); if (isNew) box?.querySelector("input")?.focus(); }, 0);
+}
+/** The list an item of a tab lives in. */
+const listOf = (tab, kind) => (tab === "smart" ? buttons : tab === "icons" ? ICONS : kind === "menu" ? MENUS : SLIDERS);
+function cancelEdit(tab, rerender = true) {
+  const e = ED[tab];
+  if (!e) return;
+  const list = listOf(tab, e.kind);
+  const i = list.indexOf(e.item);
+  if (i >= 0) { if (e.isNew) list.splice(i, 1); else list[i] = JSON.parse(e.snap); }
+  ED[tab] = null;
+  if (rerender) RERENDER[tab]();
+}
+const NAME_MSG = "Give it a name first.";
+const nameTyped = (tab) => { if (ED[tab]?.msg?.text === NAME_MSG) edMsg(tab, "", ""); };
+/** Name is required: marks the field and says so. */
+function needName(tab) {
+  const e = ED[tab];
+  if (String(e.item.name || "").trim()) return true;
+  edMsg(tab, "err", NAME_MSG);
+  const inp = document.querySelector(`#${tab}-editor .editbox input`);
+  if (inp) { inp.classList.add("missing"); inp.focus(); }
+  return false;
+}
+/** Makes an item's id unique in its list (new items get it from their name). */
+function uniqueId(list, item, base) {
+  let id = item.id || base, n = 2;
+  const root = id;
+  while (list.some((x) => x !== item && x.id === id)) id = `${root}_${n++}`.slice(0, 43);
+  item.id = id;
+}
+function bar({ name, kind, sub, state, stateErr, editing, onEdit, flash }) {
+  return el("div", { class: "bar" + (editing ? " editing" : "") + (flash ? " flash" : "") },
+    el("div", { class: "bar-main" },
+      el("div", { class: "bar-top" }, kind ? el("span", { class: "kind" }, kind) : null, el("span", { class: "bar-name" }, name || "(no name)")),
+      el("div", { class: "bar-sub", title: sub }, sub || "")),
+    state ? el("span", { class: "bar-state" + (stateErr ? " err" : ""), title: state }, state) : null,
+    el("button", { class: "small", type: "button", disabled: editing, "aria-label": "Edit " + (name || ""), on: { click: onEdit } }, editing ? "Editing" : "Edit"));
+}
+let flashId = null; // id of the item just saved, highlighted once in the list
+const flashOnce = (id) => { const f = flashId === id; if (f) setTimeout(() => { flashId = null; }, 0); return f; };
+
+// ---- one-line descriptions ------------------------------------------------
+const devName = (id) => DEV[id]?.name || CAT.activities.find((a) => a.id === id)?.name || id || "?";
+const cmdLabel = (devId, cmd) => DEV[devId]?.commands.find((c) => c.id === cmd)?.label || String(cmd || "").split(".").pop().replace(/_/g, " ");
+function describeCond(c) {
+  switch (c.t) {
+    case "device": return `${devName(c.ent)} ${c.attr === "state" ? "" : c.attr.replace(/_/g, " ") + " "}${OPS[c.op] || c.op} ${c.val}`;
+    case "activity": return `${devName(c.act)} ${c.neg ? "isn't" : "is"} running`;
+    case "time": return `between ${c.from} and ${c.to}`;
+    case "control": return `${CAT.controls[c.key]?.name || c.key} ${OPS[c.op] || c.op} ${c.val}`;
+    case "setting": return `${CAT.settings[c.path] || c.path} ${OPS[c.op] || c.op} ${c.val}`;
+    case "var": return `memory ${c.name} ${OPS[c.op] || c.op} ${c.val}`;
+    default: return "custom condition";
+  }
+}
+function describeStep(s) {
+  switch (s.t) {
+    case "cmd": { const p = Object.values(s.params || {}).filter((v) => v !== "").join(", "); return `${devName(s.ent)} ${cmdLabel(s.ent, s.cmd)}${p ? " " + p : ""}`; }
+    case "self": return `${CAT.controls[s.key]?.name || s.key} → ${s.val}`;
+    case "delay": return `wait ${s.ms} ms`;
+    case "wait": return `wait until ${devName(s.ent)} ${OPS[s.op] || s.op} ${s.val}`;
+    case "setvar": return `memory ${s.name} = ${s.to}`;
+    case "save": return `remember settings`;
+    case "restore": return `restore settings`;
+    case "stop": return "stop";
+    default: return "custom step";
+  }
+}
+const describeSteps = (list) => (list.length ? list.map(describeStep).join(", ") : "nothing");
+function describeSmart(b) {
+  const parts = [];
+  for (const c of b.cases) parts.push(c.conds.length ? `If ${c.conds.map(describeCond).join(c.join === "any" ? " or " : " and ")}: ${describeSteps(c.steps)}` : describeSteps(c.steps));
+  if (b.otherwise) parts.push(`otherwise: ${describeSteps(b.otherwise)}`);
+  return parts.join(" · ");
+}
+
+function smartCard(b) {
+  const id = nid("b");
+  const card = el("article", { class: "card", "aria-label": b.name || "Smart control" });
+  const idIn = input(id + "-i", b.id, (v) => { b.id = v; changed(false); }, { label: "Id", cls: "mono" });
+  const nameIn = input(id + "-n", b.name, (v) => { const auto = !b.id || b.id === slug(b.name); b.name = v; nameIn.classList.remove("missing"); nameTyped("smart"); if (auto) { b.id = v.trim() ? slug(v) : ""; idIn.value = b.id; } changed(false); }, { label: "Name", placeholder: "Smart Volume Up" });
+  card.append(el("div", { class: "card-head" },
+    el("label", { class: "f grow", for: id + "-n" }, "Name (shown on the remote) *", nameIn),
+    el("label", { class: "f grow", for: id + "-i" }, "Id (letters, digits, _)", idIn)));
+  b.cases.forEach((c, ci) => {
+    const br = el("div", { class: "branch" });
+    br.append(el("div", { class: "branch-head" },
+      el("span", { class: "tag" }, ci === 0 ? "If" : "Else if"),
+      c.conds.length > 1 ? select(id + "-j" + ci, [["all", "all of these are true"], ["any", "any of these is true"]], c.join, (v) => { c.join = v; changed(false); }, "Combine conditions") : el("span", { class: "sep" }, c.conds.length ? "" : "always"),
+      el("button", { class: "ghost small", type: "button", on: { click: () => { b.cases.splice(ci, 1); changed(true); } } }, "Remove branch")
     ));
-    wrap.append(card);
+    const cl = el("div", { class: "lines" });
+    c.conds.forEach((cond, k) => cl.append(condRow(cond, c.conds, k)));
+    br.append(cl, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { c.conds.push(newCond("device")); changed(true); } } }, "Add condition")));
+    br.append(el("div", { class: "subhead" }, "Then"), ...stepsBlock(c.steps));
+    card.append(br);
   });
-  if (!buttons.length) wrap.append(el("p", { class: "empty" }, "No smart controls yet. Add one, start from a template, or load the defaults."));
-  host.append(wrap);
+  if (b.otherwise) {
+    const br = el("div", { class: "branch" });
+    br.append(el("div", { class: "branch-head" }, el("span", { class: "tag else" }, "Otherwise"),
+      el("button", { class: "ghost small", type: "button", on: { click: () => { b.otherwise = null; changed(true); } } }, "Remove branch")), ...stepsBlock(b.otherwise));
+    card.append(br);
+  }
+  card.append(el("div", { class: "row" },
+    el("button", { class: "small", type: "button", on: { click: () => { b.cases.push({ join: "all", conds: [newCond("device")], steps: [] }); changed(true); } } }, b.cases.length ? "Add else-if branch" : "Add if branch"),
+    b.otherwise ? null : el("button", { class: "small", type: "button", on: { click: () => { b.otherwise = []; changed(true); } } }, "Add otherwise branch")
+  ));
+  return card;
+}
+
+function render() {
+  const e = ED.smart;
+  $("#smart-editor").replaceChildren(...(e ? [editorBox("smart", {
+    title: e.isNew ? "New smart control" : "Edit: " + (JSON.parse(e.snap).name || "smart control"),
+    card: smartCard(e.item),
+    onSave: () => saveSmart(true),
+    onDelete: deleteSmart,
+    extra: [el("button", { type: "button", on: { click: testSmart } }, "Save & test")]
+  })] : []));
+  const host = $("#buttons");
+  host.replaceChildren(...buttons.filter((b) => !(e && e.isNew && b === e.item)).map((b) => bar({
+    name: b.name, sub: describeSmart(b), editing: e && e.item === b, flash: flashOnce(b.id), onEdit: () => openEdit("smart", b)
+  })));
+  if (!buttons.length || (buttons.length === 1 && e?.isNew)) host.append(el("p", { class: "empty" }, "No smart controls yet. Create one, start from a template, or load the defaults below."));
+}
+async function postRules() {
+  const rules = toRules(buttons);
+  const r = await api("POST", "/api/rules", { rules });
+  if (r.ok) { saved = JSON.stringify(rules, null, 2); $("#json").textContent = saved; }
+  return r;
+}
+async function saveSmart(close) {
+  const e = ED.smart;
+  if (!e) return false;
+  if (!needName("smart")) return false;
+  uniqueId(buttons, e.item, slug(e.item.name));
+  edMsg("smart", "", "Saving…");
+  const r = await postRules();
+  if (!r.ok) { edMsg("smart", "err", r.data.error || "Not saved. Fix these and save again:", r.data.errors); return false; }
+  if (close) { flashId = e.item.id; ED.smart = null; }
+  else { e.snap = JSON.stringify(e.item); e.isNew = false; e.msg = { cls: "ok", text: "Saved." }; }
+  render();
+  return true;
+}
+async function deleteSmart() {
+  const e = ED.smart;
+  const i = buttons.indexOf(e.item);
+  if (i >= 0) buttons.splice(i, 1);
+  const r = await postRules();
+  if (!r.ok) { buttons.splice(i, 0, e.item); edMsg("smart", "err", "Couldn't delete: " + (r.data.error || ""), r.data.errors); return; }
+  ED.smart = null;
+  render();
+}
+async function testSmart() {
+  if (!(await saveSmart(false))) return;
+  const id = ED.smart.item.id;
+  edMsg("smart", "", "Running " + id + "…");
+  const r = await api("POST", "/api/test", { id });
+  edMsg("smart", r.ok ? "ok" : "err", r.ok ? "Test: " + r.data.summary : "Couldn't run: " + (r.data.error || r.status));
 }
 
 // ---------------------------------------------------------------------------
@@ -633,73 +765,56 @@ $("#template").addEventListener("change", (e) => {
   if (!t) return;
   const b = t.rule ? { name: t.rule.name, ...fromRules({ buttons: [{ id: "x", ...t.rule }] })[0] } : t.make();
   delete b.id;
-  let id = slug(b.name), n = 2;
-  while (buttons.some((x) => x.id === id)) id = slug(b.name) + "_" + n++;
-  buttons.push({ ...b, id });
-  changed(true);
-  setTimeout(() => document.querySelector("#buttons article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  const item = { ...b, id: "" };
+  uniqueId(buttons, item, slug(b.name));
+  buttons.push(item);
+  openEdit("smart", item, { isNew: true });
 });
 
 // ---------------------------------------------------------------------------
 // Save / test / import
 // ---------------------------------------------------------------------------
-async function save() {
-  const st = $("#save-status"), errs = $("#save-errors");
-  errs.hidden = true; errs.replaceChildren();
-  st.className = "status"; st.textContent = "Saving…";
-  const rules = toRules(buttons);
-  const r = await api("POST", "/api/rules", { rules });
-  if (r.ok) {
-    saved = JSON.stringify(rules, null, 2);
-    st.className = "status ok"; st.textContent = `Saved ${r.data.buttons.length} control${r.data.buttons.length === 1 ? "" : "s"} to the remote.`;
-    changed(false);
-    return true;
-  }
-  st.className = "status err"; st.textContent = r.data.error || "Not saved. Fix these and save again:";
-  for (const e of r.data.errors || []) errs.append(el("li", {}, e));
-  errs.hidden = !(r.data.errors || []).length;
-  return false;
-}
-async function testButton(id) {
-  const out = $("#test-result");
-  if ($("#json").textContent !== saved) {
-    out.textContent = "Saving first…";
-    if (!(await save())) { out.textContent = "Not tested: the rules have errors. Fix them and try again."; return; }
-  }
-  out.textContent = "Running " + id + "…";
-  const r = await api("POST", "/api/test", { id });
-  out.textContent = r.ok ? r.data.summary : "Couldn't run: " + (r.data.error || r.status);
-}
-$("#save").addEventListener("click", save);
-$("#revert").addEventListener("click", () => { buttons = fromRules(JSON.parse(saved)); changed(true); $("#save-status").textContent = ""; });
 $("#add-button").addEventListener("click", () => {
-  let n = buttons.length + 1; while (buttons.some((b) => b.id === "smart_control_" + n)) n++;
-  buttons.push({ id: "smart_control_" + n, name: "Smart Control " + n, cases: [{ join: "all", conds: [newCond("device")], steps: [newStep("cmd")] }], otherwise: [] });
-  changed(true);
+  const item = { id: "", name: "", cases: [{ join: "all", conds: [newCond("device")], steps: [newStep("cmd")] }], otherwise: [] };
+  buttons.push(item);
+  openEdit("smart", item, { isNew: true });
 });
-$("#import").addEventListener("click", () => {
+async function replaceAllRules(r, okText) {
   const st = $("#import-status");
-  try {
-    const r = JSON.parse($("#import-text").value);
-    if (!Array.isArray(r.buttons)) throw new Error('no "buttons" list found');
-    buttons = fromRules(r); changed(true);
-    st.className = "status ok"; st.textContent = `Loaded ${buttons.length}. Save to keep them.`;
-  } catch (e) { st.className = "status err"; st.textContent = "Couldn't load: " + e.message; }
+  const keep = buttons;
+  buttons = fromRules(r);
+  ED.smart = null;
+  const res = await postRules();
+  if (!res.ok) { buttons = keep; st.className = "status err"; st.textContent = "Not loaded: " + (res.data.errors || [res.data.error]).slice(0, 3).join(" | "); render(); return; }
+  st.className = "status ok"; st.textContent = okText;
+  render();
+}
+const armed = (btn, text, label) => {
+  if (btn.dataset.armed === "1") { btn.dataset.armed = ""; btn.textContent = label; return true; }
+  btn.dataset.armed = "1"; btn.textContent = text;
+  setTimeout(() => { btn.dataset.armed = ""; btn.textContent = label; }, 4000);
+  return false;
+};
+$("#import").addEventListener("click", async () => {
+  const st = $("#import-status");
+  let r;
+  try { r = JSON.parse($("#import-text").value); if (!Array.isArray(r.buttons)) throw new Error('no "buttons" list found'); }
+  catch (e) { st.className = "status err"; st.textContent = "Couldn't load: " + e.message; return; }
+  if (!armed($("#import"), "Replace all your smart controls? Click again", "Load pasted rules")) return;
+  await replaceAllRules(r, `Loaded and saved ${r.buttons.length} smart control${r.buttons.length === 1 ? "" : "s"}.`);
 });
 const defBtn = $("#defaults");
 defBtn.addEventListener("click", async () => {
-  if (defBtn.dataset.armed !== "1") { defBtn.dataset.armed = "1"; defBtn.textContent = "Replace the editor? Click again"; setTimeout(() => { defBtn.dataset.armed = ""; defBtn.textContent = "Load the defaults"; }, 4000); return; }
-  defBtn.dataset.armed = ""; defBtn.textContent = "Load the defaults";
+  if (!armed(defBtn, "Replace all your smart controls? Click again", "Load the defaults")) return;
   const r = await api("GET", "/api/defaults");
-  buttons = fromRules(JSON.parse(r.data.text)); changed(true);
-  $("#import-status").className = "status ok"; $("#import-status").textContent = "Defaults loaded. Save to keep them.";
+  await replaceAllRules(JSON.parse(r.data.text), "Defaults loaded and saved.");
 });
 $("#copy").addEventListener("click", () => {
   const st = $("#copy-status");
   const fallback = () => { const r = document.createRange(); r.selectNodeContents($("#json")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); st.className = "status"; st.textContent = "Selected: press Ctrl+C."; };
   try { navigator.clipboard.writeText($("#json").textContent).then(() => { st.className = "status ok"; st.textContent = "Copied."; }, fallback); } catch { fallback(); }
 });
-window.addEventListener("beforeunload", (e) => { if (($("#json").textContent && $("#json").textContent !== saved) || (iconsLoaded && JSON.stringify(iconsOut()) !== iconsSaved) || (extrasLoaded && JSON.stringify(extrasOut()) !== extrasSaved)) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("beforeunload", (e) => { if (edDirty("smart") || edDirty("icons") || edDirty("extras")) { e.preventDefault(); e.returnValue = ""; } });
 
 // ---- Level graphics and tile icons (drawn on a 90x90 canvas) ----------------
 // Level designs: draw(g, f, c) with f = 0..1 and c = { on, off } colors.
@@ -836,7 +951,6 @@ const asImg = (c, size, alt) => el("img", { src: c.toDataURL("image/png"), width
 // ---------------------------------------------------------------------------
 let ICONS = [];          // editor model: [{ id, name, activity, location, entity, attr, states:[{value, icon, text, preview}], status }]
 let ICON_ACTS = [];      // [{ id, name, pageCount, page }]
-let iconsSaved = "[]";
 let iconsLoaded = false;
 
 const iconsOut = () => ICONS.map((b) => {
@@ -852,10 +966,6 @@ const itemAt = (act, loc) => act?.page?.items?.find((it) => (it.location?.x ?? 0
 const slugPart = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 20) || "x";
 
 function iconsChanged(rerender) {
-  const dirty = JSON.stringify(iconsOut()) !== iconsSaved;
-  $("#icons-dirty").textContent = dirty ? "You have unsaved changes." : "No unsaved changes.";
-  $("#icons-save").disabled = !dirty;
-  $("#icons-revert").disabled = !dirty;
   if (rerender) renderIcons();
 }
 
@@ -928,7 +1038,6 @@ function dropZone(b, st) {
     z.append(inp);
   };
   const take = async (file) => {
-    const statusEl = $("#icons-status");
     try {
       st.busy = true; show();
       const p = await processImage(file);
@@ -937,9 +1046,9 @@ function dropZone(b, st) {
       const r = await api("POST", "/api/icons/upload", { name, data: p.base64 });
       if (!r.ok) throw new Error(r.data.error || "upload failed");
       st.icon = r.data.icon; st.preview = p.dataUrl;
-      statusEl.className = "status ok"; statusEl.textContent = "Image uploaded to the remote. Save to use it.";
+      edMsg("icons", "ok", "Image uploaded to the remote. Save to use it.");
     } catch (e) {
-      statusEl.className = "status err"; statusEl.textContent = "Couldn't use that image: " + e.message;
+      edMsg("icons", "err", "Couldn't use that image: " + e.message);
     } finally {
       st.busy = false; show(); iconsChanged(false);
     }
@@ -979,121 +1088,147 @@ function levelEditor(b, id, dev) {
   return box;
 }
 
-function renderIcons() {
-  const host = $("#icons-list");
-  host.replaceChildren();
-  const wrap = el("div", { class: "lines", style: "gap:14px" });
+function iconCard(b) {
   const usable = ICON_ACTS.filter((a) => a.pageCount === 1);
   const multi = ICON_ACTS.filter((a) => a.pageCount !== 1);
-  ICONS.forEach((b, bi) => {
-    const id = nid("si");
-    const act = actById(b.activity);
-    const dev = DEV[b.entity];
-    const card = el("article", { class: "card", "aria-label": b.name || "State icon" });
-    const nameIn = input(id + "-n", b.name, (v) => { b.name = v; changed2(); }, { label: "Name", placeholder: "Receiver power" });
-    function changed2() { iconsChanged(false); }
-    card.append(el("div", { class: "card-head" },
-      el("label", { class: "f grow", for: id + "-n" }, "Name (only shown here)", nameIn),
-      el("button", { class: "ghost", type: "button", on: { click: () => { ICONS.splice(bi, 1); iconsChanged(true); } } }, "Delete")));
+  const id = nid("si");
+  const act = actById(b.activity);
+  const dev = DEV[b.entity];
+  const card = el("article", { class: "card", "aria-label": b.name || "State icon" });
+  const nameIn = input(id + "-n", b.name, (v) => { b.name = v; nameIn.classList.remove("missing"); nameTyped("icons"); changed2(); }, { label: "Name", placeholder: "Receiver power" });
+  function changed2() { iconsChanged(false); }
+  card.append(el("div", { class: "card-head" },
+    el("label", { class: "f grow", for: id + "-n" }, "Name (only shown here) *", nameIn)));
 
-    // 1. where
-    const actOpts = [["", "Pick an activity…"], ...usable.map((a) => [a.id, a.name])];
-    const actSel = select(id + "-a", actOpts, b.activity || "", (v) => { b.activity = v; b.location = null; iconsChanged(true); }, "Activity");
-    for (const a of multi) actSel.append(el("option", { value: a.id, disabled: true }, `${a.name} (${a.pageCount} pages)`));
-    card.append(el("div", { class: "subhead" }, "1 · The button"), el("div", { class: "row" }, el("label", { class: "f", for: id + "-a" }, "Activity (one page only)", actSel)));
-    if (act && act.page) {
-      card.append(el("p", { class: "hint" }, b.location ? "Selected. Click another button to change." : "Click the icon or text button that should change."), pageDrawing(b, act));
-    } else if (b.activity && !act) {
-      card.append(el("p", { class: "status err" }, "That activity is no longer available or now has more than one page."));
-    }
+  // 1. where
+  const actOpts = [["", "Pick an activity…"], ...usable.map((a) => [a.id, a.name])];
+  const actSel = select(id + "-a", actOpts, b.activity || "", (v) => { b.activity = v; b.location = null; iconsChanged(true); }, "Activity");
+  for (const a of multi) actSel.append(el("option", { value: a.id, disabled: true }, `${a.name} (${a.pageCount} pages)`));
+  card.append(el("div", { class: "subhead" }, "1 · The button"), el("div", { class: "row" }, el("label", { class: "f", for: id + "-a" }, "Activity (one page only)", actSel)));
+  if (act && act.page) {
+    card.append(el("p", { class: "hint" }, b.location ? "Selected. Click another button to change." : "Click the icon or text button that should change."), pageDrawing(b, act));
+  } else if (b.activity && !act) {
+    card.append(el("p", { class: "status err" }, "That activity is no longer available or now has more than one page."));
+  }
 
-    // 2. what to watch
-    const devOpts = deviceOptions((d) => d.type !== "macro");
-    card.append(el("div", { class: "subhead" }, "2 · What it shows"));
-    const attrs = dev ? Object.keys(dev.values) : [b.attr || "state"];
-    card.append(el("div", { class: "row" },
-      el("label", { class: "f", for: id + "-d" }, "Device", select(id + "-d", [["", "Pick a device…"], ...devOpts], b.entity || "", (v) => { b.entity = v; b.attr = "state"; iconsChanged(true); }, "Device")),
-      el("label", { class: "f", for: id + "-t" }, "What to check", select(id + "-t", attrs.map((a) => [a, a.replace(/_/g, " ")]), b.attr || "state", (v) => { b.attr = v; iconsChanged(true); }, "What to check")),
-      b.status && b.status.value != null ? el("span", { class: "live" }, "Now: ", el("b", {}, String(b.status.value))) : null));
+  // 2. what to watch
+  const devOpts = deviceOptions((d) => d.type !== "macro");
+  card.append(el("div", { class: "subhead" }, "2 · What it shows"));
+  const attrs = dev ? Object.keys(dev.values) : [b.attr || "state"];
+  card.append(el("div", { class: "row" },
+    el("label", { class: "f", for: id + "-d" }, "Device", select(id + "-d", [["", "Pick a device…"], ...devOpts], b.entity || "", (v) => { b.entity = v; b.attr = "state"; iconsChanged(true); }, "Device")),
+    el("label", { class: "f", for: id + "-t" }, "What to check", select(id + "-t", attrs.map((a) => [a, a.replace(/_/g, " ")]), b.attr || "state", (v) => { b.attr = v; iconsChanged(true); }, "What to check")),
+    b.status && b.status.value != null ? el("span", { class: "live" }, "Now: ", el("b", {}, String(b.status.value))) : null));
 
-    // 3. states
-    card.append(el("div", { class: "subhead" }, "3 · Looks"));
-    card.append(el("div", { class: "row" }, select(id + "-k", [["states", "Picture per state"], ["level", "Level graphic"]], b.kind === "level" ? "level" : "states", (v) => {
-      if (v === "level") Object.assign(b, { kind: "level", min: b.min ?? 0, max: b.max ?? 100, design: b.design || "bar", color: b.color || "orange", frames: b.frames || [] });
-      else b.kind = "states";
-      iconsChanged(true);
-    }, "Kind of look")));
-    if (b.kind === "level") { card.append(levelEditor(b, id, dev)); finishIconCard(card, b); wrap.append(card); return; }
-    const def = b.default && b.activity === b.savedActivity && b.location && b.savedLocation && b.location.x === b.savedLocation.x && b.location.y === b.savedLocation.y
-      ? b.default : act ? itemAt(act, b.location) : null;
-    const lines = el("div", { class: "lines" });
-    const valuesList = dev && dev.values[b.attr || "state"] ? dev.values[b.attr || "state"] : [];
-    b.states.forEach((st, si) => {
-      const lid = id + "-v" + si + "-l";
-      lines.append(el("div", { class: "line statebox" },
-        el("label", { class: "f" }, "When it is", input(id + "-v" + si, st.value, (v) => { st.value = v; changed2(); }, { label: "State value", list: lid, placeholder: "ON" }), datalist(lid, valuesList)),
-        dropZone(b, st),
-        el("label", { class: "f" }, "Label (optional)", input(id + "-x" + si, st.text, (v) => { st.text = v; changed2(); }, { label: "Label", placeholder: "Receiver ON" })),
-        el("button", { class: "ghost", type: "button", on: { click: () => { b.states.splice(si, 1); iconsChanged(true); } } }, "Remove")));
-    });
+  // 3. states
+  card.append(el("div", { class: "subhead" }, "3 · Looks"));
+  card.append(el("div", { class: "row" }, select(id + "-k", [["states", "Picture per state"], ["level", "Level graphic"]], b.kind === "level" ? "level" : "states", (v) => {
+    if (v === "level") Object.assign(b, { kind: "level", min: b.min ?? 0, max: b.max ?? 100, design: b.design || "bar", color: b.color || "orange", frames: b.frames || [] });
+    else b.kind = "states";
+    iconsChanged(true);
+  }, "Kind of look")));
+  if (b.kind === "level") { card.append(levelEditor(b, id, dev)); finishIconCard(card, b); return card; }
+  const def = b.default && b.activity === b.savedActivity && b.location && b.savedLocation && b.location.x === b.savedLocation.x && b.location.y === b.savedLocation.y
+    ? b.default : act ? itemAt(act, b.location) : null;
+  const lines = el("div", { class: "lines" });
+  const valuesList = dev && dev.values[b.attr || "state"] ? dev.values[b.attr || "state"] : [];
+  b.states.forEach((st, si) => {
+    const lid = id + "-v" + si + "-l";
     lines.append(el("div", { class: "line statebox" },
-      el("span", { class: "sep" }, "Anything else (default)"),
-      def ? lookThumb(def) : el("div", { class: "thumb" }, "—"),
-      el("span", { class: "hint" }, "The button's own look, as it is now on the remote."),
-      el("span", {})));
-    card.append(lines, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => {
-      const used = new Set(b.states.map((s) => String(s.value).toLowerCase()));
-      const next = valuesList.find((v) => !used.has(String(v).toLowerCase())) || "";
-      b.states.push({ value: next, icon: null, text: "" }); iconsChanged(true);
-    } } }, "Add state")));
-
-    finishIconCard(card, b);
-    wrap.append(card);
+      el("label", { class: "f" }, "When it is", input(id + "-v" + si, st.value, (v) => { st.value = v; changed2(); }, { label: "State value", list: lid, placeholder: "ON" }), datalist(lid, valuesList)),
+      dropZone(b, st),
+      el("label", { class: "f" }, "Label (optional)", input(id + "-x" + si, st.text, (v) => { st.text = v; changed2(); }, { label: "Label", placeholder: "Receiver ON" })),
+      el("button", { class: "ghost", type: "button", on: { click: () => { b.states.splice(si, 1); iconsChanged(true); } } }, "Remove")));
   });
-  if (!ICONS.length) wrap.append(el("p", { class: "empty" }, usable.length ? "No state icons yet. Add one to make a button on a page follow a device's state." : "None of your activities has exactly one page. State icons need an activity with a single page."));
-  host.append(wrap);
+  lines.append(el("div", { class: "line statebox" },
+    el("span", { class: "sep" }, "Anything else (default)"),
+    def ? lookThumb(def) : el("div", { class: "thumb" }, "—"),
+    el("span", { class: "hint" }, "The button's own look, as it is now on the remote."),
+    el("span", {})));
+  card.append(lines, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => {
+    const used = new Set(b.states.map((s) => String(s.value).toLowerCase()));
+    const next = valuesList.find((v) => !used.has(String(v).toLowerCase())) || "";
+    b.states.push({ value: next, icon: null, text: "" }); iconsChanged(true);
+  } } }, "Add state")));
+
+  finishIconCard(card, b);
+  return card;
 }
 
+function describeIcon(b) {
+  const act = ICON_ACTS.find((a) => a.id === b.activity);
+  const where = act ? act.name : "no activity";
+  const what = `${devName(b.entity)} ${String(b.attr || "state").replace(/_/g, " ")}`;
+  if (b.kind === "level") return `${where} · level graphic (${LEVEL_DESIGNS[b.design]?.name || b.design}) · ${what} ${b.min}–${b.max}`;
+  return `${where} · ${what}: ${b.states.map((s) => s.value).filter(Boolean).join(", ") || "no states"}`;
+}
+function iconState(b) {
+  if (b.status?.error) return { text: b.status.error, err: true };
+  if (b.status?.look) return { text: b.status.look === "default" ? "showing its default" : `showing ${b.status.look}` };
+  return null;
+}
+function renderIcons() {
+  const e = ED.icons;
+  $("#icons-editor").replaceChildren(...(e ? [editorBox("icons", {
+    title: e.isNew ? "New state icon" : "Edit: " + (JSON.parse(e.snap).name || "state icon"),
+    card: iconCard(e.item),
+    onSave: saveIcons,
+    onDelete: deleteIcon
+  })] : []));
+  const host = $("#icons-list");
+  const shown = ICONS.filter((b) => !(e && e.isNew && b === e.item));
+  host.replaceChildren(...shown.map((b) => { const st = iconState(b); return bar({ name: b.name || b.id, sub: describeIcon(b), state: st?.text, stateErr: st?.err, editing: e && e.item === b, flash: flashOnce(b.id), onEdit: () => openEdit("icons", b) }); }));
+  if (!shown.length) host.append(el("p", { class: "empty" }, ICON_ACTS.some((a) => a.pageCount === 1) ? "No state icons yet. Create one to make a button on a page follow a device's state." : "None of your activities has exactly one page. State icons need an activity with a single page."));
+}
+
+const iconsFromServer = (list, keepPreview = []) => list.map((b) => ({ ...b, savedActivity: b.activity, savedLocation: b.location,
+  states: b.states.map((s) => ({ ...s, preview: keepPreview.find((x) => x.id === b.id)?.states.find((y) => y.value === s.value)?.preview })) }));
 async function loadIcons() {
   $("#icons-list").replaceChildren(el("p", { class: "hint" }, "Loading your activities…"));
   const r = await api("GET", "/api/icons");
   if (!r.ok) { $("#icons-list").replaceChildren(el("p", { class: "status err" }, r.data.error || "Couldn't read the activities.")); return; }
   ICON_ACTS = r.data.activities;
-  ICONS = r.data.icons.map((b) => ({ ...b, savedActivity: b.activity, savedLocation: b.location, states: b.states.map((s) => ({ ...s })) }));
-  iconsSaved = JSON.stringify(iconsOut());
+  ICONS = iconsFromServer(r.data.icons);
   iconsLoaded = true;
-  iconsChanged(true);
+  renderIcons();
 }
 
 $("#icon-add").addEventListener("click", () => {
-  let n = ICONS.length + 1; while (ICONS.some((b) => b.id === "icon_" + n)) n++;
   const first = ICON_ACTS.find((a) => a.pageCount === 1);
-  ICONS.push({ id: "icon_" + n, name: "", activity: first?.id || "", location: null, entity: "", attr: "state", states: [{ value: "ON", icon: null, text: "" }] });
-  iconsChanged(true);
-  setTimeout(() => document.querySelector("#icons-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  const item = { id: "", name: "", activity: first?.id || "", location: null, entity: "", attr: "state", states: [{ value: "ON", icon: null, text: "" }] };
+  ICONS.push(item);
+  openEdit("icons", item, { isNew: true });
 });
-$("#icons-revert").addEventListener("click", () => { ICONS = JSON.parse(iconsSaved).map((b) => ({ ...b, status: ICONS.find((x) => x.id === b.id)?.status })); iconsChanged(true); });
-$("#icons-save").addEventListener("click", async () => {
-  const st = $("#icons-status"), errs = $("#icons-errors");
-  errs.hidden = true; errs.replaceChildren();
-  st.className = "status"; st.textContent = "Saving…";
-  try {
-    for (const b of ICONS) if (b.kind === "level" && (!b.frames || b.frames.length !== 11)) {
-      b.frames = await uploadLevelFrames(b.design, b.color, (n) => { st.textContent = `Uploading level images for ${b.name || b.id}… ${n}/11`; });
-    }
-  } catch (e) { st.className = "status err"; st.textContent = "Couldn't upload the level images: " + e.message; return; }
-  const r = await api("POST", "/api/icons", { icons: iconsOut() });
-  if (r.ok) {
-    ICONS = r.data.icons.map((b) => ({ ...b, savedActivity: b.activity, savedLocation: b.location, states: b.states.map((s) => ({ ...s, preview: ICONS.find((x) => x.id === b.id)?.states.find((y) => y.value === s.value)?.preview })) }));
-    iconsSaved = JSON.stringify(iconsOut());
-    st.className = "status ok"; st.textContent = `Saved ${ICONS.length} state icon${ICONS.length === 1 ? "" : "s"}. The buttons update within a few seconds.`;
-    iconsChanged(true);
-    return;
+async function postIcons(onProgress) {
+  for (const b of ICONS) if (b.kind === "level" && (!b.frames || b.frames.length !== 11)) {
+    b.frames = await uploadLevelFrames(b.design, b.color, (n) => onProgress && onProgress(b, n));
   }
-  st.className = "status err"; st.textContent = r.data.error || "Not saved. Fix these and save again:";
-  for (const e of r.data.errors || []) errs.append(el("li", {}, e));
-  errs.hidden = !(r.data.errors || []).length;
-});
+  return api("POST", "/api/icons", { icons: iconsOut() });
+}
+async function saveIcons() {
+  const e = ED.icons;
+  if (!e || !needName("icons")) return;
+  uniqueId(ICONS, e.item, "icon_" + slugPart(e.item.name));
+  edMsg("icons", "", "Saving…");
+  let r;
+  try { r = await postIcons((b, n) => edMsg("icons", "", `Uploading level images… ${n}/11`)); }
+  catch (err) { edMsg("icons", "err", "Couldn't upload the level images: " + err.message); return; }
+  if (!r.ok) { edMsg("icons", "err", r.data.error || "Not saved. Fix these and save again:", r.data.errors); return; }
+  flashId = e.item.id;
+  ICONS = iconsFromServer(r.data.icons, ICONS);
+  ED.icons = null;
+  renderIcons();
+}
+async function deleteIcon() {
+  const e = ED.icons;
+  const i = ICONS.indexOf(e.item);
+  if (i >= 0) ICONS.splice(i, 1);
+  const r = await api("POST", "/api/icons", { icons: iconsOut() });
+  if (!r.ok) { ICONS.splice(i, 0, e.item); edMsg("icons", "err", "Couldn't delete: " + (r.data.error || ""), r.data.errors); return; }
+  ICONS = iconsFromServer(r.data.icons, ICONS);
+  ED.icons = null;
+  renderIcons();
+}
 
 // ---------------------------------------------------------------------------
 // Sliders & Menus tab
@@ -1101,7 +1236,6 @@ $("#icons-save").addEventListener("click", async () => {
 let SLIDERS = [];        // [{ id, name, entity, attr, min, max, step, mode, cmd, param, up, down, per_press, delay }]
 let MENUS = [];          // [{ id, name, options: [{ label, steps: [step model], conds: [cond model] }] }]
 let XSTATUS = {};        // id -> { value | current, error }
-let extrasSaved = "";
 let extrasLoaded = false;
 
 const xslug = (prefix, name) => (prefix + "_" + String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")).slice(0, 43).replace(/_+$/, "") || prefix + "_1";
@@ -1158,24 +1292,17 @@ function extrasIn(cfg) {
 }
 
 function extrasChanged(rerender) {
-  const dirty = JSON.stringify(extrasOut()) !== extrasSaved;
-  $("#extras-dirty").textContent = dirty ? "You have unsaved changes." : "No unsaved changes.";
-  $("#extras-save").disabled = !dirty;
-  $("#extras-revert").disabled = !dirty;
   if (rerender) renderExtras();
 }
 const field = (id, label, control) => el("label", { class: "f", for: id }, label, control);
 
 async function tryIt(body) {
-  const out = $("#extras-result");
-  if (JSON.stringify(extrasOut()) !== extrasSaved) {
-    out.textContent = "Saving first…";
-    if (!(await saveExtras())) { out.textContent = "Not tried: fix the errors and try again."; return; }
-  }
-  out.textContent = "Running…";
+  if (edDirty("extras") && !(await saveExtras(false))) return;
+  edMsg("extras", "", "Running…");
   const r = await api("POST", "/api/extras/test", body);
-  out.textContent = r.ok ? r.data.summary : "Couldn't run: " + (r.data.error || r.status);
-  refreshExtrasStatus();
+  edMsg("extras", r.ok ? "ok" : "err", r.ok ? "Test: " + r.data.summary : "Couldn't run: " + (r.data.error || r.status));
+  const st = await api("GET", "/api/extras");
+  if (st.ok) XSTATUS = st.data.status || {};
 }
 
 // Tile icon picker: the 12 drawn icons, uploaded to the remote when picked (ti_<key>.png).
@@ -1188,9 +1315,8 @@ function tilePicker(x, label) {
   for (const [k, t] of Object.entries(TILE_ICONS)) {
     row.append(el("button", { type: "button", class: "tpick" + (current === k ? " sel" : ""), role: "radio", "aria-checked": String(current === k), title: t.name, "aria-label": t.name,
       on: { click: async (e) => {
-        const st = $("#extras-status");
-        try { e.currentTarget.disabled = true; x.icon = await uploadCanvas(`ti_${k}.png`, tileCanvas(k)); st.className = "status"; st.textContent = "Icon uploaded. Save to use it."; }
-        catch (err) { st.className = "status err"; st.textContent = "Couldn't upload the icon: " + err.message; }
+        try { e.currentTarget.disabled = true; x.icon = await uploadCanvas(`ti_${k}.png`, tileCanvas(k)); ED.extras && (ED.extras.msg = { cls: "", text: "Icon uploaded. Save to use it." }); }
+        catch (err) { ED.extras && (ED.extras.msg = { cls: "err", text: "Couldn't upload the icon: " + err.message }); }
         extrasChanged(true);
       } } }, asImg(tileCanvas(k), 34, t.name)));
   }
@@ -1201,13 +1327,14 @@ function tilePicker(x, label) {
 function showLevelOnPage(s) {
   const go = () => {
     const first = ICON_ACTS.find((a) => a.pageCount === 1);
-    let n = 1; while (ICONS.some((b) => b.id === "level_" + n)) n++;
-    ICONS.push({ id: "level_" + n, name: s.name + " level", activity: first?.id || "", location: null, entity: s.entity, attr: s.attr, kind: "level",
-      min: Number(s.min), max: Number(s.max), design: "bar", color: "orange", frames: [], states: [] });
+    const item = { id: "", name: s.name + " level", activity: first?.id || "", location: null, entity: s.entity, attr: s.attr, kind: "level",
+      min: Number(s.min), max: Number(s.max), design: "bar", color: "orange", frames: [], states: [] };
+    ICONS.push(item);
     showTab("icons");
-    iconsChanged(true);
-    setTimeout(() => document.querySelector("#icons-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    openEdit("icons", item, { isNew: true });
   };
+  if (edDirty("extras")) { edMsg("extras", "err", "Save or cancel this slider first."); return; }
+  cancelEdit("extras", false);
   if (iconsLoaded) go(); else loadIcons().then(go);
 }
 
@@ -1216,11 +1343,10 @@ function sliderCard(s, si) {
   const dev = DEV[s.entity];
   const card = el("article", { class: "card", "aria-label": s.name || "Slider" });
   const idIn = input(id + "-i", s.id, (v) => { s.id = v; extrasChanged(false); }, { label: "Id", cls: "mono" });
-  const nameIn = input(id + "-n", s.name, (v) => { const auto = !s.id || s.id === xslug("slider", s.name); s.name = v; if (auto) { s.id = xslug("slider", v); idIn.value = s.id; } extrasChanged(false); }, { label: "Name", placeholder: "Receiver Volume" });
+  const nameIn = input(id + "-n", s.name, (v) => { const auto = !s.id || s.id === xslug("slider", s.name); s.name = v; nameIn.classList.remove("missing"); nameTyped("extras"); if (auto) { s.id = v.trim() ? xslug("slider", v) : ""; idIn.value = s.id; } extrasChanged(false); }, { label: "Name", placeholder: "Receiver Volume" });
   card.append(el("div", { class: "card-head" },
-    el("label", { class: "f grow", for: id + "-n" }, "Name (shown on the remote)", nameIn),
-    el("label", { class: "f grow", for: id + "-i" }, "Id", idIn),
-    el("button", { class: "ghost", type: "button", on: { click: () => { SLIDERS.splice(si, 1); extrasChanged(true); } } }, "Delete")));
+    el("label", { class: "f grow", for: id + "-n" }, "Name (shown on the remote) *", nameIn),
+    el("label", { class: "f grow", for: id + "-i" }, "Id", idIn)));
 
   card.append(el("div", { class: "subhead" }, "1 · Device"));
   const attrs = numAttrs(dev);
@@ -1280,12 +1406,11 @@ function menuCard(m, mi) {
   const id = nid("mn");
   const card = el("article", { class: "card", "aria-label": m.name || "Quick menu" });
   const idIn = input(id + "-i", m.id, (v) => { m.id = v; extrasChanged(false); }, { label: "Id", cls: "mono" });
-  const nameIn = input(id + "-n", m.name, (v) => { const auto = !m.id || m.id === xslug("menu", m.name); m.name = v; if (auto) { m.id = xslug("menu", v); idIn.value = m.id; } extrasChanged(false); }, { label: "Name", placeholder: "Receiver Input" });
+  const nameIn = input(id + "-n", m.name, (v) => { const auto = !m.id || m.id === xslug("menu", m.name); m.name = v; nameIn.classList.remove("missing"); nameTyped("extras"); if (auto) { m.id = v.trim() ? xslug("menu", v) : ""; idIn.value = m.id; } extrasChanged(false); }, { label: "Name", placeholder: "Receiver Input" });
   card.append(el("div", { class: "card-head" },
-    el("label", { class: "f grow", for: id + "-n" }, "Name (shown on the remote)", nameIn),
+    el("label", { class: "f grow", for: id + "-n" }, "Name (shown on the remote) *", nameIn),
     el("label", { class: "f grow", for: id + "-i" }, "Id", idIn),
-    XSTATUS[m.id] && XSTATUS[m.id].current ? el("span", { class: "live" }, "Showing: ", el("b", {}, XSTATUS[m.id].current)) : null,
-    el("button", { class: "ghost", type: "button", on: { click: () => { MENUS.splice(mi, 1); extrasChanged(true); } } }, "Delete")));
+    XSTATUS[m.id] && XSTATUS[m.id].current ? el("span", { class: "live" }, "Showing: ", el("b", {}, XSTATUS[m.id].current)) : null));
   m.options.forEach((o, oi) => {
     const box = el("div", { class: "choice" });
     box.append(el("div", { class: "branch-head" },
@@ -1307,15 +1432,26 @@ function menuCard(m, mi) {
   return card;
 }
 
+function describeSlider(s) {
+  const how = s.mode === "steps" ? "up/down presses" : "one command";
+  return `${devName(s.entity)} ${s.attr ? s.attr.replace(/_/g, " ") : "(remembered)"} · ${s.min}–${s.max} · ${how}`;
+}
+const describeMenu = (m) => `${m.options.length} choice${m.options.length === 1 ? "" : "s"}: ${m.options.map((o) => o.label).join(", ")}`;
 function renderExtras() {
-  const sl = el("div", { class: "lines", style: "gap:14px" });
-  SLIDERS.forEach((s, i) => sl.append(sliderCard(s, i)));
-  if (!SLIDERS.length) sl.append(el("p", { class: "empty" }, "No sliders yet. A slider controls a number on one of your devices, like a receiver's volume, with the remote's own slider pop-up."));
-  $("#sliders-list").replaceChildren(sl);
-  const ml = el("div", { class: "lines", style: "gap:14px" });
-  MENUS.forEach((m, i) => ml.append(menuCard(m, i)));
-  if (!MENUS.length) ml.append(el("p", { class: "empty" }, "No quick menus yet. A quick menu pops up a list of choices, like inputs or sound modes; each choice runs its own steps."));
-  $("#menus-list").replaceChildren(ml);
+  const e = ED.extras;
+  const isMenu = e?.kind === "menu";
+  $("#extras-editor").replaceChildren(...(e ? [editorBox("extras", {
+    title: (e.isNew ? "New " : "Edit: ") + (e.isNew ? (isMenu ? "quick menu" : "slider") : JSON.parse(e.snap).name || (isMenu ? "quick menu" : "slider")),
+    card: isMenu ? menuCard(e.item) : sliderCard(e.item),
+    onSave: () => saveExtras(true),
+    onDelete: deleteExtra
+  })] : []));
+  const host = $("#extras-list");
+  const rows = [];
+  for (const s of SLIDERS) if (!(e && e.isNew && s === e.item)) rows.push(bar({ kind: "Slider", name: s.name, sub: describeSlider(s), state: XSTATUS[s.id]?.error || (XSTATUS[s.id]?.value != null ? "now " + XSTATUS[s.id].value : ""), stateErr: !!XSTATUS[s.id]?.error, editing: e && e.item === s, flash: flashOnce(s.id), onEdit: () => openEdit("extras", s, { kind: "slider" }) }));
+  for (const m of MENUS) if (!(e && e.isNew && m === e.item)) rows.push(bar({ kind: "Menu", name: m.name, sub: describeMenu(m), state: XSTATUS[m.id]?.error || (XSTATUS[m.id]?.current ? "showing " + XSTATUS[m.id].current : ""), stateErr: !!XSTATUS[m.id]?.error, editing: e && e.item === m, flash: flashOnce(m.id), onEdit: () => openEdit("extras", m, { kind: "menu" }) }));
+  host.replaceChildren(...rows);
+  if (!rows.length) host.append(el("p", { class: "empty" }, "No sliders or quick menus yet. A slider controls a number on a device (like receiver volume) with the remote's slider pop-up; a quick menu pops up a list of choices that each run steps."));
 }
 
 // "Add from a device's list": commands whose parameter has a list of values (inputs, sound modes, list options).
@@ -1327,7 +1463,7 @@ function fillSources() {
 }
 function fillMenuSelect() {
   const sel = $("#menu-fill");
-  sel.replaceChildren(el("option", { value: "" }, "Add from a device's list…"));
+  sel.replaceChildren(el("option", { value: "" }, "or a quick menu from a device's list…"));
   for (const f of fillSources()) sel.append(el("option", { value: f.key }, `${f.dev.name}: ${f.cmd.label} (${f.p.list.length})`));
 }
 $("#menu-fill").addEventListener("change", (e) => {
@@ -1338,61 +1474,56 @@ $("#menu-fill").addEventListener("change", (e) => {
   const name = `${f.dev.name} ${f.p.label}`.slice(0, 40);
   let id = xslug("menu", name), n = 2;
   while (MENUS.some((m) => m.id === id)) id = xslug("menu", name) + "_" + n++;
-  MENUS.push({ id, name, options: f.p.list.slice(0, 20).map((v) => ({ label: String(v).slice(0, 40), steps: [{ t: "cmd", ent: f.dev.id, cmd: f.cmd.id, params: { [f.p.key]: v } }],
-    conds: attr && f.dev.values[attr] ? [{ t: "device", ent: f.dev.id, attr, op: "is", val: String(v) }] : [] })) });
-  extrasChanged(true);
-  setTimeout(() => document.querySelector("#menus-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  const item = { id, name, icon: "", options: f.p.list.slice(0, 20).map((v) => ({ label: String(v).slice(0, 40), steps: [{ t: "cmd", ent: f.dev.id, cmd: f.cmd.id, params: { [f.p.key]: v } }],
+    conds: attr && f.dev.values[attr] ? [{ t: "device", ent: f.dev.id, attr, op: "is", val: String(v) }] : [] })) };
+  MENUS.push(item);
+  openEdit("extras", item, { isNew: true, kind: "menu" });
 });
 $("#slider-add").addEventListener("click", () => {
   const dev = CAT.devices.find((d) => d.type === "media_player" && SLIDER_PRESETS.media_player && d.commands.some((c) => c.id === "media_player.volume")) || CAT.devices.find((d) => d.type === "media_player") || CAT.devices[0];
-  const s = sliderFor(dev);
-  let id = xslug("slider", s.name || "slider"), n = 2;
-  while (SLIDERS.some((x) => x.id === id)) id = xslug("slider", s.name || "slider") + "_" + n++;
-  SLIDERS.push({ ...s, id });
-  extrasChanged(true);
-  setTimeout(() => document.querySelector("#sliders-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  const item = { ...sliderFor(dev), name: "", id: "", icon: "" };
+  SLIDERS.push(item);
+  openEdit("extras", item, { isNew: true, kind: "slider" });
 });
 $("#menu-add").addEventListener("click", () => {
-  let n = MENUS.length + 1; while (MENUS.some((m) => m.id === "menu_" + n)) n++;
-  MENUS.push({ id: "menu_" + n, name: "Quick Menu " + n, options: [{ label: "Choice 1", steps: [newStep("cmd")], conds: [] }] });
-  extrasChanged(true);
-  setTimeout(() => document.querySelector("#menus-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  const item = { id: "", name: "", icon: "", options: [{ label: "Choice 1", steps: [newStep("cmd")], conds: [] }] };
+  MENUS.push(item);
+  openEdit("extras", item, { isNew: true, kind: "menu" });
 });
 
-async function saveExtras() {
-  const st = $("#extras-status"), errs = $("#extras-errors");
-  errs.hidden = true; errs.replaceChildren();
-  st.className = "status"; st.textContent = "Saving…";
-  const body = extrasOut();
-  const r = await api("POST", "/api/extras", body);
-  if (r.ok) {
-    extrasSaved = JSON.stringify(body);
-    XSTATUS = r.data.status || {};
-    st.className = "status ok"; st.textContent = `Saved ${plural(SLIDERS.length, "slider")} and ${plural(MENUS.length, "quick menu")}. Add new ones to the integration to use them.`;
-    extrasChanged(true);
-    return true;
-  }
-  st.className = "status err"; st.textContent = r.data.error || "Not saved. Fix these and save again:";
-  for (const e of r.data.errors || []) errs.append(el("li", {}, e));
-  errs.hidden = !(r.data.errors || []).length;
-  return false;
+async function saveExtras(close) {
+  const e = ED.extras;
+  if (!e || !needName("extras")) return false;
+  uniqueId([...SLIDERS, ...MENUS], e.item, xslug(e.kind === "menu" ? "menu" : "slider", e.item.name));
+  edMsg("extras", "", "Saving…");
+  const r = await api("POST", "/api/extras", extrasOut());
+  if (!r.ok) { edMsg("extras", "err", r.data.error || "Not saved. Fix these and save again:", r.data.errors); return false; }
+  XSTATUS = r.data.status || {};
+  if (close) { flashId = e.item.id; ED.extras = null; }
+  else { e.snap = JSON.stringify(e.item); e.isNew = false; e.msg = { cls: "ok", text: "Saved." }; }
+  renderExtras();
+  return true;
 }
-async function refreshExtrasStatus() {
-  const r = await api("GET", "/api/extras");
-  if (r.ok) { XSTATUS = r.data.status || {}; renderExtras(); }
+async function deleteExtra() {
+  const e = ED.extras;
+  const list = listOf("extras", e.kind);
+  const i = list.indexOf(e.item);
+  if (i >= 0) list.splice(i, 1);
+  const r = await api("POST", "/api/extras", extrasOut());
+  if (!r.ok) { list.splice(i, 0, e.item); edMsg("extras", "err", "Couldn't delete: " + (r.data.error || ""), r.data.errors); return; }
+  XSTATUS = r.data.status || {};
+  ED.extras = null;
+  renderExtras();
 }
 async function loadExtras() {
   const r = await api("GET", "/api/extras");
-  if (!r.ok) { $("#sliders-list").replaceChildren(el("p", { class: "status err" }, r.data.error || "Couldn't read the sliders and menus.")); return; }
+  if (!r.ok) { $("#extras-list").replaceChildren(el("p", { class: "status err" }, r.data.error || "Couldn't read the sliders and menus.")); return; }
   extrasIn(r.data);
   XSTATUS = r.data.status || {};
-  extrasSaved = JSON.stringify(extrasOut());
   extrasLoaded = true;
   fillMenuSelect();
-  extrasChanged(true);
+  renderExtras();
 }
-$("#extras-save").addEventListener("click", saveExtras);
-$("#extras-revert").addEventListener("click", () => { extrasIn(JSON.parse(extrasSaved)); extrasChanged(true); $("#extras-status").textContent = ""; });
 
 const TABS = {
   smart: { pane: "#app", intro: "Conditional buttons for the Remote Self-Control integration. Each button checks your devices or the remote, then runs the first branch that matches." },
@@ -1418,7 +1549,7 @@ for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () =
 // Session
 // ---------------------------------------------------------------------------
 function showLogin(msg) {
-  $("#app").hidden = true; $("#icons-app").hidden = true; $("#extras-app").hidden = true; extrasLoaded = false; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
+  $("#app").hidden = true; $("#icons-app").hidden = true; $("#extras-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
   $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
   $("#pin").focus();
 }
@@ -1432,6 +1563,7 @@ async function loadAll() {
   try { parsed = JSON.parse(rules.data.text); } catch { parsed = { buttons: [] }; }
   buttons = fromRules(parsed);
   saved = JSON.stringify(toRules(buttons), null, 2);
+  $("#json").textContent = saved;
   $("#login").hidden = true; $("#tabs").hidden = false; $("#session-bar").hidden = false;
   changed(true);
   let tab = "smart";
@@ -1449,9 +1581,8 @@ $("#login").addEventListener("submit", async (e) => {
 });
 $("#logout").addEventListener("click", async () => { await api("POST", "/api/logout"); showLogin(); });
 $("#reload").addEventListener("click", async () => {
-  const keep = toRules(buttons);
   const cat = await api("GET", "/api/catalog");
-  if (cat.ok) { CAT = cat.data; DEV = Object.fromEntries(CAT.devices.map((d) => [d.id, d])); $("#device-count").textContent = countText(); buttons = fromRules(keep); changed(!$("#app").hidden); if (extrasLoaded) { fillMenuSelect(); renderExtras(); } }
+  if (cat.ok) { CAT = cat.data; DEV = Object.fromEntries(CAT.devices.map((d) => [d.id, d])); $("#device-count").textContent = countText(); render(); if (iconsLoaded) renderIcons(); if (extrasLoaded) { fillMenuSelect(); renderExtras(); } }
 });
 
 (async () => {

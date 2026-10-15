@@ -155,7 +155,7 @@ Limit: the remote reports an activity "starting" only when it goes from off to o
 State icons make a button on a page follow a device's state. The button's own icon or text is the **default** look; you drop in an image (and/or type a label) for each state.
 
 1. Put a button on the page of a **single-page** activity, for example a gray power icon or a text button "Receiver". This is what it shows when the receiver is off.
-2. Open the builder and switch to the **State Icons** tab → **Add state icon**.
+2. Open the builder and switch to the **State Icons** tab → **+ Create state icon**, and give it a name.
 3. **The button:** pick the activity, then click the button in the drawing of its page.
 4. **What it shows:** pick the device (your receiver) and what to check (*state*). The builder shows its value right now.
 5. **Looks:** for *ON*, drag in a green power image (any PNG, JPG or SVG; it's resized to 90×90 and uploaded to the remote) and optionally a label like "Receiver ON". Add more states if you like (*STANDBY*, an input name, …).
@@ -180,7 +180,7 @@ Setting it up in the builder:
 
 A slider is a light entity of this integration that stands for a number on another device. Its brightness (0–100 %) maps to the range you choose, so the remote's own slider pop-up and the Remote 3 touch slider work with it.
 
-1. In the builder, open the **Sliders & Menus** tab → **Add slider**.
+1. In the builder, open the **Sliders & Menus** tab → **+ Create slider**, and give it a name.
 2. **Device:** pick your receiver. The builder fills in the rest for you: it reads the **volume**, sends it with the **volume** command, range 0–100. Lower **Highest** if you never want it louder (e.g. 60).
    - For a device without a "set volume" command (IR, or only volume up/down), choose **Press up / down commands**: pick the up and down commands, how much one press changes it, and the pause between presses. Without anything to read it from, the slider remembers the last value it set.
 3. **Save**, then type a value under **Try a value** and press **Set** to check it.
@@ -201,12 +201,12 @@ The slider follows changes made elsewhere (within about 2 seconds while the remo
 
 A quick menu is a list entity whose choices each run steps, the same steps as a Smart Control.
 
-1. In the **Sliders & Menus** tab, open **Add from a device's list…** and pick *Receiver: Select source*. You get one choice per input, each switching the receiver to it and marked as current while the receiver is on that input.
+1. In the **Sliders & Menus** tab, open **or a quick menu from a device's list…** and pick *Receiver: Select source*. You get one choice per input, each switching the receiver to it and marked as current while the receiver is on that input.
 2. Rename the menu and the choices ("TV", "Shield", …), remove the ones you don't use, and add steps if you like (turn the receiver on first, set the volume, change the backlight color, …).
 3. **Save**, then press **Run** on a choice to try it.
 4. Add the menu to the integration, and put it on a home page or an activity page: it opens the remote's list pop-up; picking a choice runs it.
 
-Choices without a *current when* condition show as current after you pick them. **Add quick menu** starts an empty menu for anything else, for example scenes that set lights, inputs and volume together.
+Choices without a *current when* condition show as current after you pick them. **+ Create quick menu** starts an empty menu for anything else, for example scenes that set lights, inputs and volume together.
 
 ![The Sliders & Menus tab in the builder](docs/images/builder-sliders-menus.png)
 
@@ -220,7 +220,8 @@ The integration serves its own builder page on your network, at `http://<remote-
 - **Pick, don't type:** the builder lists your remote's own devices with their commands, inputs and sound modes, your activities, and the remote's own controls and settings.
 - **If / Else if / Otherwise** branches, each with conditions and steps. The first matching branch runs.
 - **Templates** for the remote itself (Night Mode, Quiet Mode, color cycle, brighter/dimmer, backlight by time) and for your devices (smart volume, play/pause or turn on, input with wait, sound mode cycle, action per activity).
-- **Save** writes to the remote (rules are checked first; errors are listed). **Test** runs one control once and shows the result.
+- **Create, then list:** each tab starts with its **+ Create** button. It opens an editor box for the new item; a **name is required**. After **Save**, the item shows below as one bar with its name, what it does and an **Edit** button that opens its settings again (with **Delete** inside).
+- **Save** writes to the remote (everything is checked first; errors are listed in the editor). **Save & test** runs a smart control once and shows the result.
 - **Rules text** exports and imports everything as JSON, for backups and sharing.
 - Works on phones and in dark mode, and needs no internet: everything is served by the remote.
 
@@ -370,7 +371,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
-- **0.6.0:** ↩ buttons no longer add a row to a full page (that resized every button and broke picture-tile pages); new option to use the physical button only where the on-screen button doesn't fit. **Sliders & quick menus**: new *Sliders & Menus* tab in the builder. 12 tile icons for sliders and menus, and **level graphics** (12 designs × 6 colors) as a new kind of state icon that shows a number as a bar, gauge, dots and more. Sliders are light entities mapped to a number on any device (one "set value" command, or repeated up/down presses), with the remote's slider pop-up on home tiles and the Remote 3 touch slider; they follow the device's value. Quick menus are select entities whose choices run Smart Control steps, with an optional condition that marks the current choice; *Add from a device's list* builds one from a device's inputs or sound modes.
+- **0.6.0:** **New builder layout**: a *+ Create* button per tab opens an editor box (name required); saved items are listed as bars with what they do and an *Edit* button. ↩ buttons no longer add a row to a full page (that resized every button and broke picture-tile pages); new option to use the physical button only where the on-screen button doesn't fit. **Sliders & quick menus**: new *Sliders & Menus* tab in the builder. 12 tile icons for sliders and menus, and **level graphics** (12 designs × 6 colors) as a new kind of state icon that shows a number as a bar, gauge, dots and more. Sliders are light entities mapped to a number on any device (one "set value" command, or repeated up/down presses), with the remote's slider pop-up on home tiles and the Remote 3 touch slider; they follow the device's value. Quick menus are select entities whose choices run Smart Control steps, with an optional condition that marks the current choice; *Add from a device's list* builds one from a device's inputs or sound modes.
 - **0.5.0:** **State icons**: new *State Icons* tab in the builder. Pick a button on a single-page activity, a device and what to check, then drop an image and/or type a label per state; the button switches look within about 2 seconds and returns to its own look otherwise. Images are resized to 90×90 and uploaded to the remote. Builder renamed *Remote Self-Control Builder* with *Smart Controls* and *State Icons* tabs.
 - **0.4.0:** Return to previous activity: tracks the activities you start and keeps a ↩ text or icon button and/or a physical button pointed at the previous one, set up in the integration's Configure menu. New Previous Activity sensor (area Remote Navigation). Smart Control results name devices instead of showing entity ids.
 - **0.3.2:** new **Display Brightness** light entity so the Remote 3 touch slider can set the display brightness.
