@@ -25,11 +25,9 @@
 import fs from "node:fs";
 import { vActions, vCond } from "./smart.js";
 
-export const LIMITS = { sliders: 20, menus: 20, displays: 10, options: 20, presses: 60, delayMs: 2000 };
-export const DISPLAY_FRAMES = 11;
+export const LIMITS = { sliders: 20, menus: 20, options: 20, presses: 60, delayMs: 2000 };
 const SLIDER_ID = /^slider_[a-z0-9_]{1,36}$/;
 const MENU_ID = /^menu_[a-z0-9_]{1,36}$/;
-const DISPLAY_ID = /^display_[a-z0-9_]{1,36}$/;
 const ICON_RE = /^(custom|uc):[A-Za-z0-9_.\-]{1,120}$/;
 const HOLD_MS = Number(process.env.UC_SELF_SLIDER_HOLD_MS || 3000); // after a change from the remote, don't let a slow device report flip it back
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -133,62 +131,8 @@ export function validateExtras(input, selfKeys = [], taken = []) {
     }
     return out;
   });
-  const displays = Array.isArray(obj.displays) ? obj.displays : [];
-  if (obj.displays !== undefined && !Array.isArray(obj.displays)) errors.push("displays: must be a list");
-  if (displays.length > LIMITS.displays) errors.push(`at most ${LIMITS.displays} displays`);
-  const cleanDisplays = displays.map((d, i) => {
-    const at = `displays[${i}]`;
-    d = d && typeof d === "object" ? d : {};
-    const name = String(d.name || "").trim();
-    const label = name || at;
-    if (!DISPLAY_ID.test(d.id || "")) errors.push(`${label}: id must start with "display_" (lower-case letters, digits, _)`);
-    else if (seen.has(d.id)) errors.push(`${label}: id "${d.id}" is used twice`);
-    seen.add(d.id);
-    if (!name) errors.push(`${at}: give the display a name`);
-    if (!ctx.resolvable(d.entity)) errors.push(`${label}: pick a device`);
-    const attr = String(d.attr || "");
-    if (!/^[a-z0-9_]{1,40}$/.test(attr)) errors.push(`${label}: pick the number to show`);
-    const min = Number(d.min ?? 0), max = Number(d.max ?? 100);
-    if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) errors.push(`${label}: "full at" must be above "empty at"`);
-    const lines = (Array.isArray(d.lines) ? d.lines : []).slice(0, 3).map((x) => String(x ?? "").slice(0, 80));
-    while (lines.length < 3) lines.push("");
-    const tap = Array.isArray(d.tap) ? d.tap : [];
-    vActions(tap, `${label} › tap`, errors, ctx);
-    const choices = Array.isArray(d.choices) ? d.choices : [];
-    if (choices.length > LIMITS.options) errors.push(`${label}: at most ${LIMITS.options} menu choices`);
-    const labels = new Set();
-    const cleanChoices = choices.map((o, k) => {
-      o = o && typeof o === "object" ? o : {};
-      const l = String(o.label || "").trim();
-      if (!l) errors.push(`${label}: menu choice ${k + 1} needs a label`);
-      if (labels.has(l.toLowerCase())) errors.push(`${label} › ${l}: label is used twice`);
-      labels.add(l.toLowerCase());
-      vActions(o.do ?? [], `${label} › ${l || "choice " + (k + 1)}`, errors, ctx);
-      return { label: l.slice(0, 40), do: Array.isArray(o.do) ? o.do : [] };
-    });
-    const out = { id: d.id, name: name.slice(0, 40), entity: d.entity, attr, min, max, design: String(d.design || "arc").slice(0, 30), color: String(d.color || "orange").slice(0, 20), lines, tap, choices: cleanChoices };
-    if (d.icon) {
-      if (!ICON_RE.test(String(d.icon))) errors.push(`${label}: icon must be custom:<file> or uc:<name>`);
-      else out.icon = String(d.icon);
-    }
-    return out;
-  });
-  return { errors, extras: { sliders: cleanSliders, menus: cleanMenus, displays: cleanDisplays } };
+  return { errors, extras: { sliders: cleanSliders, menus: cleanMenus } };
 }
-
-/** Text line for a display: {value}, {percent}, {name}, {min}, {max}. */
-export function fillLine(tpl, d, value) {
-  const num = isNum(value);
-  const pct = num ? Math.round(((Math.max(d.min, Math.min(d.max, value)) - d.min) / (d.max - d.min)) * 100) : null;
-  return String(tpl || "")
-    .replace(/\{value\}/g, num ? String(value) : "–")
-    .replace(/\{percent\}/g, num ? `${pct} %` : "–")
-    .replace(/\{name\}/g, d.name)
-    .replace(/\{min\}/g, String(d.min))
-    .replace(/\{max\}/g, String(d.max));
-}
-/** Frame 0..10 for a display value (0 when unknown). */
-export const displayFrame = (d, value) => (isNum(value) ? Math.round(Math.max(0, Math.min(1, (value - d.min) / (d.max - d.min))) * (DISPLAY_FRAMES - 1)) : 0);
 
 export class Extras {
   /**
@@ -198,13 +142,10 @@ export class Extras {
    * @param {string} o.file              config file
    * @param {(id: string, attrs: object) => void} o.publish  entity attribute update
    */
-  constructor({ getCore, engine, file, publish, log, warn, imageUrl }) {
+  constructor({ getCore, engine, file, publish, log, warn }) {
     Object.assign(this, { getCore, engine, file, publish, log, warn });
-    this.imageUrl = imageUrl || ((id, n, rev) => `http://127.0.0.1:10123/display/${id}/${n}.png?v=${rev}`);
     this.sliders = [];
     this.menus = [];
-    this.displays = [];
-    this.frameRev = {}; // display id -> revision of its uploaded pictures
     this.values = {}; // slider id -> last known value
     this.lastOn = {}; // slider id -> last value above min (for "on")
     this.picked = {}; // menu id -> last chosen label
@@ -220,8 +161,6 @@ export class Extras {
       const d = JSON.parse(fs.readFileSync(this.file, "utf8"));
       this.sliders = Array.isArray(d.sliders) ? d.sliders : [];
       this.menus = Array.isArray(d.menus) ? d.menus : [];
-      this.displays = Array.isArray(d.displays) ? d.displays : [];
-      this.frameRev = d.frameRev && typeof d.frameRev === "object" ? d.frameRev : {};
       this.values = d.values && typeof d.values === "object" ? d.values : {};
       this.picked = d.picked && typeof d.picked === "object" ? d.picked : {};
     } catch {
@@ -232,34 +171,21 @@ export class Extras {
   save() {
     const values = Object.fromEntries(this.sliders.filter((s) => isNum(this.values[s.id])).map((s) => [s.id, this.values[s.id]]));
     const picked = Object.fromEntries(this.menus.filter((m) => this.picked[m.id]).map((m) => [m.id, this.picked[m.id]]));
-    for (const d of this.displays) if (isNum(this.values[d.id])) values[d.id] = this.values[d.id];
-    const frameRev = Object.fromEntries(this.displays.filter((d) => this.frameRev[d.id]).map((d) => [d.id, this.frameRev[d.id]]));
-    fs.writeFileSync(this.file, JSON.stringify({ sliders: this.sliders, menus: this.menus, displays: this.displays, values, picked, frameRev }, null, 2));
+    fs.writeFileSync(this.file, JSON.stringify({ sliders: this.sliders, menus: this.menus, values, picked }, null, 2));
   }
   /** Replaces the definitions (already validated). */
-  replace({ sliders, menus, displays }) {
+  replace({ sliders, menus }) {
     this.sliders = sliders;
     this.menus = menus;
-    this.displays = displays || [];
     for (const s of sliders) if (isNum(this.values[s.id])) this.values[s.id] = snap(this.values[s.id], s);
     this.save();
   }
   get config() {
-    return { sliders: this.sliders, menus: this.menus, displays: this.displays };
+    return { sliders: this.sliders, menus: this.menus };
   }
   /** Something to poll: sliders that read a device, menus with "current when" conditions. */
   get enabled() {
-    return this.sliders.some((s) => s.attr) || this.menus.some((m) => m.options.some((o) => o.when)) || this.displays.length > 0;
-  }
-  display(id) {
-    return this.displays.find((d) => d.id === id);
-  }
-  /** New pictures were stored for a display: point the widget at them. */
-  framesChanged(id) {
-    this.frameRev[id] = (this.frameRev[id] || 0) + 1;
-    this.save();
-    const d = this.display(id);
-    if (d) this.publish(d.id, this.displayAttrs(d));
+    return this.sliders.some((s) => s.attr) || this.menus.some((m) => m.options.some((o) => o.when));
   }
   slider(id) {
     return this.sliders.find((s) => s.id === id);
@@ -277,24 +203,7 @@ export class Extras {
   menuAttrs(m) {
     return { state: "ON", options: m.options.map((o) => o.label), current_option: this.current?.[m.id] ?? this.picked[m.id] ?? "" };
   }
-  displayAttrs(d) {
-    const v = this.values[d.id];
-    const attrs = {
-      state: "PLAYING",
-      media_image_url: this.frameRev[d.id] ? this.imageUrl(d.id, displayFrame(d, v) * 10, this.frameRev[d.id]) : "",
-      media_title: fillLine(d.lines[0], d, v),
-      media_artist: fillLine(d.lines[1], d, v),
-      media_album: fillLine(d.lines[2], d, v)
-    };
-    if (d.choices.length) {
-      attrs.source_list = d.choices.map((c) => c.label);
-      attrs.source = this.picked[d.id] || "";
-    }
-    return attrs;
-  }
   initialAttrs(id) {
-    const d = this.display(id);
-    if (d) return this.displayAttrs(d);
     const s = this.slider(id);
     if (s) return this.sliderAttrs(s);
     const m = this.menu(id);
@@ -303,12 +212,10 @@ export class Extras {
   publishAll() {
     for (const s of this.sliders) this.publish(s.id, this.sliderAttrs(s));
     for (const m of this.menus) this.publish(m.id, this.menuAttrs(m));
-    for (const d of this.displays) this.publish(d.id, this.displayAttrs(d));
   }
   status() {
     const out = {};
     for (const s of this.sliders) out[s.id] = { value: isNum(this.values[s.id]) ? this.values[s.id] : null, error: this.errors[s.id] || null };
-    for (const d of this.displays) out[d.id] = { value: isNum(this.values[d.id]) ? this.values[d.id] : null, frame: isNum(this.values[d.id]) ? displayFrame(d, this.values[d.id]) * 10 : null, pictures: !!this.frameRev[d.id], error: this.errors[d.id] || null };
     for (const m of this.menus) out[m.id] = { current: this.current?.[m.id] ?? this.picked[m.id] ?? null, error: this.errors[m.id] || null };
     return out;
   }
@@ -442,32 +349,6 @@ export class Extras {
     return summary;
   }
 
-  // ---- displays -------------------------------------------------------------
-  /** Media player command from a display widget: tap (play_pause) runs its steps, the source list its choices. */
-  async displayCommand(id, cmd, params = {}) {
-    const d = this.display(id);
-    if (!d) throw new Error(`no display ${id}`);
-    let label, steps;
-    if (cmd === "play_pause") {
-      label = `${d.name} (tap)`;
-      steps = d.tap;
-    } else if (cmd === "select_source") {
-      const c = d.choices.find((x) => x.label.toLowerCase() === String(params.source ?? "").toLowerCase());
-      if (!c) throw new Error(`unknown choice ${params.source}`);
-      this.picked[d.id] = c.label;
-      this.publish(d.id, this.displayAttrs(d));
-      this.save();
-      label = `${d.name} → ${c.label}`;
-      steps = c.do;
-    } else {
-      return null; // other widget buttons do nothing
-    }
-    if (!steps.length) return `${label}: nothing to do`;
-    const summary = await this.engine().runSteps(label, steps);
-    this.errors[d.id] = /: ERROR /.test(summary) ? summary.split(": ERROR ")[1] : null;
-    return summary;
-  }
-
   // ---- polling --------------------------------------------------------------
   refresh() {
     this.busy = this.busy.then(() => this._refresh()).catch((e) => this.warn("sliders/menus: update failed:", e.message));
@@ -501,16 +382,6 @@ export class Extras {
         if (isNum(this.values[s.id]) && this.values[s.id] > s.min) this.lastOn[s.id] = this.values[s.id];
         this.values[s.id] = val;
         this.publish(s.id, this.sliderAttrs(s));
-      }
-    }
-    for (const d of this.displays) {
-      const a = await read(d.entity);
-      if (!a) continue;
-      const v = toNum(a[d.attr]);
-      const val = Number.isFinite(v) ? v : null;
-      if (val !== (this.values[d.id] ?? null)) {
-        this.values[d.id] = val;
-        this.publish(d.id, this.displayAttrs(d));
       }
     }
     this.current = this.current || {};

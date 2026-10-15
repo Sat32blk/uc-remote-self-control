@@ -78,7 +78,7 @@ ok(saved.apiKey === "test-api-key-abc" && !("pin" in saved), "API key saved, PIN
 
 // --- entities
 r = await req("get_available_entities");
-const avail = r.msg_data.available_entities;
+const avail = r.msg_data.available_entities.filter((e) => e.entity_id !== "custom_display_test"); // experiment entity checked separately
 const ids = avail.map((e) => e.entity_id).sort();
 console.log("     entities:", ids.join(", "));
 ok(avail.length === 17, "17 entities offered (14 settings + Smart Test Button + result sensor + Previous Activity)");

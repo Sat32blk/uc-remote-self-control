@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
 import { start, devices, commands, selfEntities, entityIcons, TV, MARANTZ } from "./mock-core.js";
-import { snap, toBrightness, fromBrightness, validateExtras, Extras, fillLine, displayFrame } from "../src/bin/extras.js";
+import { snap, toBrightness, fromBrightness, validateExtras, Extras } from "../src/bin/extras.js";
 
 const CORE_PORT = 18084;
 const WS_PORT = 19098;
@@ -41,11 +41,6 @@ ok(v.errors.some((e) => /used twice/.test(e)), "ids already used by other entiti
   await x.setValue("slider_v", 60);
   ok(sent.join() === "10,60" && x.values.slider_v === 60, "fast drag on a slow device: only the first and last values are sent (" + sent.join() + ")");
 }
-
-const dd = { name: "Receiver", min: 0, max: 80 };
-ok(fillLine("Volume {value} · {percent}", dd, 40) === "Volume 40 · 50 %" && fillLine("{value}", dd, null) === "–", "display text lines fill in {value} and {percent}");
-ok(displayFrame(dd, 40) === 5 && displayFrame(dd, 99) === 10 && displayFrame(dd, null) === 0, "display picture: value → step 0..10");
-ok(validateExtras({ displays: [{ id: "display_x", name: "X", entity: TV, attr: "", min: 0, max: 1 }] }).errors.some((e) => /number to show/.test(e)), "display needs a number to show");
 
 // ---- driver -------------------------------------------------------------------------
 devices[MARANTZ].state = "ON";
@@ -200,41 +195,6 @@ h = await http("POST", "/api/extras/test", { id: "slider_nope", value: 1 });
 ok(h.status === 404, "test of an unsaved slider refused");
 h = await http("GET", "/api/extras");
 ok(h.data.status.slider_receiver_volume.value === 33 && h.data.status.menu_receiver_input.current === "Shield", "status shows current values");
-
-// ---- displays ------------------------------------------------------------------------------------
-const PNG1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
-const disp = { id: "display_receiver", name: "Receiver Display", entity: MARANTZ, attr: "volume", min: 0, max: 80, design: "arc", color: "green",
-  lines: ["Volume {value}", "{percent}", "Marantz"], tap: [{ cmd: "media_player.mute_toggle", entity: MARANTZ }],
-  choices: [{ label: "TV", do: [{ cmd: "media_player.select_source", entity: MARANTZ, params: { source: "HDMI1" } }] }, { label: "Shield", do: [{ cmd: "media_player.select_source", entity: MARANTZ, params: { source: "SHIELD" } }] }] };
-h = await http("POST", "/api/extras", { ...config, displays: [disp] });
-ok(h.status === 200 && h.data.displays.length === 1, "display saved");
-r = await req("get_available_entities");
-const de = r.msg_data.available_entities.find((e) => e.entity_id === "display_receiver");
-ok(de?.entity_type === "media_player" && de.features.includes("media_image_url") && de.features.includes("select_source") && de.features.includes("play_pause"), "display is a media player with picture, tap and menu");
-await req("subscribe_events", { entity_ids: ["display_receiver"] });
-h = await http("POST", "/api/displays/frames", { id: "display_receiver", frames: Array(11).fill(PNG1.toString("base64")) });
-ok(h.status === 200, "pictures uploaded");
-devices[MARANTZ].volume = 60;
-await sleep(800);
-s = await states();
-ok(/\/display\/display_receiver\/80\.png\?v=1$/.test(s.display_receiver.media_image_url) && s.display_receiver.media_title === "Volume 60" && s.display_receiver.media_artist === "75 %", "volume 60 of 80: picture step 80 %, text 'Volume 60' / '75 %': " + s.display_receiver.media_image_url);
-const img = await fetch("http://127.0.0.1:10935/display/display_receiver/80.png");
-ok(img.status === 200 && img.headers.get("content-type") === "image/png", "picture served without login (the remote's screen loads it)");
-ok((await fetch("http://127.0.0.1:10935/display/display_receiver/../../x.png")).status === 404, "only display pictures are served");
-devices[MARANTZ].volume = 8;
-await sleep(800);
-ok(/\/10\.png/.test((await states()).display_receiver.media_image_url), "volume 8 → 10 % picture");
-ok(JSON.stringify((await states()).display_receiver.source_list) === '["TV","Shield"]', "menu list shows the choices");
-commands.length = 0;
-ok((await cmd("display_receiver", "media_player", "media_player.play_pause")) === 200, "tap accepted");
-await sleep(300);
-ok(commands.some((c) => c.cmd_id === "media_player.mute_toggle"), "tapping the picture runs its steps (mute toggle)");
-await cmd("display_receiver", "media_player", "media_player.select_source", { source: "TV" });
-await sleep(300);
-ok(devices[MARANTZ].source === "HDMI1" && (await states()).display_receiver.source === "TV", "menu choice TV runs its steps and shows as picked");
-ok((await cmd("display_receiver", "media_player", "media_player.select_source", { source: "Nope" })) !== 200, "unknown menu choice refused");
-h = await http("POST", "/api/displays/frames", { id: "display_receiver", frames: Array(3).fill(PNG1.toString("base64")) });
-ok(h.status === 400, "picture upload needs all 11 steps");
 
 // ---- removing ----------------------------------------------------------------------------------
 h = await http("POST", "/api/extras", { sliders: [], menus: [] });

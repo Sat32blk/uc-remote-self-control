@@ -102,10 +102,6 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .tpick { width: 48px; height: 48px; min-height: 48px; padding: 0; display: flex; align-items: center; justify-content: center; background: #0f1114; border: 2px solid transparent; border-radius: 10px; }
 .tpick.none { width: auto; padding: 0 10px; color: #c9ced5; font-size: 12px; }
 .tpick.sel { border-color: var(--accent); }
-.dprev { display: flex; gap: 14px; align-items: center; background: #0f1114; border-radius: 12px; padding: 12px; color: #e8eaed; max-width: 520px; }
-.dprev img { border-radius: 8px; flex: none; }
-.dtext { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
-.dtext span { color: #9aa3ad; font-size: 13px; }
 .section-title { margin: 6px 0 0; font-size: 17px; font-weight: 600; }
 .fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .choice { border-radius: 10px; background: var(--inset); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -220,11 +216,6 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
           <option value="">Add from a device's list…</option>
         </select>
       </div>
-      <h2 class="section-title">Displays</h2>
-      <div id="displays-list"></div>
-      <div class="row">
-        <button class="primary" id="display-add" type="button">Add display</button>
-      </div>
     </section>
     <aside class="side">
       <div class="panel">
@@ -245,7 +236,6 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
         <h2>Using them on the remote</h2>
         <p class="note">After saving, add the new entities to the integration (Integrations → Remote Self-Control → add entities). They're in the <b>Remote Sliders &amp; Menus</b> group.</p>
         <p class="note"><b>Sliders</b> are light entities. Put one on a home page: tapping the tile opens a slider pop-up. On a Remote 3 you can also assign it to the touch slider in an activity.</p>
-        <p class="note"><b>Displays</b> are media player entities: put a <b>media player widget</b> for one on any activity page. Its picture is a large level gauge that follows a number, with three lines of text; tapping the picture and the widget's list run your steps. They update live, also on activities with several pages.</p>
         <p class="note"><b>Quick menus</b> are list entities. On a home tile or an activity page they open a list pop-up; picking a choice runs its steps. Steps run in the background, so they can't switch the remote's screen to another activity.</p>
       </div>
     </aside>
@@ -1109,7 +1099,6 @@ $("#icons-save").addEventListener("click", async () => {
 // Sliders & Menus tab
 // ---------------------------------------------------------------------------
 let SLIDERS = [];        // [{ id, name, entity, attr, min, max, step, mode, cmd, param, up, down, per_press, delay }]
-let DISPLAYS = [];       // [{ id, name, entity, attr, min, max, design, color, lines[3], tap: [step model], choices: [{ label, steps }], icon }]
 let MENUS = [];          // [{ id, name, options: [{ label, steps: [step model], conds: [cond model] }] }]
 let XSTATUS = {};        // id -> { value | current, error }
 let extrasSaved = "";
@@ -1157,8 +1146,6 @@ const extrasOut = () => ({
     else Object.assign(o, { cmd: s.cmd, param: s.param });
     return o;
   }),
-  displays: DISPLAYS.map((d) => ({ id: d.id, name: d.name, entity: d.entity, attr: d.attr, min: Number(d.min), max: Number(d.max), design: d.design, color: d.color,
-    lines: d.lines.slice(0, 3), tap: d.tap.map(stepOut), choices: d.choices.map((c) => ({ label: c.label, do: c.steps.map(stepOut) })), ...(d.icon ? { icon: d.icon } : {}) })),
   menus: MENUS.map((m) => ({ id: m.id, name: m.name, ...(m.icon ? { icon: m.icon } : {}), options: m.options.map((o) => {
     const out = { label: o.label, do: o.steps.map(stepOut) };
     if (o.conds.length) out.when = condOut(o.conds[0]);
@@ -1167,7 +1154,6 @@ const extrasOut = () => ({
 });
 function extrasIn(cfg) {
   SLIDERS = (cfg.sliders || []).map((s) => ({ per_press: 1, delay: 200, up: "", down: "", cmd: "", param: "", ...s }));
-  DISPLAYS = (cfg.displays || []).map((d) => ({ ...d, lines: [...(d.lines || []), "", "", ""].slice(0, 3), tap: (d.tap || []).map((a) => stepIn(a, {})), choices: (d.choices || []).map((c) => ({ label: c.label, steps: (c.do || []).map((a) => stepIn(a, {})) })) }));
   MENUS = (cfg.menus || []).map((m) => ({ id: m.id, name: m.name, icon: m.icon || "", options: m.options.map((o) => ({ label: o.label, steps: (o.do || []).map((a) => stepIn(a, {})), conds: o.when ? [condIn(o.when, {})] : [] })) }));
 }
 
@@ -1321,91 +1307,6 @@ function menuCard(m, mi) {
   return card;
 }
 
-const DISPLAY_SIZE = 300;
-/** Large picture for a display: the level design on a dark panel. */
-function displayFrame(design, color, f) {
-  const c = document.createElement("canvas"); c.width = c.height = DISPLAY_SIZE;
-  const g = c.getContext("2d");
-  g.fillStyle = "#14171c"; g.fillRect(0, 0, DISPLAY_SIZE, DISPLAY_SIZE);
-  g.save(); g.translate(DISPLAY_SIZE * 0.1, DISPLAY_SIZE * 0.1); g.scale(DISPLAY_SIZE * 0.8 / 90, DISPLAY_SIZE * 0.8 / 90);
-  LEVEL_DESIGNS[design].draw(g, f, { on: LEVEL_COLORS[color] || color, off: LEVEL_OFF });
-  g.restore();
-  return c;
-}
-async function uploadDisplayFrames(d) {
-  const frames = [];
-  for (let i = 0; i <= 10; i++) frames.push(canvasData(displayFrame(d.design, d.color, i / 10)).base64);
-  const r = await api("POST", "/api/displays/frames", { id: d.id, frames });
-  if (!r.ok) throw new Error(r.data.error || "upload failed");
-}
-const fillPreview = (tpl, d, v) => {
-  const num = typeof v === "number"; const lo = Number(d.min), hi = Number(d.max);
-  const pct = num && hi > lo ? Math.round(((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * 100) : null;
-  return String(tpl || "").replace(/\{value\}/g, num ? String(v) : "–").replace(/\{percent\}/g, num ? pct + " %" : "–").replace(/\{name\}/g, d.name).replace(/\{min\}/g, d.min).replace(/\{max\}/g, d.max);
-};
-
-function displayCard(d, di) {
-  const id = nid("dp");
-  const dev = DEV[d.entity];
-  const card = el("article", { class: "card", "aria-label": d.name || "Display" });
-  const idIn = input(id + "-i", d.id, (v) => { d.id = v; extrasChanged(false); }, { label: "Id", cls: "mono" });
-  const nameIn = input(id + "-n", d.name, (v) => { const auto = !d.id || d.id === xslug("display", d.name); d.name = v; if (auto) { d.id = xslug("display", v); idIn.value = d.id; } extrasChanged(false); }, { label: "Name", placeholder: "Receiver Display" });
-  card.append(el("div", { class: "card-head" },
-    el("label", { class: "f grow", for: id + "-n" }, "Name (shown on the remote)", nameIn),
-    el("label", { class: "f grow", for: id + "-i" }, "Id", idIn),
-    el("button", { class: "ghost", type: "button", on: { click: () => { DISPLAYS.splice(di, 1); extrasChanged(true); } } }, "Delete")));
-
-  const numeric = numAttrs(dev);
-  const now = XSTATUS[d.id]?.value ?? (dev && typeof dev.current?.[d.attr] === "number" ? dev.current[d.attr] : null);
-  card.append(el("div", { class: "subhead" }, "1 · What it shows"));
-  card.append(el("div", { class: "fields" },
-    field(id + "-d", "Device", select(id + "-d", [["", "Pick a device…"], ...deviceOptions((x) => x.type !== "activity" && x.type !== "macro")], d.entity, (v) => {
-      d.entity = v; const nd = DEV[v]; const na = numAttrs(nd); d.attr = na.includes("volume") ? "volume" : na[0] || "";
-      if (!d.name || /^Display \d+$/.test(d.name)) { d.name = `${nd?.name || "Device"} Display`.slice(0, 40); d.id = xslug("display", d.name); }
-      extrasChanged(true);
-    }, "Device")),
-    field(id + "-a", "Number", select(id + "-a", [...new Set([...numeric, ...(d.attr ? [d.attr] : [])])].map((a) => [a, a.replace(/_/g, " ")]), d.attr, (v) => { d.attr = v; extrasChanged(true); }, "Number")),
-    field(id + "-lo", "Empty at", input(id + "-lo", d.min, (v) => { d.min = v; extrasChanged(false); }, { label: "Empty at", type: "number", cls: "num" })),
-    field(id + "-hi", "Full at", input(id + "-hi", d.max, (v) => { d.max = v; extrasChanged(false); }, { label: "Full at", type: "number", cls: "num" })),
-    now != null ? el("span", { class: "live" }, "Now: ", el("b", {}, String(now))) : null));
-  if (dev && !numeric.length) card.append(el("p", { class: "hint" }, "This device reports no numbers right now. Pick another device, or turn it on and press Reload devices."));
-
-  card.append(el("div", { class: "subhead" }, "2 · Look"));
-  const gal = el("div", { class: "gallery", role: "radiogroup", "aria-label": "Gauge design" });
-  for (const [k, ds] of Object.entries(LEVEL_DESIGNS)) gal.append(el("button", { type: "button", class: "gpick" + (d.design === k ? " sel" : ""), role: "radio", "aria-checked": String(d.design === k), title: ds.name,
-    on: { click: () => { d.design = k; extrasChanged(true); } } }, asImg(levelFrame(k, d.color, 0.6), 54, ds.name), el("span", {}, ds.name)));
-  const sw = el("div", { class: "row", role: "radiogroup", "aria-label": "Color" });
-  for (const [k, c] of Object.entries(LEVEL_COLORS)) sw.append(el("button", { type: "button", class: "swatch" + (d.color === k ? " sel" : ""), role: "radio", "aria-checked": String(d.color === k), "aria-label": k, title: k, style: "background:" + c,
-    on: { click: () => { d.color = k; extrasChanged(true); } } }));
-  const f = typeof now === "number" && Number(d.max) > Number(d.min) ? Math.max(0, Math.min(1, (now - d.min) / (d.max - d.min))) : 0.6;
-  const preview = el("div", { class: "dprev" }, asImg(displayFrame(d.design, d.color, Math.round(f * 10) / 10), 150, "Preview"),
-    el("div", { class: "dtext" }, el("b", {}, fillPreview(d.lines[0], d, now) || " "), el("span", {}, fillPreview(d.lines[1], d, now)), el("span", {}, fillPreview(d.lines[2], d, now))));
-  card.append(gal, sw, el("div", { class: "subhead" }, "Preview (as now)"), preview);
-
-  card.append(el("div", { class: "subhead" }, "3 · Text lines"));
-  card.append(el("div", { class: "fields" }, ...[0, 1, 2].map((i) => field(id + "-t" + i, ["Title", "Line 2", "Line 3"][i],
-    input(id + "-t" + i, d.lines[i], (v) => { d.lines[i] = v; extrasChanged(false); }, { label: "Line " + (i + 1), placeholder: ["Volume {value}", "{percent}", "{name}"][i] })))),
-    el("p", { class: "hint" }, "Use {value}, {percent}, {min}, {max} and {name}; they're filled in live."));
-
-  card.append(el("div", { class: "subhead" }, "4 · Tapping the picture runs"), ...stepsBlock(d.tap),
-    el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => tryIt({ id: d.id }) } }, "Try the tap")));
-  card.append(el("div", { class: "subhead" }, "5 · The widget's list (menu button)"));
-  d.choices.forEach((c, ci) => {
-    const box = el("div", { class: "choice" });
-    box.append(el("div", { class: "branch-head" }, el("span", { class: "tag" }, "Choice " + (ci + 1)),
-      input(id + "-c" + ci, c.label, (v) => { c.label = v; extrasChanged(false); }, { label: "Choice label", placeholder: "TV" }),
-      el("button", { class: "small", type: "button", on: { click: () => tryIt({ id: d.id, option: c.label }) } }, "Run"),
-      el("button", { class: "ghost small", type: "button", on: { click: () => { d.choices.splice(ci, 1); extrasChanged(true); } } }, "Remove")),
-      ...stepsBlock(c.steps));
-    card.append(box);
-  });
-  card.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { d.choices.push({ label: "Choice " + (d.choices.length + 1), steps: [newStep("cmd")] }); extrasChanged(true); } } }, "Add choice"),
-    el("span", { class: "hint" }, d.choices.length ? "" : "Without choices the widget has no list.")));
-  card.append(el("div", { class: "subhead" }, "Tile icon (home pages and lists)"), tilePicker(d, "Tile icon"));
-  if (XSTATUS[d.id]?.error) card.append(el("p", { class: "status err" }, "Last run: " + XSTATUS[d.id].error));
-  return card;
-}
-
 function renderExtras() {
   const sl = el("div", { class: "lines", style: "gap:14px" });
   SLIDERS.forEach((s, i) => sl.append(sliderCard(s, i)));
@@ -1415,10 +1316,6 @@ function renderExtras() {
   MENUS.forEach((m, i) => ml.append(menuCard(m, i)));
   if (!MENUS.length) ml.append(el("p", { class: "empty" }, "No quick menus yet. A quick menu pops up a list of choices, like inputs or sound modes; each choice runs its own steps."));
   $("#menus-list").replaceChildren(ml);
-  const dl = el("div", { class: "lines", style: "gap:14px" });
-  DISPLAYS.forEach((d, i) => dl.append(displayCard(d, i)));
-  if (!DISPLAYS.length) dl.append(el("p", { class: "empty" }, "No displays yet. A display is a media player widget whose picture is a big live gauge (like receiver volume) with your own text; tapping it runs your steps. Works on any activity page."));
-  $("#displays-list").replaceChildren(dl);
 }
 
 // "Add from a device's list": commands whose parameter has a list of values (inputs, sound modes, list options).
@@ -1455,16 +1352,6 @@ $("#slider-add").addEventListener("click", () => {
   extrasChanged(true);
   setTimeout(() => document.querySelector("#sliders-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
 });
-$("#display-add").addEventListener("click", () => {
-  const dev = CAT.devices.find((x) => x.type === "media_player" && numAttrs(x).includes("volume")) || CAT.devices.find((x) => numAttrs(x).length);
-  let n = DISPLAYS.length + 1; while (DISPLAYS.some((d) => d.id === "display_" + n)) n++;
-  const name = dev ? `${dev.name} Display`.slice(0, 40) : "Display " + n;
-  let id = xslug("display", name), k = 2; while (DISPLAYS.some((d) => d.id === id)) id = xslug("display", name) + "_" + k++;
-  const attr = dev ? (numAttrs(dev).includes("volume") ? "volume" : numAttrs(dev)[0]) : "";
-  DISPLAYS.push({ id, name, entity: dev?.id || "", attr, min: 0, max: 100, design: "arc", color: "orange", lines: ["Volume {value}", "{percent}", dev?.name || ""], tap: [], choices: [], icon: "" });
-  extrasChanged(true);
-  setTimeout(() => document.querySelector("#displays-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-});
 $("#menu-add").addEventListener("click", () => {
   let n = MENUS.length + 1; while (MENUS.some((m) => m.id === "menu_" + n)) n++;
   MENUS.push({ id: "menu_" + n, name: "Quick Menu " + n, options: [{ label: "Choice 1", steps: [newStep("cmd")], conds: [] }] });
@@ -1477,21 +1364,11 @@ async function saveExtras() {
   errs.hidden = true; errs.replaceChildren();
   st.className = "status"; st.textContent = "Saving…";
   const body = extrasOut();
-  const before = extrasSaved ? JSON.parse(extrasSaved) : { displays: [] };
   const r = await api("POST", "/api/extras", body);
   if (r.ok) {
-    XSTATUS = r.data.status || {};
-    try {
-      for (const d of body.displays) {
-        const old = (before.displays || []).find((x) => x.id === d.id);
-        if (!XSTATUS[d.id]?.pictures || !old || old.design !== d.design || old.color !== d.color) {
-          st.textContent = `Making the pictures for ${d.name}…`;
-          await uploadDisplayFrames(d);
-        }
-      }
-    } catch (e) { st.className = "status err"; st.textContent = "Saved, but the display pictures couldn't be uploaded: " + e.message; extrasSaved = JSON.stringify(body); extrasChanged(true); return false; }
     extrasSaved = JSON.stringify(body);
-    st.className = "status ok"; st.textContent = `Saved ${plural(SLIDERS.length, "slider")}, ${plural(MENUS.length, "quick menu")} and ${plural(DISPLAYS.length, "display")}. Add new ones to the integration to use them.`;
+    XSTATUS = r.data.status || {};
+    st.className = "status ok"; st.textContent = `Saved ${plural(SLIDERS.length, "slider")} and ${plural(MENUS.length, "quick menu")}. Add new ones to the integration to use them.`;
     extrasChanged(true);
     return true;
   }
@@ -1520,7 +1397,7 @@ $("#extras-revert").addEventListener("click", () => { extrasIn(JSON.parse(extras
 const TABS = {
   smart: { pane: "#app", intro: "Conditional buttons for the Remote Self-Control integration. Each button checks your devices or the remote, then runs the first branch that matches." },
   icons: { pane: "#icons-app", intro: "Make a button on an activity page change its icon with a device's state, like a green power icon when the receiver is on." },
-  extras: { pane: "#extras-app", intro: "Sliders for any number on your devices (like receiver volume), quick menus that pop up a list of choices, and live displays for any activity page." }
+  extras: { pane: "#extras-app", intro: "Sliders for any number on your devices (like receiver volume) and quick menus that pop up a list of choices, using the remote's own pop-ups." }
 };
 function showTab(which) {
   if (!TABS[which]) which = "smart";
