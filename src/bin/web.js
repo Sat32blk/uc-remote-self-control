@@ -10,6 +10,10 @@
 //   POST /api/validate     { rules } -> { errors }                                          (login)
 //   POST /api/rules        { rules } -> { ok, errors, buttons }                             (login)
 //   POST /api/test         { id }    -> { summary }                                         (login)
+//   GET  /api/extras       { sliders, menus, status }                                       (login)
+//   POST /api/extras       { sliders, menus } -> { ok, errors }                              (login)
+//   POST /api/extras/test  { id, value } (slider) | { id, option } (menu) -> { summary }     (login)
+//   GET  /api/icons, POST /api/icons, POST /api/icons/upload, GET /api/icons/image          (login)
 //
 // Login uses the remote's web-configurator PIN, checked against the remote's own API.
 
@@ -116,7 +120,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, validateExtras, onExtrasChanged, log, warn }) {
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -267,6 +271,32 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       const img = await core.download(`/resources/Icon/${encodeURIComponent(id)}`);
       res.writeHead(200, { "Content-Type": img.type, "Cache-Control": "private, max-age=3600" });
       res.end(img.body);
+    },
+    "GET /api/extras": async (req, res) => send(res, 200, { ...extras().config, status: extras().status() }),
+    "POST /api/extras": async (req, res) => {
+      const body = await readJson(req);
+      const v = validateExtras(body);
+      if (v.errors.length) return send(res, 422, { ok: false, errors: v.errors });
+      extras().replace(v.extras);
+      onExtrasChanged && onExtrasChanged();
+      send(res, 200, { ok: true, errors: [], ...extras().config, status: extras().status() });
+    },
+    "POST /api/extras/test": async (req, res) => {
+      const body = await readJson(req);
+      if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      const id = String(body.id || "");
+      const x = extras();
+      try {
+        if (x.slider(id)) {
+          await x.setValue(id, body.value);
+          const st = x.status()[id];
+          return send(res, 200, { summary: st.error ? `${x.slider(id).name}: ERROR ${st.error}` : `${x.slider(id).name} set to ${st.value}` });
+        }
+        if (x.menu(id)) return send(res, 200, { summary: await x.menuCommand(id, "select_option", { option: body.option }) });
+        send(res, 404, { error: `"${id}" isn't saved yet. Save first.` });
+      } catch (e) {
+        send(res, 400, { error: e.message });
+      }
     },
     "POST /api/test": async (req, res) => {
       const body = await readJson(req);

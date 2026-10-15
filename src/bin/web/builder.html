@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Smart Controls Builder</title>
+<title>Remote Self-Control Builder</title>
 <style>
 /* Layout: sign-in card, then two panes: rule editor (left) and save/test/rules text (right, sticky); stacks on phones. */
 :root {
@@ -90,6 +90,9 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .thumb img { width: 60px; height: 60px; object-fit: contain; }
 .live { font-size: 13px; color: var(--muted); }
 .live b { color: var(--fg); }
+.section-title { margin: 6px 0 0; font-size: 17px; font-weight: 600; }
+.fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.choice { border-radius: 10px; background: var(--inset); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 @media (prefers-reduced-motion: no-preference) { button { transition: border-color .15s; } }
 </style>
 </head>
@@ -117,6 +120,7 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
   <nav class="tabs" id="tabs" role="tablist" hidden>
     <button type="button" role="tab" id="tab-smart" aria-selected="true" aria-controls="app">Smart Controls</button>
     <button type="button" role="tab" id="tab-icons" aria-selected="false" aria-controls="icons-app">State Icons</button>
+    <button type="button" role="tab" id="tab-extras" aria-selected="false" aria-controls="extras-app">Sliders &amp; Menus</button>
   </nav>
 
   <div class="panes" id="app" hidden>
@@ -184,6 +188,46 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
       </div>
     </aside>
   </div>
+
+  <div class="panes" id="extras-app" hidden>
+    <section class="editor" aria-label="Sliders and quick menus">
+      <h2 class="section-title">Sliders</h2>
+      <div id="sliders-list"></div>
+      <div class="row">
+        <button class="primary" id="slider-add" type="button">Add slider</button>
+      </div>
+      <h2 class="section-title">Quick menus</h2>
+      <div id="menus-list"></div>
+      <div class="row">
+        <button class="primary" id="menu-add" type="button">Add quick menu</button>
+        <select id="menu-fill" aria-label="Add a menu from a device's list">
+          <option value="">Add from a device's list…</option>
+        </select>
+      </div>
+    </section>
+    <aside class="side">
+      <div class="panel">
+        <h2>Save to the remote</h2>
+        <p class="hint" id="extras-dirty">No unsaved changes.</p>
+        <div class="row">
+          <button class="primary" id="extras-save" type="button">Save</button>
+          <button id="extras-revert" type="button">Discard changes</button>
+        </div>
+        <div id="extras-status" class="status" role="status"></div>
+        <ul class="errors" id="extras-errors" hidden></ul>
+      </div>
+      <div class="panel">
+        <h2>Last test</h2>
+        <div class="result" id="extras-result">Use Set on a slider or Run on a choice to try it on the remote.</div>
+      </div>
+      <div class="panel">
+        <h2>Using them on the remote</h2>
+        <p class="note">After saving, add the new entities to the integration (Integrations → Remote Self-Control → add entities). They're in the <b>Remote Sliders &amp; Menus</b> group.</p>
+        <p class="note"><b>Sliders</b> are light entities. Put one on a home page: tapping the tile opens a slider pop-up. On a Remote 3 you can also assign it to the touch slider in an activity.</p>
+        <p class="note"><b>Quick menus</b> are list entities. On a home tile or an activity page they open a list pop-up; picking a choice runs its steps. Steps run in the background, so they can't switch the remote's screen to another activity.</p>
+      </div>
+    </aside>
+  </div>
 </div>
 
 <script>
@@ -195,6 +239,7 @@ let CAT = { devices: [], activities: [], controls: {}, settings: {} };
 let DEV = {};           // id -> device
 let buttons = [];       // editor model
 let saved = "";         // JSON of the last saved rules, for dirty tracking
+let notify = (r) => changed(r); // change hook used by the shared step/condition rows (set per tab)
 
 // ---------------------------------------------------------------------------
 // API
@@ -360,38 +405,38 @@ function condRow(cond, list, idx) {
   const id = nid("c");
   const kinds = [["device", "Device"], ["activity", "Activity"], ["time", "Time of day"], ["control", "This remote's control"], ["setting", "This remote's setting"], ["var", "Memory"], ["raw", "Advanced (JSON)"]];
   const row = el("div", { class: "line" });
-  row.append(select(id + "-k", kinds, cond.t, (t) => { list[idx] = newCond(t); changed(true); }, "Condition type"));
+  row.append(select(id + "-k", kinds, cond.t, (t) => { list[idx] = newCond(t); notify(true); }, "Condition type"));
   if (cond.t === "device") {
     const dev = DEV[cond.ent];
-    row.append(select(id + "-d", deviceOptions((d) => d.type !== "activity" && d.type !== "macro"), cond.ent, (v) => { cond.ent = v; cond.attr = "state"; cond.val = ""; changed(true); }, "Device"));
+    row.append(select(id + "-d", deviceOptions((d) => d.type !== "activity" && d.type !== "macro"), cond.ent, (v) => { cond.ent = v; cond.attr = "state"; cond.val = ""; notify(true); }, "Device"));
     const attrs = dev ? Object.keys(dev.values) : [cond.attr];
-    row.append(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), cond.attr, (v) => { cond.attr = v; cond.val = ""; changed(true); }, "What to check"));
-    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; changed(false); }, "Comparison"));
-    row.append(...valueInput(id + "-v", dev, cond.attr, cond.val, (v) => { cond.val = v; changed(false); }));
+    row.append(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), cond.attr, (v) => { cond.attr = v; cond.val = ""; notify(true); }, "What to check"));
+    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; notify(false); }, "Comparison"));
+    row.append(...valueInput(id + "-v", dev, cond.attr, cond.val, (v) => { cond.val = v; notify(false); }));
   } else if (cond.t === "activity") {
-    row.append(select(id + "-n", [["on", "is running"], ["off", "is not running"]], cond.neg ? "off" : "on", (v) => { cond.neg = v === "off"; changed(false); }, "Running or not"));
-    row.append(select(id + "-a", CAT.activities.map((a) => [a.id, a.name]), cond.act, (v) => { cond.act = v; changed(false); }, "Activity"));
+    row.append(select(id + "-n", [["on", "is running"], ["off", "is not running"]], cond.neg ? "off" : "on", (v) => { cond.neg = v === "off"; notify(false); }, "Running or not"));
+    row.append(select(id + "-a", CAT.activities.map((a) => [a.id, a.name]), cond.act, (v) => { cond.act = v; notify(false); }, "Activity"));
   } else if (cond.t === "time") {
-    row.append(el("span", { class: "sep" }, "between"), input(id + "-f", cond.from, (v) => { cond.from = v; changed(false); }, { label: "From", type: "time" }),
-      el("span", { class: "sep" }, "and"), input(id + "-t", cond.to, (v) => { cond.to = v; changed(false); }, { label: "To", type: "time" }));
+    row.append(el("span", { class: "sep" }, "between"), input(id + "-f", cond.from, (v) => { cond.from = v; notify(false); }, { label: "From", type: "time" }),
+      el("span", { class: "sep" }, "and"), input(id + "-t", cond.to, (v) => { cond.to = v; notify(false); }, { label: "To", type: "time" }));
   } else if (cond.t === "control") {
     const c = CAT.controls[cond.key];
-    row.append(select(id + "-c", Object.entries(CAT.controls).map(([k, d]) => [k, d.name]), cond.key, (v) => { cond.key = v; cond.val = ""; changed(true); }, "Control"));
-    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; changed(false); }, "Comparison"));
+    row.append(select(id + "-c", Object.entries(CAT.controls).map(([k, d]) => [k, d.name]), cond.key, (v) => { cond.key = v; cond.val = ""; notify(true); }, "Control"));
+    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; notify(false); }, "Comparison"));
     const lid = id + "-l";
-    row.append(input(id + "-v", cond.val, (v) => { cond.val = v; changed(false); }, { label: "Value", list: lid }), datalist(lid, c ? (c.switch ? ["on", "off"] : c.options) : []));
+    row.append(input(id + "-v", cond.val, (v) => { cond.val = v; notify(false); }, { label: "Value", list: lid }), datalist(lid, c ? (c.switch ? ["on", "off"] : c.options) : []));
   } else if (cond.t === "setting") {
-    row.append(select(id + "-s", Object.entries(CAT.settings), cond.path, (v) => { cond.path = v; changed(false); }, "Setting"));
-    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; changed(false); }, "Comparison"));
-    row.append(input(id + "-v", cond.val, (v) => { cond.val = v; changed(false); }, { label: "Value", cls: "num" }));
+    row.append(select(id + "-s", Object.entries(CAT.settings), cond.path, (v) => { cond.path = v; notify(false); }, "Setting"));
+    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; notify(false); }, "Comparison"));
+    row.append(input(id + "-v", cond.val, (v) => { cond.val = v; notify(false); }, { label: "Value", cls: "num" }));
   } else if (cond.t === "var") {
-    row.append(input(id + "-n", cond.name, (v) => { cond.name = v; changed(false); }, { label: "Memory name", cls: "mono", placeholder: "night_mode" }));
-    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; changed(false); }, "Comparison"));
-    row.append(input(id + "-v", cond.val, (v) => { cond.val = v; changed(false); }, { label: "Value", placeholder: "on" }));
+    row.append(input(id + "-n", cond.name, (v) => { cond.name = v; notify(false); }, { label: "Memory name", cls: "mono", placeholder: "night_mode" }));
+    row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; notify(false); }, "Comparison"));
+    row.append(input(id + "-v", cond.val, (v) => { cond.val = v; notify(false); }, { label: "Value", placeholder: "on" }));
   } else {
-    row.append(el("textarea", { id: id + "-j", "aria-label": "Condition JSON", on: { input: (e) => { cond.json = e.target.value; changed(false); } } }, cond.json || "{}"));
+    row.append(el("textarea", { id: id + "-j", "aria-label": "Condition JSON", on: { input: (e) => { cond.json = e.target.value; notify(false); } } }, cond.json || "{}"));
   }
-  row.append(el("button", { class: "ghost", type: "button", on: { click: () => { list.splice(idx, 1); changed(true); } } }, "Remove"));
+  row.append(el("button", { class: "ghost", type: "button", on: { click: () => { list.splice(idx, 1); notify(true); } } }, "Remove"));
   return row;
 }
 
@@ -408,44 +453,44 @@ function stepRow(step, list, idx) {
   const id = nid("s");
   const kinds = [["cmd", "Device command"], ["self", "This remote's control"], ["delay", "Wait (time)"], ["wait", "Wait until"], ["setvar", "Set memory"], ["save", "Remember remote settings"], ["restore", "Restore remote settings"], ["stop", "Stop"], ["raw", "Advanced (JSON)"]];
   const row = el("div", { class: "line" });
-  row.append(select(id + "-k", kinds, step.t, (t) => { list[idx] = newStep(t); changed(true); }, "Step type"));
+  row.append(select(id + "-k", kinds, step.t, (t) => { list[idx] = newStep(t); notify(true); }, "Step type"));
   if (step.t === "cmd") {
     const dev = DEV[step.ent];
-    row.append(select(id + "-d", deviceOptions(), step.ent, (v) => { step.ent = v; const d = DEV[v]; step.cmd = d?.commands[0]?.id || d?.simple[0] || ""; step.params = {}; changed(true); }, "Device"));
-    row.append(select(id + "-c", commandOptions(dev), step.cmd, (v) => { step.cmd = v; step.params = {}; changed(true); }, "Command"));
+    row.append(select(id + "-d", deviceOptions(), step.ent, (v) => { step.ent = v; const d = DEV[v]; step.cmd = d?.commands[0]?.id || d?.simple[0] || ""; step.params = {}; notify(true); }, "Device"));
+    row.append(select(id + "-c", commandOptions(dev), step.cmd, (v) => { step.cmd = v; step.params = {}; notify(true); }, "Command"));
     const spec = dev?.commands.find((c) => c.id === step.cmd);
     for (const p of spec?.params || []) {
       const pid = id + "-p-" + p.key;
       const isNum = p.type === "number";
-      if (p.list && p.list.length) row.append(select(pid, [["", p.label + "…"], ...p.list.map((x) => [String(x), String(x)])], String(step.params[p.key] ?? ""), (v) => { step.params[p.key] = v; changed(false); }, p.label));
-      else row.append(input(pid, step.params[p.key], (v) => { step.params[p.key] = isNum && v !== "" ? Number(v) : v; changed(false); }, { label: p.label, type: isNum ? "number" : "text", cls: isNum ? "num" : undefined, placeholder: p.label + (p.unit ? " (" + p.unit + ")" : "") }));
+      if (p.list && p.list.length) row.append(select(pid, [["", p.label + "…"], ...p.list.map((x) => [String(x), String(x)])], String(step.params[p.key] ?? ""), (v) => { step.params[p.key] = v; notify(false); }, p.label));
+      else row.append(input(pid, step.params[p.key], (v) => { step.params[p.key] = isNum && v !== "" ? Number(v) : v; notify(false); }, { label: p.label, type: isNum ? "number" : "text", cls: isNum ? "num" : undefined, placeholder: p.label + (p.unit ? " (" + p.unit + ")" : "") }));
     }
   } else if (step.t === "self") {
-    row.append(select(id + "-c", Object.entries(CAT.controls).map(([k, d]) => [k, d.name]), step.key, (v) => { step.key = v; const c = CAT.controls[v]; step.val = c.switch ? "on" : c.options[0]; changed(true); }, "Control"));
+    row.append(select(id + "-c", Object.entries(CAT.controls).map(([k, d]) => [k, d.name]), step.key, (v) => { step.key = v; const c = CAT.controls[v]; step.val = c.switch ? "on" : c.options[0]; notify(true); }, "Control"));
     const c = CAT.controls[step.key];
     const opts = !c ? [] : c.switch ? [["on", "on"], ["off", "off"], ["toggle", "toggle"]] : [["next", "next (wraps)"], ["previous", "previous (wraps)"], ["up", "up one step"], ["down", "down one step"], ...c.options.map((o) => [o, o])];
-    row.append(select(id + "-v", opts, step.val, (v) => { step.val = v; changed(false); }, "Set to"));
+    row.append(select(id + "-v", opts, step.val, (v) => { step.val = v; notify(false); }, "Set to"));
   } else if (step.t === "delay") {
-    row.append(input(id + "-m", step.ms, (v) => { step.ms = v; changed(false); }, { label: "Milliseconds", type: "number", cls: "num" }), el("span", { class: "sep" }, "ms"));
+    row.append(input(id + "-m", step.ms, (v) => { step.ms = v; notify(false); }, { label: "Milliseconds", type: "number", cls: "num" }), el("span", { class: "sep" }, "ms"));
   } else if (step.t === "wait") {
     const dev = DEV[step.ent];
-    row.append(select(id + "-d", deviceOptions((d) => d.type !== "macro"), step.ent, (v) => { step.ent = v; step.attr = "state"; changed(true); }, "Device"));
+    row.append(select(id + "-d", deviceOptions((d) => d.type !== "macro"), step.ent, (v) => { step.ent = v; step.attr = "state"; notify(true); }, "Device"));
     const attrs = dev ? Object.keys(dev.values) : [step.attr];
-    row.append(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), step.attr, (v) => { step.attr = v; changed(true); }, "What to check"));
-    row.append(select(id + "-o", Object.entries(OPS), step.op, (v) => { step.op = v; changed(false); }, "Comparison"));
-    row.append(...valueInput(id + "-v", dev, step.attr, step.val, (v) => { step.val = v; changed(false); }));
-    row.append(el("span", { class: "sep" }, "up to"), input(id + "-t", step.timeout, (v) => { step.timeout = v; changed(false); }, { label: "Timeout ms", type: "number", cls: "num" }), el("span", { class: "sep" }, "ms"));
+    row.append(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), step.attr, (v) => { step.attr = v; notify(true); }, "What to check"));
+    row.append(select(id + "-o", Object.entries(OPS), step.op, (v) => { step.op = v; notify(false); }, "Comparison"));
+    row.append(...valueInput(id + "-v", dev, step.attr, step.val, (v) => { step.val = v; notify(false); }));
+    row.append(el("span", { class: "sep" }, "up to"), input(id + "-t", step.timeout, (v) => { step.timeout = v; notify(false); }, { label: "Timeout ms", type: "number", cls: "num" }), el("span", { class: "sep" }, "ms"));
   } else if (step.t === "setvar") {
-    row.append(input(id + "-n", step.name, (v) => { step.name = v; changed(false); }, { label: "Memory name", cls: "mono", placeholder: "night_mode" }), el("span", { class: "sep" }, "="),
-      input(id + "-v", step.to, (v) => { step.to = v; changed(false); }, { label: "Value", placeholder: "on" }));
+    row.append(input(id + "-n", step.name, (v) => { step.name = v; notify(false); }, { label: "Memory name", cls: "mono", placeholder: "night_mode" }), el("span", { class: "sep" }, "="),
+      input(id + "-v", step.to, (v) => { step.to = v; notify(false); }, { label: "Value", placeholder: "on" }));
   } else if (step.t === "save" || step.t === "restore") {
-    row.append(el("span", { class: "sep" }, "backlight, display, sound and haptics as"), input(id + "-n", step.name, (v) => { step.name = v; changed(false); }, { label: "Name", cls: "mono", placeholder: "before_night_mode" }));
+    row.append(el("span", { class: "sep" }, "backlight, display, sound and haptics as"), input(id + "-n", step.name, (v) => { step.name = v; notify(false); }, { label: "Name", cls: "mono", placeholder: "before_night_mode" }));
   } else if (step.t === "raw") {
-    row.append(el("textarea", { id: id + "-j", "aria-label": "Step JSON", on: { input: (e) => { step.json = e.target.value; changed(false); } } }, step.json || "{}"));
+    row.append(el("textarea", { id: id + "-j", "aria-label": "Step JSON", on: { input: (e) => { step.json = e.target.value; notify(false); } } }, step.json || "{}"));
   }
   row.append(
-    el("button", { class: "ghost small", type: "button", "aria-label": "Move step up", disabled: idx === 0, on: { click: () => { [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]]; changed(true); } } }, "↑"),
-    el("button", { class: "ghost", type: "button", on: { click: () => { list.splice(idx, 1); changed(true); } } }, "Remove")
+    el("button", { class: "ghost small", type: "button", "aria-label": "Move step up", disabled: idx === 0, on: { click: () => { [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]]; notify(true); } } }, "↑"),
+    el("button", { class: "ghost", type: "button", on: { click: () => { list.splice(idx, 1); notify(true); } } }, "Remove")
   );
   return row;
 }
@@ -479,7 +524,7 @@ function stepsBlock(list) {
   const box = el("div", { class: "lines" });
   if (!list.length) box.append(el("div", { class: "empty" }, "No steps: this branch does nothing."));
   list.forEach((s, i) => box.append(stepRow(s, list, i)));
-  return [box, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { list.push(newStep("cmd")); changed(true); } } }, "Add step"))];
+  return [box, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { list.push(newStep("cmd")); notify(true); } } }, "Add step"))];
 }
 
 function render() {
@@ -642,7 +687,7 @@ $("#copy").addEventListener("click", () => {
   const fallback = () => { const r = document.createRange(); r.selectNodeContents($("#json")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); st.className = "status"; st.textContent = "Selected: press Ctrl+C."; };
   try { navigator.clipboard.writeText($("#json").textContent).then(() => { st.className = "status ok"; st.textContent = "Copied."; }, fallback); } catch { fallback(); }
 });
-window.addEventListener("beforeunload", (e) => { if (($("#json").textContent && $("#json").textContent !== saved) || (iconsLoaded && JSON.stringify(iconsOut()) !== iconsSaved)) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("beforeunload", (e) => { if (($("#json").textContent && $("#json").textContent !== saved) || (iconsLoaded && JSON.stringify(iconsOut()) !== iconsSaved) || (extrasLoaded && JSON.stringify(extrasOut()) !== extrasSaved)) { e.preventDefault(); e.returnValue = ""; } });
 
 // ---------------------------------------------------------------------------
 // State icons tab
@@ -866,26 +911,291 @@ $("#icons-save").addEventListener("click", async () => {
   errs.hidden = !(r.data.errors || []).length;
 });
 
-function showTab(which) {
-  const icons = which === "icons";
-  $("#tab-smart").setAttribute("aria-selected", String(!icons));
-  $("#tab-icons").setAttribute("aria-selected", String(icons));
-  $("#app").hidden = icons;
-  $("#icons-app").hidden = !icons;
-  $("#tab-intro").textContent = icons
-    ? "Make a button on an activity page change its icon with a device's state, like a green power icon when the receiver is on."
-    : "Conditional buttons for the Remote Self-Control integration. Each button checks your devices or the remote, then runs the first branch that matches.";
-  try { localStorage.setItem("scb_tab", which); } catch {}
-  if (icons && !iconsLoaded) loadIcons();
+// ---------------------------------------------------------------------------
+// Sliders & Menus tab
+// ---------------------------------------------------------------------------
+let SLIDERS = [];        // [{ id, name, entity, attr, min, max, step, mode, cmd, param, up, down, per_press, delay }]
+let MENUS = [];          // [{ id, name, options: [{ label, steps: [step model], conds: [cond model] }] }]
+let XSTATUS = {};        // id -> { value | current, error }
+let extrasSaved = "";
+let extrasLoaded = false;
+
+const xslug = (prefix, name) => (prefix + "_" + String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")).slice(0, 43).replace(/_+$/, "") || prefix + "_1";
+const numAttrs = (dev) => Object.entries(dev?.current || {}).filter(([, v]) => typeof v === "number").map(([k]) => k);
+const numCommands = (dev) => (dev?.commands || []).filter((c) => c.params.some((p) => p.type === "number"));
+const SLIDER_PRESETS = {
+  media_player: { attr: "volume", cmd: "media_player.volume", param: "volume", min: 0, max: 100, step: 1, what: "Volume" },
+  light: { attr: "brightness", cmd: "light.on", param: "brightness", min: 0, max: 255, step: 1, what: "Brightness" },
+  cover: { attr: "position", cmd: "cover.position", param: "position", min: 0, max: 100, step: 1, what: "Position" },
+  climate: { attr: "target_temperature", cmd: "climate.target_temperature", param: "temperature", min: 16, max: 30, step: 0.5, what: "Temperature" }
+};
+// Pairs of up/down commands a device may have.
+const STEP_PAIRS = [["media_player.volume_up", "media_player.volume_down", "Volume"], ["media_player.channel_up", "media_player.channel_down", "Channel"], ["VOLUME_UP", "VOLUME_DOWN", "Volume"]];
+
+function sliderFor(dev) {
+  const s = { id: "", name: "", entity: dev?.id || "", attr: "", min: 0, max: 100, step: 1, mode: "command", cmd: "", param: "", up: "", down: "", per_press: 1, delay: 200 };
+  if (!dev) return s;
+  const p = SLIDER_PRESETS[dev.type];
+  const hasCmd = (id) => dev.commands.some((c) => c.id === id) || dev.simple.includes(id);
+  let what = "Level";
+  if (p && hasCmd(p.cmd)) {
+    Object.assign(s, { cmd: p.cmd, param: p.param, min: p.min, max: p.max, step: p.step });
+    what = p.what;
+  } else {
+    const pair = STEP_PAIRS.find(([u, d]) => hasCmd(u) && hasCmd(d));
+    const nc = numCommands(dev)[0];
+    if (pair) Object.assign(s, { mode: "steps", up: pair[0], down: pair[1] }), (what = pair[2]);
+    else if (nc) Object.assign(s, { cmd: nc.id, param: nc.params.find((x) => x.type === "number").key });
+    else Object.assign(s, { mode: "steps", up: dev.commands[0]?.id || dev.simple[0] || "", down: dev.commands[1]?.id || dev.simple[1] || "" });
+  }
+  const attrs = numAttrs(dev);
+  s.attr = p && attrs.includes(p.attr) ? p.attr : attrs[0] || "";
+  s.name = `${dev.name} ${what}`.slice(0, 40);
+  return s;
 }
-$("#tab-smart").addEventListener("click", () => showTab("smart"));
-$("#tab-icons").addEventListener("click", () => showTab("icons"));
+
+const extrasOut = () => ({
+  sliders: SLIDERS.map((s) => {
+    const o = { id: s.id, name: s.name, entity: s.entity, attr: s.attr || "", min: Number(s.min), max: Number(s.max), step: Number(s.step), mode: s.mode };
+    if (s.mode === "steps") Object.assign(o, { up: s.up, down: s.down, per_press: Number(s.per_press), delay: Number(s.delay) });
+    else Object.assign(o, { cmd: s.cmd, param: s.param });
+    return o;
+  }),
+  menus: MENUS.map((m) => ({ id: m.id, name: m.name, options: m.options.map((o) => {
+    const out = { label: o.label, do: o.steps.map(stepOut) };
+    if (o.conds.length) out.when = condOut(o.conds[0]);
+    return out;
+  }) }))
+});
+function extrasIn(cfg) {
+  SLIDERS = (cfg.sliders || []).map((s) => ({ per_press: 1, delay: 200, up: "", down: "", cmd: "", param: "", ...s }));
+  MENUS = (cfg.menus || []).map((m) => ({ id: m.id, name: m.name, options: m.options.map((o) => ({ label: o.label, steps: (o.do || []).map((a) => stepIn(a, {})), conds: o.when ? [condIn(o.when, {})] : [] })) }));
+}
+
+function extrasChanged(rerender) {
+  const dirty = JSON.stringify(extrasOut()) !== extrasSaved;
+  $("#extras-dirty").textContent = dirty ? "You have unsaved changes." : "No unsaved changes.";
+  $("#extras-save").disabled = !dirty;
+  $("#extras-revert").disabled = !dirty;
+  if (rerender) renderExtras();
+}
+const field = (id, label, control) => el("label", { class: "f", for: id }, label, control);
+
+async function tryIt(body) {
+  const out = $("#extras-result");
+  if (JSON.stringify(extrasOut()) !== extrasSaved) {
+    out.textContent = "Saving first…";
+    if (!(await saveExtras())) { out.textContent = "Not tried: fix the errors and try again."; return; }
+  }
+  out.textContent = "Running…";
+  const r = await api("POST", "/api/extras/test", body);
+  out.textContent = r.ok ? r.data.summary : "Couldn't run: " + (r.data.error || r.status);
+  refreshExtrasStatus();
+}
+
+function sliderCard(s, si) {
+  const id = nid("sl");
+  const dev = DEV[s.entity];
+  const card = el("article", { class: "card", "aria-label": s.name || "Slider" });
+  const idIn = input(id + "-i", s.id, (v) => { s.id = v; extrasChanged(false); }, { label: "Id", cls: "mono" });
+  const nameIn = input(id + "-n", s.name, (v) => { const auto = !s.id || s.id === xslug("slider", s.name); s.name = v; if (auto) { s.id = xslug("slider", v); idIn.value = s.id; } extrasChanged(false); }, { label: "Name", placeholder: "Receiver Volume" });
+  card.append(el("div", { class: "card-head" },
+    el("label", { class: "f grow", for: id + "-n" }, "Name (shown on the remote)", nameIn),
+    el("label", { class: "f grow", for: id + "-i" }, "Id", idIn),
+    el("button", { class: "ghost", type: "button", on: { click: () => { SLIDERS.splice(si, 1); extrasChanged(true); } } }, "Delete")));
+
+  card.append(el("div", { class: "subhead" }, "1 · Device"));
+  const attrs = numAttrs(dev);
+  card.append(el("div", { class: "fields" },
+    field(id + "-d", "Device", select(id + "-d", [["", "Pick a device…"], ...deviceOptions((d) => d.type !== "activity" && d.type !== "macro")], s.entity, (v) => {
+      const keep = { id: s.id, name: s.name };
+      const auto = !s.name || s.name === sliderFor(DEV[s.entity]).name;
+      Object.assign(s, sliderFor(DEV[v]));
+      if (!auto) Object.assign(s, keep); else s.id = xslug("slider", s.name);
+      extrasChanged(true);
+    }, "Device")),
+    field(id + "-a", "Read the value from", select(id + "-a", [["", "Nothing (remember the last value)"], ...[...new Set([...attrs, ...(s.attr ? [s.attr] : [])])].map((a) => [a, a.replace(/_/g, " ")])], s.attr || "", (v) => { s.attr = v; extrasChanged(false); }, "Attribute")),
+    XSTATUS[s.id] && XSTATUS[s.id].value != null ? el("span", { class: "live" }, "Now: ", el("b", {}, String(XSTATUS[s.id].value))) : null));
+
+  card.append(el("div", { class: "subhead" }, "2 · How to change it"));
+  const modeRow = el("div", { class: "fields" }, field(id + "-m", "Method", select(id + "-m", [["command", "Send the value in one command"], ["steps", "Press up / down commands"]], s.mode, (v) => { s.mode = v; extrasChanged(true); }, "Method")));
+  if (s.mode === "steps") {
+    const opts = commandOptions(dev);
+    modeRow.append(
+      field(id + "-u", "Up command", select(id + "-u", opts, s.up, (v) => { s.up = v; extrasChanged(false); }, "Up command")),
+      field(id + "-w", "Down command", select(id + "-w", opts, s.down, (v) => { s.down = v; extrasChanged(false); }, "Down command")),
+      field(id + "-pp", "Each press changes it by", input(id + "-pp", s.per_press, (v) => { s.per_press = v; extrasChanged(false); }, { label: "Per press", type: "number", cls: "num" })),
+      field(id + "-dl", "Pause between presses (ms)", input(id + "-dl", s.delay, (v) => { s.delay = v; extrasChanged(false); }, { label: "Pause", type: "number", cls: "num" })));
+  } else {
+    const ncs = numCommands(dev);
+    const spec = ncs.find((c) => c.id === s.cmd);
+    modeRow.append(field(id + "-c", "Command", select(id + "-c", ncs.map((c) => [c.id, c.label]), s.cmd, (v) => {
+      s.cmd = v; const c = ncs.find((x) => x.id === v); const p = c?.params.find((x) => x.type === "number");
+      s.param = p?.key || ""; if (p && p.min !== undefined && p.max !== undefined) { s.min = p.min; s.max = p.max; }
+      extrasChanged(true);
+    }, "Command")));
+    const nparams = (spec?.params || []).filter((p) => p.type === "number");
+    if (nparams.length > 1 || (!spec && s.param)) modeRow.append(field(id + "-p", "Value goes in", select(id + "-p", (nparams.length ? nparams : [{ key: s.param, label: s.param }]).map((p) => [p.key, p.label]), s.param, (v) => { s.param = v; extrasChanged(false); }, "Parameter")));
+    if (!ncs.length && dev) modeRow.append(el("span", { class: "hint" }, "This device has no command that takes a number. Use up / down commands instead."));
+  }
+  card.append(modeRow);
+
+  card.append(el("div", { class: "subhead" }, "3 · Range"));
+  card.append(el("div", { class: "fields" },
+    field(id + "-lo", "Lowest", input(id + "-lo", s.min, (v) => { s.min = v; extrasChanged(false); }, { label: "Lowest", type: "number", cls: "num" })),
+    field(id + "-hi", "Highest", input(id + "-hi", s.max, (v) => { s.max = v; extrasChanged(false); }, { label: "Highest", type: "number", cls: "num" })),
+    field(id + "-st", "Step", input(id + "-st", s.step, (v) => { s.step = v; extrasChanged(false); }, { label: "Step", type: "number", cls: "num" })),
+    el("span", { class: "hint" }, "The slider's bottom is the lowest value; switching the slider off sets it.")));
+
+  const tv = input(id + "-tv", "", () => {}, { label: "Value to try", type: "number", cls: "num", placeholder: String(s.min) });
+  card.append(el("div", { class: "row" }, field(id + "-tv", "Try a value", tv),
+    el("button", { class: "small", type: "button", on: { click: () => tryIt({ id: s.id, value: tv.value === "" ? Number(s.min) : Number(tv.value) }) } }, "Set")));
+  if (XSTATUS[s.id]?.error) card.append(el("p", { class: "status err" }, "On the remote: " + XSTATUS[s.id].error));
+  return card;
+}
+
+function menuCard(m, mi) {
+  const id = nid("mn");
+  const card = el("article", { class: "card", "aria-label": m.name || "Quick menu" });
+  const idIn = input(id + "-i", m.id, (v) => { m.id = v; extrasChanged(false); }, { label: "Id", cls: "mono" });
+  const nameIn = input(id + "-n", m.name, (v) => { const auto = !m.id || m.id === xslug("menu", m.name); m.name = v; if (auto) { m.id = xslug("menu", v); idIn.value = m.id; } extrasChanged(false); }, { label: "Name", placeholder: "Receiver Input" });
+  card.append(el("div", { class: "card-head" },
+    el("label", { class: "f grow", for: id + "-n" }, "Name (shown on the remote)", nameIn),
+    el("label", { class: "f grow", for: id + "-i" }, "Id", idIn),
+    XSTATUS[m.id] && XSTATUS[m.id].current ? el("span", { class: "live" }, "Showing: ", el("b", {}, XSTATUS[m.id].current)) : null,
+    el("button", { class: "ghost", type: "button", on: { click: () => { MENUS.splice(mi, 1); extrasChanged(true); } } }, "Delete")));
+  m.options.forEach((o, oi) => {
+    const box = el("div", { class: "choice" });
+    box.append(el("div", { class: "branch-head" },
+      el("span", { class: "tag" }, "Choice " + (oi + 1)),
+      input(id + "-l" + oi, o.label, (v) => { o.label = v; extrasChanged(false); }, { label: "Choice label", placeholder: "TV" }),
+      el("button", { class: "small", type: "button", on: { click: () => tryIt({ id: m.id, option: o.label }) } }, "Run"),
+      el("button", { class: "ghost small", type: "button", "aria-label": "Move choice up", disabled: oi === 0, on: { click: () => { [m.options[oi - 1], m.options[oi]] = [m.options[oi], m.options[oi - 1]]; extrasChanged(true); } } }, "↑"),
+      el("button", { class: "ghost small", type: "button", on: { click: () => { m.options.splice(oi, 1); extrasChanged(true); } } }, "Remove")));
+    box.append(el("div", { class: "subhead" }, "Runs"), ...stepsBlock(o.steps));
+    box.append(el("div", { class: "subhead" }, "Shown as the current choice when (optional)"));
+    if (o.conds.length) box.append(el("div", { class: "lines" }, condRow(o.conds[0], o.conds, 0)));
+    else box.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { o.conds.push(newCond("device")); extrasChanged(true); } } }, "Add condition"),
+      el("span", { class: "hint" }, "Without one, the menu shows the choice picked last.")));
+    card.append(box);
+  });
+  card.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { m.options.push({ label: "Choice " + (m.options.length + 1), steps: [newStep("cmd")], conds: [] }); extrasChanged(true); } } }, "Add choice")));
+  if (XSTATUS[m.id]?.error) card.append(el("p", { class: "status err" }, "Last run: " + XSTATUS[m.id].error));
+  return card;
+}
+
+function renderExtras() {
+  const sl = el("div", { class: "lines", style: "gap:14px" });
+  SLIDERS.forEach((s, i) => sl.append(sliderCard(s, i)));
+  if (!SLIDERS.length) sl.append(el("p", { class: "empty" }, "No sliders yet. A slider controls a number on one of your devices, like a receiver's volume, with the remote's own slider pop-up."));
+  $("#sliders-list").replaceChildren(sl);
+  const ml = el("div", { class: "lines", style: "gap:14px" });
+  MENUS.forEach((m, i) => ml.append(menuCard(m, i)));
+  if (!MENUS.length) ml.append(el("p", { class: "empty" }, "No quick menus yet. A quick menu pops up a list of choices, like inputs or sound modes; each choice runs its own steps."));
+  $("#menus-list").replaceChildren(ml);
+}
+
+// "Add from a device's list": commands whose parameter has a list of values (inputs, sound modes, list options).
+const PARAM_ATTR = { source: "source", mode: "sound_mode", option: "current_option" };
+function fillSources() {
+  const out = [];
+  for (const d of CAT.devices) for (const c of d.commands) for (const p of c.params) if (p.list && p.list.length) out.push({ key: d.id + "|" + c.id + "|" + p.key, dev: d, cmd: c, p });
+  return out;
+}
+function fillMenuSelect() {
+  const sel = $("#menu-fill");
+  sel.replaceChildren(el("option", { value: "" }, "Add from a device's list…"));
+  for (const f of fillSources()) sel.append(el("option", { value: f.key }, `${f.dev.name}: ${f.cmd.label} (${f.p.list.length})`));
+}
+$("#menu-fill").addEventListener("change", (e) => {
+  const f = fillSources().find((x) => x.key === e.target.value);
+  e.target.value = "";
+  if (!f) return;
+  const attr = PARAM_ATTR[f.p.key];
+  const name = `${f.dev.name} ${f.p.label}`.slice(0, 40);
+  let id = xslug("menu", name), n = 2;
+  while (MENUS.some((m) => m.id === id)) id = xslug("menu", name) + "_" + n++;
+  MENUS.push({ id, name, options: f.p.list.slice(0, 20).map((v) => ({ label: String(v).slice(0, 40), steps: [{ t: "cmd", ent: f.dev.id, cmd: f.cmd.id, params: { [f.p.key]: v } }],
+    conds: attr && f.dev.values[attr] ? [{ t: "device", ent: f.dev.id, attr, op: "is", val: String(v) }] : [] })) });
+  extrasChanged(true);
+  setTimeout(() => document.querySelector("#menus-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+});
+$("#slider-add").addEventListener("click", () => {
+  const dev = CAT.devices.find((d) => d.type === "media_player" && SLIDER_PRESETS.media_player && d.commands.some((c) => c.id === "media_player.volume")) || CAT.devices.find((d) => d.type === "media_player") || CAT.devices[0];
+  const s = sliderFor(dev);
+  let id = xslug("slider", s.name || "slider"), n = 2;
+  while (SLIDERS.some((x) => x.id === id)) id = xslug("slider", s.name || "slider") + "_" + n++;
+  SLIDERS.push({ ...s, id });
+  extrasChanged(true);
+  setTimeout(() => document.querySelector("#sliders-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+});
+$("#menu-add").addEventListener("click", () => {
+  let n = MENUS.length + 1; while (MENUS.some((m) => m.id === "menu_" + n)) n++;
+  MENUS.push({ id: "menu_" + n, name: "Quick Menu " + n, options: [{ label: "Choice 1", steps: [newStep("cmd")], conds: [] }] });
+  extrasChanged(true);
+  setTimeout(() => document.querySelector("#menus-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+});
+
+async function saveExtras() {
+  const st = $("#extras-status"), errs = $("#extras-errors");
+  errs.hidden = true; errs.replaceChildren();
+  st.className = "status"; st.textContent = "Saving…";
+  const body = extrasOut();
+  const r = await api("POST", "/api/extras", body);
+  if (r.ok) {
+    extrasSaved = JSON.stringify(body);
+    XSTATUS = r.data.status || {};
+    st.className = "status ok"; st.textContent = `Saved ${plural(SLIDERS.length, "slider")} and ${plural(MENUS.length, "quick menu")}. Add new ones to the integration to use them.`;
+    extrasChanged(true);
+    return true;
+  }
+  st.className = "status err"; st.textContent = r.data.error || "Not saved. Fix these and save again:";
+  for (const e of r.data.errors || []) errs.append(el("li", {}, e));
+  errs.hidden = !(r.data.errors || []).length;
+  return false;
+}
+async function refreshExtrasStatus() {
+  const r = await api("GET", "/api/extras");
+  if (r.ok) { XSTATUS = r.data.status || {}; renderExtras(); }
+}
+async function loadExtras() {
+  const r = await api("GET", "/api/extras");
+  if (!r.ok) { $("#sliders-list").replaceChildren(el("p", { class: "status err" }, r.data.error || "Couldn't read the sliders and menus.")); return; }
+  extrasIn(r.data);
+  XSTATUS = r.data.status || {};
+  extrasSaved = JSON.stringify(extrasOut());
+  extrasLoaded = true;
+  fillMenuSelect();
+  extrasChanged(true);
+}
+$("#extras-save").addEventListener("click", saveExtras);
+$("#extras-revert").addEventListener("click", () => { extrasIn(JSON.parse(extrasSaved)); extrasChanged(true); $("#extras-status").textContent = ""; });
+
+const TABS = {
+  smart: { pane: "#app", intro: "Conditional buttons for the Remote Self-Control integration. Each button checks your devices or the remote, then runs the first branch that matches." },
+  icons: { pane: "#icons-app", intro: "Make a button on an activity page change its icon with a device's state, like a green power icon when the receiver is on." },
+  extras: { pane: "#extras-app", intro: "Sliders for any number on your devices (like receiver volume) and quick menus that pop up a list of choices, using the remote's own pop-ups." }
+};
+function showTab(which) {
+  if (!TABS[which]) which = "smart";
+  for (const [k, t] of Object.entries(TABS)) {
+    $("#tab-" + k).setAttribute("aria-selected", String(k === which));
+    $(t.pane).hidden = k !== which;
+  }
+  $("#tab-intro").textContent = TABS[which].intro;
+  notify = which === "extras" ? extrasChanged : changed;
+  try { localStorage.setItem("scb_tab", which); } catch {}
+  if (which === "icons" && !iconsLoaded) loadIcons();
+  if (which === "extras") { if (!extrasLoaded) loadExtras(); else renderExtras(); }
+  if (which === "smart") render();
+}
+for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () => showTab(k));
 
 // ---------------------------------------------------------------------------
 // Session
 // ---------------------------------------------------------------------------
 function showLogin(msg) {
-  $("#app").hidden = true; $("#icons-app").hidden = true; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
+  $("#app").hidden = true; $("#icons-app").hidden = true; $("#extras-app").hidden = true; extrasLoaded = false; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
   $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
   $("#pin").focus();
 }
@@ -903,7 +1213,7 @@ async function loadAll() {
   changed(true);
   let tab = "smart";
   try { tab = localStorage.getItem("scb_tab") || "smart"; } catch {}
-  showTab(tab === "icons" ? "icons" : "smart");
+  showTab(tab);
 }
 $("#login").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -918,7 +1228,7 @@ $("#logout").addEventListener("click", async () => { await api("POST", "/api/log
 $("#reload").addEventListener("click", async () => {
   const keep = toRules(buttons);
   const cat = await api("GET", "/api/catalog");
-  if (cat.ok) { CAT = cat.data; DEV = Object.fromEntries(CAT.devices.map((d) => [d.id, d])); $("#device-count").textContent = countText(); buttons = fromRules(keep); changed(true); }
+  if (cat.ok) { CAT = cat.data; DEV = Object.fromEntries(CAT.devices.map((d) => [d.id, d])); $("#device-count").textContent = countText(); buttons = fromRules(keep); changed(!$("#app").hidden); if (extrasLoaded) { fillMenuSelect(); renderExtras(); } }
 });
 
 (async () => {

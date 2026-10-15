@@ -14,6 +14,7 @@ import { startWebServer, builderUrls } from "./web.js";
 import { listActivities, addTile, PAGE_NAME } from "./tile.js";
 import { ReturnTracker, RETURN_MARK } from "./returnbtn.js";
 import { StateIcons, validateIcons } from "./stateicons.js";
+import { Extras, validateExtras } from "./extras.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -51,6 +52,7 @@ let pollTimer = null;
 let returnTimer = null;
 let returnTracker = null; // ReturnTracker
 let stateIcons = null; // StateIcons
+let extras = null; // Extras (virtual sliders and quick menus)
 let connected = false;
 let standby = false;
 let lastBacklight = 50; // last non-zero backlight %, for "on"
@@ -610,7 +612,74 @@ function registerEntities() {
   for (const [, id] of LAYOUT) api.addAvailableEntity(entities[id]);
   api.addAvailableEntity(previousSensor);
   for (const e of Object.values(smartEntities)) api.addAvailableEntity(e);
+  for (const e of Object.values(extraEntities)) api.addAvailableEntity(e);
 }
+
+// ---------------------------------------------------------------------------
+// Virtual sliders and quick menus
+// ---------------------------------------------------------------------------
+
+const AREA_SLIDERS = "Remote Sliders & Menus";
+const extraEntities = {};
+
+function publishExtra(id, attrs) {
+  const e = extraEntities[id];
+  if (!e) return;
+  const changed = {};
+  for (const [k, v] of Object.entries(attrs)) if (JSON.stringify(e.attributes?.[k]) !== JSON.stringify(v)) changed[k] = v;
+  if (!Object.keys(changed).length) return;
+  if (!api.updateEntityAttributes(id, changed)) Object.assign(e.attributes, changed);
+}
+
+function sliderHandler(id) {
+  return async (entity, rawCmd, rawParams) => {
+    const { cmd, params } = normalizeLight(rawCmd, rawParams || {});
+    if (!core) return uc.StatusCodes.ServiceUnavailable;
+    try {
+      // runs in the background so dragging the slider stays smooth; the latest value wins
+      extras.sliderCommand(id, cmd, params.brightness).catch((e) => warn(`slider ${id} failed:`, e.message));
+      return uc.StatusCodes.Ok;
+    } catch (e) {
+      warn(`slider ${id} ${rawCmd} failed:`, e.message);
+      return uc.StatusCodes.BadRequest;
+    }
+  };
+}
+
+function menuHandler(id) {
+  return async (entity, rawCmd, params) => {
+    if (!core) return uc.StatusCodes.ServiceUnavailable;
+    try {
+      extras.menuCommand(id, plainCmd(rawCmd), params || {}).catch((e) => warn(`menu ${id} failed:`, e.message));
+      return uc.StatusCodes.Ok;
+    } catch (e) {
+      warn(`menu ${id} ${rawCmd} failed:`, e.message);
+      return uc.StatusCodes.BadRequest;
+    }
+  };
+}
+
+function buildExtraEntities() {
+  for (const k of Object.keys(extraEntities)) delete extraEntities[k];
+  const L = uc.LightFeatures;
+  for (const s of extras.sliders) {
+    extraEntities[s.id] = new uc.Light(s.id, { en: s.name }, {
+      area: AREA_SLIDERS,
+      features: [L.OnOff, L.Toggle, L.Dim],
+      attributes: extras.initialAttrs(s.id),
+      cmdHandler: traced(s.id, sliderHandler(s.id))
+    });
+  }
+  for (const m of extras.menus) {
+    extraEntities[m.id] = new uc.Select(m.id, { en: m.name }, {
+      area: AREA_SLIDERS,
+      attributes: extras.initialAttrs(m.id),
+      cmdHandler: traced(m.id, menuHandler(m.id))
+    });
+  }
+}
+
+const reservedIds = () => [...LAYOUT.map(([, id]) => id), "previous_activity", "debug", "smart_last_result", ...(smart?.buttons || []).map((b) => b.id)];
 
 function loadRulesText() {
   try {
@@ -731,6 +800,7 @@ function startPolling() {
   returnTimer = setInterval(() => {
     if (returnTracker?.enabled) returnTracker.poll().catch((e) => warn("return: reading activities failed:", e.message));
     if (stateIcons?.enabled) stateIcons.refresh(false);
+    if (extras?.enabled) extras.refresh();
   }, RETURN_POLL_MS);
 }
 
@@ -1084,6 +1154,8 @@ cfgFile = path.join(api.getConfigDirPath(), "self_control.json");
 stateIcons = new StateIcons({ getCore: () => core, file: path.join(api.getConfigDirPath(), "state_icons.json"), log, warn });
 returnTracker = new ReturnTracker({ getCore: () => core, file: path.join(api.getConfigDirPath(), "return.json"), log, warn, onChange: updatePreviousSensor });
 updatePreviousSensor();
+extras = new Extras({ getCore: () => core, engine: () => smart, file: path.join(api.getConfigDirPath(), "sliders_menus.json"), publish: publishExtra, log, warn });
+buildExtraEntities();
 initSmart();
 
 const CONTROL_NAMES = Object.fromEntries(LAYOUT.map(([, id, name]) => [id, name]));
@@ -1109,6 +1181,15 @@ startWebServer({
     "power_saving.standby_sec": "Sleep timeout (seconds, 0 = never)"
   },
   stateIcons: () => stateIcons,
+  extras: () => extras,
+  validateExtras: (body) => validateExtras(body, selfApi.keys, reservedIds()),
+  onExtrasChanged: () => {
+    buildExtraEntities();
+    registerEntities();
+    extras.publishAll();
+    log(`sliders saved: ${extras.sliders.map((s) => s.name).join(", ") || "none"}; quick menus: ${extras.menus.map((m) => m.name).join(", ") || "none"}`);
+    startPolling();
+  },
   validateIcons,
   onIconsChanged: () => {
     log(`state icons saved: ${stateIcons.icons.map((b) => b.name || b.id).join(", ") || "none"}`);

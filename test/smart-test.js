@@ -74,7 +74,7 @@ const http = async (method, url, body, { raw = false, ctype = "application/json"
   return { status: res.status, data, headers: res.headers };
 };
 let h = await http("GET", "/");
-ok(h.status === 200 && /Smart Controls Builder/.test(h.data) && h.headers.get("x-frame-options") === "DENY", "builder page is served on its own port");
+ok(h.status === 200 && /Remote Self-Control Builder/.test(h.data) && h.headers.get("x-frame-options") === "DENY", "builder page is served on its own port");
 h = await http("GET", "/api/session");
 ok(h.data.loggedIn === false && h.data.configured === false, "session: logged out, integration not set up yet");
 ok(/Smart Controls builder: .*:10932\//.test(drvLog), "driver log shows the builder address");

@@ -7,6 +7,7 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
 - **Remote settings as entities:** button backlight level and color, display brightness and timeout, sleep timeout, wake sensitivity, Wake on LAN, sound effects and volume, haptics. Use them in activities, macros, pages, buttons and the touch slider.
 - **Smart Controls:** buttons with if / else logic ("if the receiver is on, turn *it* up, otherwise the TV"), built in a browser page the integration serves itself.
 - **State icons:** make a button on a page change its icon with a device's state, like a green power icon while the receiver is on. Pick the button, drop in an image per state.
+- **Sliders & quick menus:** turn any number on your devices (receiver volume, a light, a blind) into a slider with the remote's own slider pop-up, and make pop-up menus whose choices run Smart Control steps (inputs, sound modes, scenes).
 - **Return to previous activity:** a ↩ button (on screen or a physical button) that always takes you back to the activity you came from.
 
 > [!WARNING]
@@ -32,6 +33,8 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
   6. [Return to the previous activity](#6-return-to-the-previous-activity)
   7. [Display brightness on the touch slider](#7-display-brightness-on-the-touch-slider)
   8. [A power icon that turns green when the receiver is on](#8-a-power-icon-that-turns-green-when-the-receiver-is-on)
+  9. [A receiver volume slider](#9-a-receiver-volume-slider)
+  10. [A pop-up menu for the receiver's inputs](#10-a-pop-up-menu-for-the-receivers-inputs)
 - [The builder](#the-builder)
 - [Entities](#entities)
 - [Rules reference](#rules-reference)
@@ -173,6 +176,32 @@ Setting it up in the builder:
 - **The default look is captured when you save.** If you later change that button's icon or text in the web configurator, delete the state icon and add it again so it learns the new look. Don't move the button to another spot; the integration finds it by its position.
 - **Uploaded images stay on the remote** as custom icons (named `si_…`) after you delete a state icon. Delete them in the web configurator if you don't need them.
 
+### 9. A receiver volume slider
+
+A slider is a light entity of this integration that stands for a number on another device. Its brightness (0–100 %) maps to the range you choose, so the remote's own slider pop-up and the Remote 3 touch slider work with it.
+
+1. In the builder, open the **Sliders & Menus** tab → **Add slider**.
+2. **Device:** pick your receiver. The builder fills in the rest for you: it reads the **volume**, sends it with the **volume** command, range 0–100. Lower **Highest** if you never want it louder (e.g. 60).
+   - For a device without a "set volume" command (IR, or only volume up/down), choose **Press up / down commands**: pick the up and down commands, how much one press changes it, and the pause between presses. Without anything to read it from, the slider remembers the last value it set.
+3. **Save**, then type a value under **Try a value** and press **Set** to check it.
+4. Integrations → Remote Self-Control → add the new slider (group **Remote Sliders & Menus**).
+5. Put it on a **home page**: tapping the tile opens the slider pop-up. On a Remote 3 you can also set an activity's **touch slider** to it.
+
+The slider follows changes made elsewhere (within about 2 seconds while the remote is awake). Switching the slider **off** sets the lowest value; **on** goes back to the last value. When you drag quickly, the newest position wins: values in between are skipped instead of queued.
+
+### 10. A pop-up menu for the receiver's inputs
+
+A quick menu is a list entity whose choices each run steps, the same steps as a Smart Control.
+
+1. In the **Sliders & Menus** tab, open **Add from a device's list…** and pick *Receiver: Select source*. You get one choice per input, each switching the receiver to it and marked as current while the receiver is on that input.
+2. Rename the menu and the choices ("TV", "Shield", …), remove the ones you don't use, and add steps if you like (turn the receiver on first, set the volume, change the backlight color, …).
+3. **Save**, then press **Run** on a choice to try it.
+4. Add the menu to the integration, and put it on a home page or an activity page: it opens the remote's list pop-up; picking a choice runs it.
+
+Choices without a *current when* condition show as current after you pick them. **Add quick menu** starts an empty menu for anything else, for example scenes that set lights, inputs and volume together.
+
+![The Sliders & Menus tab in the builder](docs/images/builder-sliders-menus.png)
+
 ## The builder
 
 The integration serves its own builder page on your network, at `http://<remote-name>.local:10123/` or `http://<remote-ip>:10123/`. The exact addresses are shown in Integrations → Remote Self-Control → Configure.
@@ -222,6 +251,8 @@ Grouped by area in the web configurator.
 | | Haptic Feedback | switch | on/off |
 | **Remote Navigation** | Previous Activity | sensor | name of the activity used before the current one |
 | *(builder)* | State icons | page buttons | icon/label follows a device's state (single-page activities) |
+| **Remote Sliders & Menus** | (your sliders) | light | slider pop-up / touch slider for a number on a device |
+| | (your quick menus) | select | list pop-up; each choice runs steps |
 | **Remote Smart Controls** | (your Smart Controls) | button | press to run |
 | | Smart Controls: Last Result | sensor | what the last Smart Control did, or its error |
 
@@ -285,9 +316,10 @@ For lists, `option` can also be `next` / `previous` (wraps around) or `up` / `do
 | Environment variable | Default | Purpose |
 |---|---|---|
 | `UC_SELF_BUILDER_PORT` | `10123` | Port of the builder page |
-| `UC_SELF_RETURN_POLL_MS` | `2000` | How often activity states (↩ button) and state-icon devices are read |
+| `UC_SELF_RETURN_POLL_MS` | `2000` | How often activity states (↩ button), state-icon devices, slider values and menu conditions are read |
+| `UC_SELF_SLIDER_HOLD_MS` | `3000` | After you move a slider, device reports are ignored this long so a slow device can't jump it back |
 
-Files in the integration's config folder: `self_control.json` (address + API key), `smart_rules.json` (your rules; absent = defaults), `smart_vars.json` (remembered values), `return.json` (↩ settings and activity history), `state_icons.json` (state icons and each button's default look).
+Files in the integration's config folder: `self_control.json` (address + API key), `smart_rules.json` (your rules; absent = defaults), `smart_vars.json` (remembered values), `return.json` (↩ settings and activity history), `state_icons.json` (state icons and each button's default look), `sliders_menus.json` (sliders, quick menus and their last values).
 
 ## Logs and removal
 
@@ -306,6 +338,7 @@ src/bin/web/builder.html                builder page (no external files; works o
 src/bin/tile.js                         puts the Last Result tile on an activity page
 src/bin/returnbtn.js                    return to previous activity (tracking + ↩ buttons)
 src/bin/stateicons.js                   state icons (watch devices, switch button looks)
+src/bin/extras.js                       virtual sliders and quick menus
 src/bin/default-rules.json              default Smart Controls (Smart Test Button)
 examples/                               example rules
 test/                                   fake Core API + Integration-API test client
@@ -316,7 +349,7 @@ Tests (Node 22):
 ```
 npm install                 # dev dependency: ws
 (cd src/bin && npm install)
-npm test                    # settings, Smart Controls + builder API, return button, state icons
+npm test                    # settings, Smart Controls + builder API, return button, state icons, sliders & menus
 ```
 
 Build the install archive:
@@ -329,6 +362,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **0.6.0:** **Sliders & quick menus**: new *Sliders & Menus* tab in the builder. Sliders are light entities mapped to a number on any device (one "set value" command, or repeated up/down presses), with the remote's slider pop-up on home tiles and the Remote 3 touch slider; they follow the device's value. Quick menus are select entities whose choices run Smart Control steps, with an optional condition that marks the current choice; *Add from a device's list* builds one from a device's inputs or sound modes.
 - **0.5.0:** **State icons**: new *State Icons* tab in the builder. Pick a button on a single-page activity, a device and what to check, then drop an image and/or type a label per state; the button switches look within about 2 seconds and returns to its own look otherwise. Images are resized to 90×90 and uploaded to the remote. Builder renamed *Remote Self-Control Builder* with *Smart Controls* and *State Icons* tabs.
 - **0.4.0:** Return to previous activity: tracks the activities you start and keeps a ↩ text or icon button and/or a physical button pointed at the previous one, set up in the integration's Configure menu. New Previous Activity sensor (area Remote Navigation). Smart Control results name devices instead of showing entity ids.
 - **0.3.2:** new **Display Brightness** light entity so the Remote 3 touch slider can set the display brightness.

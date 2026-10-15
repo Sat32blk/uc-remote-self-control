@@ -46,12 +46,13 @@ const ENTITY_COMMANDS = [
   ...["on", "off", "toggle", "volume_up", "volume_down", "play_pause", "mute_toggle"].map((c) => mpCmd(c)),
   mpCmd("select_source", [{ param: "source", type: "string", name: { en: "Source" } }]),
   mpCmd("select_sound_mode", [{ param: "mode", type: "string", name: { en: "Sound mode" } }]),
+  mpCmd("volume", [{ param: "volume", type: "number", min: 0, max: 100, name: { en: "Volume" } }]),
   { id: "activity.on", cmd_id: "on", name: { en: "Start" } }, { id: "activity.off", cmd_id: "off", name: { en: "Stop" } }
 ];
 const FEATURES = {
   [SHIELD]: ["on_off", "play_pause", "volume_up_down", "select_source"],
   [TV]: ["on_off", "volume_up_down", "mute_toggle", "select_source"],
-  [MARANTZ]: ["on_off", "volume_up_down", "select_source", "select_sound_mode"]
+  [MARANTZ]: ["on_off", "volume", "volume_up_down", "select_source", "select_sound_mode"]
 };
 const NAMES = { [SHIELD]: "SHIELD", [TV]: "Living Room TV", [MARANTZ]: "Marantz" };
 function entityList() {
@@ -79,6 +80,9 @@ function deviceCommand(id, cmd, params = {}) {
       break;
     case "play_pause":
       d.state = d.state === "PLAYING" ? "PAUSED" : "PLAYING";
+      break;
+    case "volume":
+      d.volume = Number(params.volume);
       break;
     case "volume_up":
       d.volume += 1;

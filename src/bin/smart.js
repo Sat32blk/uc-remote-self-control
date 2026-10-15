@@ -43,7 +43,7 @@ const ID_RE = /^[a-z][a-z0-9_]{1,40}$/;
 // Validation
 // ---------------------------------------------------------------------------
 
-function vCond(c, path, errs, ctx) {
+export function vCond(c, path, errs, ctx) {
   if (c === true) return;
   if (!c || typeof c !== "object" || Array.isArray(c)) {
     errs.push(`${path}: condition must be an object`);
@@ -80,7 +80,7 @@ function vCond(c, path, errs, ctx) {
   if (c.control && ctx && !ctx.selfKnown(c.control)) errs.push(`${path}.control: unknown control "${c.control}"`);
 }
 
-function vActions(list, path, errs, ctx) {
+export function vActions(list, path, errs, ctx) {
   if (!Array.isArray(list)) {
     errs.push(`${path}: must be a list of steps`);
     return;
@@ -350,6 +350,26 @@ export class SmartEngine {
       return false;
     }
     return true;
+  }
+
+  /**
+   * Runs a list of steps outside a smart button (quick menu choices). Resolves with a summary,
+   * which is also reported to the Last Result sensor.
+   */
+  async runSteps(label, steps) {
+    const trail = [];
+    let summary;
+    try {
+      for (const a of steps || []) {
+        if (!(await this.step(a, trail))) break;
+      }
+      summary = `${label}: ${trail.join("; ") || "done"}`;
+    } catch (e) {
+      summary = `${label}: ERROR ${e.message}${trail.length ? " after " + trail.join("; ") : ""}`;
+    }
+    this.log("smart:", summary);
+    this.report(summary);
+    return summary;
   }
 
   /** Runs a button by id. Resolves with a short text summary. */
