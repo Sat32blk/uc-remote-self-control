@@ -15,8 +15,6 @@ import { listActivities, addTile, PAGE_NAME } from "./tile.js";
 import { ReturnTracker, RETURN_MARK } from "./returnbtn.js";
 import { StateIcons, validateIcons } from "./stateicons.js";
 import { Extras, validateExtras } from "./extras.js";
-import { testImage } from "./display.js";
-import { lanAddresses } from "./web.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -609,82 +607,12 @@ function updatePreviousSensor() {
   if (!api.updateEntityAttributes(previousSensor.id, attrs)) Object.assign(previousSensor.attributes, attrs);
 }
 
-// ---------------------------------------------------------------------------
-// Custom Display experiment: a media player whose picture and text come from this integration.
-// Every 3 s the picture changes; every 5 pictures the way the picture is addressed changes
-// (A: http://127.0.0.1, B: the remote's network address, C: embedded data). Button presses
-// on the widget are shown in the second text line and logged.
-// ---------------------------------------------------------------------------
-const DISPLAY_ID = "custom_display_test";
-const MP = uc.MediaPlayerFeatures;
-const displayEntity = new uc.MediaPlayer(DISPLAY_ID, { en: "Custom Display (test)" }, {
-  area: "Remote Experiments",
-  features: [MP.OnOff, MP.Toggle, MP.Volume, MP.VolumeUpDown, MP.MuteToggle, MP.PlayPause, MP.Stop, MP.Next, MP.Previous,
-    MP.Repeat, MP.Shuffle, MP.Seek, MP.MediaDuration, MP.MediaPosition, MP.MediaTitle, MP.MediaArtist, MP.MediaAlbum, MP.MediaImageUrl, MP.MediaType,
-    MP.Dpad, MP.Home, MP.Menu, MP.Info, MP.SelectSource],
-  attributes: { state: uc.MediaPlayerStates.Playing, volume: 50, muted: false, media_title: "Custom Display test", media_artist: "waiting…", media_album: "",
-    media_image_url: "", media_type: "MUSIC", media_duration: 60, media_position: 0, repeat: "OFF", shuffle: false, source: "A", source_list: ["A", "B", "C"] },
-  cmdHandler: async (entity, cmd, params) => {
-    const c = String(cmd).replace(/^media_player\./, "");
-    const p = params && Object.keys(params).length ? " " + JSON.stringify(params) : "";
-    display.last = `${c}${p}`.slice(0, 80);
-    log(`display: button ${c}${p}`);
-    const a = displayEntity.attributes;
-    const set = {};
-    if (c === "volume" && params?.volume !== undefined) set.volume = Number(params.volume);
-    if (c === "volume_up") set.volume = Math.min(100, (a.volume ?? 50) + 2);
-    if (c === "volume_down") set.volume = Math.max(0, (a.volume ?? 50) - 2);
-    if (c === "mute_toggle") set.muted = !a.muted;
-    if (c === "play_pause") set.state = a.state === uc.MediaPlayerStates.Playing ? uc.MediaPlayerStates.Paused : uc.MediaPlayerStates.Playing;
-    if (c === "off") set.state = uc.MediaPlayerStates.Off;
-    if (c === "on") set.state = uc.MediaPlayerStates.Playing;
-    if (c === "toggle") set.state = a.state === uc.MediaPlayerStates.Off ? uc.MediaPlayerStates.Playing : uc.MediaPlayerStates.Off;
-    if (c === "select_source" && params?.source) { display.forced = params.source; set.source = params.source; }
-    publishDisplay(set);
-    return uc.StatusCodes.Ok;
-  }
-});
-const display = { n: 0, timer: null, last: "none yet", forced: null };
-const DISPLAY_MODES = { A: "127.0.0.1", B: "network address", C: "embedded data" };
-
-function publishDisplay(extra = {}) {
-  const n = display.n;
-  const mode = display.forced || ["A", "B", "C"][Math.floor(n / 5) % 3];
-  let url;
-  if (mode === "A") url = `http://127.0.0.1:${BUILDER_PORT}/display/test.png?n=${n}`;
-  else if (mode === "B") url = `http://${lanAddresses()[0] || "127.0.0.1"}:${BUILDER_PORT}/display/test.png?n=${n}`;
-  else url = "data:image/png;base64," + testImage(n, 200).toString("base64");
-  const attrs = {
-    media_image_url: url,
-    media_title: `Test ${mode} · ${DISPLAY_MODES[mode]} · #${n}`,
-    media_artist: `Last button: ${display.last}`,
-    media_album: `Picture changes every 3 s`,
-    media_position: (n * 3) % 60,
-    source: mode,
-    ...extra
-  };
-  if (!api.updateEntityAttributes(DISPLAY_ID, attrs)) Object.assign(displayEntity.attributes, attrs);
-}
-function startDisplay() {
-  stopDisplay();
-  display.timer = setInterval(() => {
-    display.n++;
-    publishDisplay();
-  }, 3000);
-  publishDisplay();
-}
-function stopDisplay() {
-  if (display.timer) clearInterval(display.timer);
-  display.timer = null;
-}
-
 function registerEntities() {
   api.clearAvailableEntities();
   for (const [, id] of LAYOUT) api.addAvailableEntity(entities[id]);
   api.addAvailableEntity(previousSensor);
   for (const e of Object.values(smartEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(extraEntities)) api.addAvailableEntity(e);
-  api.addAvailableEntity(displayEntity);
 }
 
 // ---------------------------------------------------------------------------
@@ -742,6 +670,23 @@ function buildExtraEntities() {
       cmdHandler: traced(s.id, sliderHandler(s.id))
     });
   }
+  const MP = uc.MediaPlayerFeatures;
+  for (const d of extras.displays) {
+    const features = [MP.PlayPause, MP.MediaTitle, MP.MediaArtist, MP.MediaAlbum, MP.MediaImageUrl];
+    if (d.choices.length) features.push(MP.SelectSource);
+    extraEntities[d.id] = new uc.MediaPlayer(d.id, { en: d.name }, {
+      area: AREA_SLIDERS,
+      features,
+      attributes: extras.initialAttrs(d.id),
+      cmdHandler: traced(d.id, async (entity, rawCmd, params) => {
+        if (!core) return uc.StatusCodes.ServiceUnavailable;
+        const cmd = plainCmd(rawCmd);
+        if (cmd === "select_source" && !d.choices.some((c) => c.label.toLowerCase() === String(params?.source ?? "").toLowerCase())) return uc.StatusCodes.BadRequest;
+        extras.displayCommand(d.id, cmd, params || {}).catch((e) => warn(`display ${d.name} failed:`, e.message));
+        return uc.StatusCodes.Ok;
+      })
+    });
+  }
   for (const m of extras.menus) {
     extraEntities[m.id] = new uc.Select(m.id, { en: m.name }, {
       area: AREA_SLIDERS,
@@ -756,7 +701,7 @@ function buildExtraEntities() {
 const appliedIcons = new Map(); // entity id -> icon last set
 async function applyTileIcons() {
   if (!core || !extras) return;
-  for (const x of [...extras.sliders, ...extras.menus]) {
+  for (const x of [...extras.sliders, ...extras.menus, ...extras.displays]) {
     if (!x.icon || appliedIcons.get(x.id) === x.icon) continue;
     try {
       await core.patch(`/entities/${encodeURIComponent("self_control.main." + x.id)}`, { icon: x.icon });
@@ -885,7 +830,6 @@ function startPolling() {
   stopPolling();
   if (!core || !connected || standby) return;
   refresh();
-  startDisplay();
   pollTimer = setInterval(refresh, POLL_MS);
   returnTimer = setInterval(() => {
     if (returnTracker?.enabled) returnTracker.poll().catch((e) => warn("return: reading activities failed:", e.message));
@@ -895,7 +839,6 @@ function startPolling() {
 }
 
 function stopPolling() {
-  stopDisplay();
   if (pollTimer) clearInterval(pollTimer);
   if (returnTimer) clearInterval(returnTimer);
   pollTimer = null;
@@ -1255,7 +1198,9 @@ cfgFile = path.join(api.getConfigDirPath(), "self_control.json");
 stateIcons = new StateIcons({ getCore: () => core, file: path.join(api.getConfigDirPath(), "state_icons.json"), log, warn });
 returnTracker = new ReturnTracker({ getCore: () => core, file: path.join(api.getConfigDirPath(), "return.json"), log, warn, onChange: updatePreviousSensor });
 updatePreviousSensor();
-extras = new Extras({ getCore: () => core, engine: () => smart, file: path.join(api.getConfigDirPath(), "sliders_menus.json"), publish: publishExtra, log, warn });
+const framesDir = path.join(api.getConfigDirPath(), "display_frames");
+extras = new Extras({ getCore: () => core, engine: () => smart, file: path.join(api.getConfigDirPath(), "sliders_menus.json"), publish: publishExtra, log, warn,
+  imageUrl: (id, n, rev) => `http://127.0.0.1:${BUILDER_PORT}/display/${id}/${n}.png?v=${rev}` });
 buildExtraEntities();
 initSmart();
 
@@ -1283,13 +1228,14 @@ startWebServer({
   },
   stateIcons: () => stateIcons,
   extras: () => extras,
+  framesDir: () => framesDir,
   validateExtras: (body) => validateExtras(body, selfApi.keys, reservedIds()),
   onExtrasChanged: () => {
     buildExtraEntities();
     registerEntities();
     extras.publishAll();
     applyTileIcons();
-    log(`sliders saved: ${extras.sliders.map((s) => s.name).join(", ") || "none"}; quick menus: ${extras.menus.map((m) => m.name).join(", ") || "none"}`);
+    log(`sliders saved: ${extras.sliders.map((s) => s.name).join(", ") || "none"}; quick menus: ${extras.menus.map((m) => m.name).join(", ") || "none"}; displays: ${extras.displays.map((d) => d.name).join(", ") || "none"}`);
     startPolling();
   },
   validateIcons,

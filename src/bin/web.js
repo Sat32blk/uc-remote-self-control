@@ -22,7 +22,6 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { testImage } from "./display.js";
 
 const SESSION_MS = 12 * 60 * 60 * 1000;
 const MAX_BODY = 256 * 1024;
@@ -121,7 +120,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, validateExtras, onExtrasChanged, log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, framesDir, validateExtras, onExtrasChanged, log, warn }) {
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -184,13 +183,6 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       }
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "DENY" });
       res.end(html);
-    },
-    // Custom Display experiment: public, it's only a generated test picture
-    "GET /display/test.png": async (req, res) => {
-      const n = Number(new URL(req.url, "http://x").searchParams.get("n")) || 0;
-      res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-store" });
-      res.end(testImage(n));
-      log && log(`display: image #${n} fetched by ${req.socket.remoteAddress}`);
     },
     "GET /api/session": async (req, res) => send(res, 200, { loggedIn: loggedIn(req), configured: !!getCore() }),
     "POST /api/login": async (req, res) => {
@@ -289,6 +281,21 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       onExtrasChanged && onExtrasChanged();
       send(res, 200, { ok: true, errors: [], ...extras().config, status: extras().status() });
     },
+    // Pictures of a display: 11 PNGs (0 %, 10 % … 100 %), made by the builder.
+    "POST /api/displays/frames": async (req, res) => {
+      const body = await readJson(req);
+      const id = String(body.id || "");
+      if (!/^display_[a-z0-9_]{1,36}$/.test(id)) return send(res, 400, { error: "invalid display id" });
+      const frames = Array.isArray(body.frames) ? body.frames : [];
+      if (frames.length !== 11) return send(res, 400, { error: "11 pictures expected" });
+      const pngs = frames.map((f) => Buffer.from(String(f || ""), "base64"));
+      if (pngs.some((b) => b.length < 8 || b.readUInt32BE(0) !== 0x89504e47)) return send(res, 400, { error: "not a PNG image" });
+      if (pngs.some((b) => b.length > 40 * 1024)) return send(res, 413, { error: "a picture is larger than 40 KB" });
+      fs.mkdirSync(framesDir(), { recursive: true });
+      pngs.forEach((b, i) => fs.writeFileSync(path.join(framesDir(), `${id}_${i * 10}.png`), b));
+      extras().framesChanged(id);
+      send(res, 200, { ok: true });
+    },
     "POST /api/extras/test": async (req, res) => {
       const body = await readJson(req);
       if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
@@ -301,6 +308,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
           return send(res, 200, { summary: st.error ? `${x.slider(id).name}: ERROR ${st.error}` : `${x.slider(id).name} set to ${st.value}` });
         }
         if (x.menu(id)) return send(res, 200, { summary: await x.menuCommand(id, "select_option", { option: body.option }) });
+        if (x.display(id)) return send(res, 200, { summary: (await x.displayCommand(id, body.option ? "select_source" : "play_pause", { source: body.option })) || "done" });
         send(res, 404, { error: `"${id}" isn't saved yet. Save first.` });
       } catch (e) {
         send(res, 400, { error: e.message });
@@ -317,10 +325,21 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       }
     }
   };
-  const PUBLIC = new Set(["GET /", "GET /api/session", "POST /api/login", "POST /api/logout", "GET /display/test.png"]);
+  const PUBLIC = new Set(["GET /", "GET /api/session", "POST /api/login", "POST /api/logout"]);
 
   const server = http.createServer(async (req, res) => {
     const url = (req.url || "/").split("?")[0];
+    // Display pictures are public (the remote's screen loads them without a session): /display/<id>/<0..100>.png
+    const dm = /^\/display\/(display_[a-z0-9_]{1,36})\/(\d{1,3})\.png$/.exec(url);
+    if (dm && req.method === "GET") {
+      try {
+        const img = fs.readFileSync(path.join(framesDir(), `${dm[1]}_${dm[2]}.png`));
+        res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "max-age=86400" });
+        return res.end(img);
+      } catch {
+        return send(res, 404, { error: "no picture" });
+      }
+    }
     const key = `${req.method} ${url === "/index.html" ? "/" : url}`;
     const handler = routes[key];
     try {
