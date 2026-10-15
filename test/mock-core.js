@@ -39,6 +39,7 @@ export const activities = {
 };
 let pageSeq = 100;
 export const icons = {}; // uploaded icon id -> raw body
+export const entityIcons = {}; // entity id -> icon set with PATCH /entities/{id}
 
 // Command metadata as GET /cfg/entity/commands returns it (subset).
 const mpCmd = (c, params) => ({ id: "media_player." + c, cmd_id: c, name: { en: c.replace(/_/g, " ") }, params });
@@ -210,6 +211,15 @@ export function start(port) {
         const q = new URLSearchParams(lm[1]);
         const limit = Number(q.get("limit") || 10), page = Number(q.get("page") || 1);
         return send(200, entityList().slice((page - 1) * limit, page * limit));
+      }
+      const pe = /^\/api\/entities\/([^/?]+)$/.exec(url);
+      if (pe && req.method === "PATCH") {
+        const id = decodeURIComponent(pe[1]);
+        const known = devices[id] || (id.startsWith("self_control.main.") && selfEntities[id.slice(18)]);
+        if (!known) return send(404, { message: "no entity " + id });
+        const b = JSON.parse(body);
+        if (b.icon) entityIcons[id] = b.icon;
+        return send(200, { entity_id: id, icon: b.icon });
       }
       const em = /^\/api\/entities\/([^/]+)(\/command)?$/.exec(url);
       if (em) {

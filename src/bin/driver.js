@@ -679,6 +679,23 @@ function buildExtraEntities() {
   }
 }
 
+// Tile icons: the remote keeps an entity's icon in its own entity list (PATCH /entities/{id}),
+// which exists only once the user has added the entity to the integration.
+const appliedIcons = new Map(); // entity id -> icon last set
+async function applyTileIcons() {
+  if (!core || !extras) return;
+  for (const x of [...extras.sliders, ...extras.menus]) {
+    if (!x.icon || appliedIcons.get(x.id) === x.icon) continue;
+    try {
+      await core.patch(`/entities/${encodeURIComponent("self_control.main." + x.id)}`, { icon: x.icon });
+      appliedIcons.set(x.id, x.icon);
+      log(`tile icon of ${x.name} set to ${x.icon}`);
+    } catch (e) {
+      if (e.status !== 404) warn(`tile icon of ${x.name}: ${e.message}`);
+    }
+  }
+}
+
 const reservedIds = () => [...LAYOUT.map(([, id]) => id), "previous_activity", "debug", "smart_last_result", ...(smart?.buttons || []).map((b) => b.id)];
 
 function loadRulesText() {
@@ -1145,6 +1162,7 @@ api.on(uc.Events.SubscribeEntities, async (ids) => {
   // configured entities share objects with the available ones, so states are current;
   // refresh once more so the remote gets fresh values right away.
   if (core) scheduleRefresh();
+  applyTileIcons();
 });
 
 createEntities();
@@ -1187,6 +1205,7 @@ startWebServer({
     buildExtraEntities();
     registerEntities();
     extras.publishAll();
+    applyTileIcons();
     log(`sliders saved: ${extras.sliders.map((s) => s.name).join(", ") || "none"}; quick menus: ${extras.menus.map((m) => m.name).join(", ") || "none"}`);
     startPolling();
   },

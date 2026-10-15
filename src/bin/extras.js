@@ -28,6 +28,7 @@ import { vActions, vCond } from "./smart.js";
 export const LIMITS = { sliders: 20, menus: 20, options: 20, presses: 60, delayMs: 2000 };
 const SLIDER_ID = /^slider_[a-z0-9_]{1,36}$/;
 const MENU_ID = /^menu_[a-z0-9_]{1,36}$/;
+const ICON_RE = /^(custom|uc):[A-Za-z0-9_.\-]{1,120}$/;
 const HOLD_MS = Number(process.env.UC_SELF_SLIDER_HOLD_MS || 3000); // after a change from the remote, don't let a slow device report flip it back
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
@@ -75,6 +76,10 @@ export function validateExtras(input, selfKeys = [], taken = []) {
     if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) errors.push(`${label}: the highest value must be above the lowest`);
     if (!(step > 0) || step > max - min) errors.push(`${label}: step must be above 0 and fit the range`);
     const out = { id: s.id, name: name.slice(0, 40), entity: s.entity, attr, min, max, step };
+    if (s.icon) {
+      if (!ICON_RE.test(String(s.icon))) errors.push(`${label}: icon must be custom:<file> or uc:<name>`);
+      else out.icon = String(s.icon);
+    }
     if (s.mode === "steps") {
       for (const k of ["up", "down"]) if (typeof s[k] !== "string" || !s[k].trim() || s[k].length > 64) errors.push(`${label}: pick the ${k} command`);
       const per = Number(s.per_press ?? step);
@@ -119,7 +124,12 @@ export function validateExtras(input, selfKeys = [], taken = []) {
       if (o.when !== undefined && o.when !== null) out.when = o.when;
       return out;
     });
-    return { id: m.id, name: name.slice(0, 40), options };
+    const out = { id: m.id, name: name.slice(0, 40), options };
+    if (m.icon) {
+      if (!ICON_RE.test(String(m.icon))) errors.push(`${label}: icon must be custom:<file> or uc:<name>`);
+      else out.icon = String(m.icon);
+    }
+    return out;
   });
   return { errors, extras: { sliders: cleanSliders, menus: cleanMenus } };
 }

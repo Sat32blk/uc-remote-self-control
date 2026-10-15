@@ -90,6 +90,18 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .thumb img { width: 60px; height: 60px; object-fit: contain; }
 .live { font-size: 13px; color: var(--muted); }
 .live b { color: var(--fg); }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.gpick { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; background: #0f1114; color: #c9ced5; border: 2px solid transparent; border-radius: 10px; font-size: 11px; }
+.gpick.sel { border-color: var(--accent); }
+.gpick img { display: block; }
+.swatch { width: 30px; height: 30px; min-height: 30px; padding: 0; border-radius: 50%; border: 2px solid var(--line); }
+.swatch.sel { outline: 3px solid var(--accent); outline-offset: 2px; }
+.strip { display: flex; flex-wrap: wrap; gap: 4px; background: #0f1114; padding: 8px; border-radius: 10px; }
+.strip figure { margin: 0; display: flex; flex-direction: column; align-items: center; font-size: 10px; color: #9aa3ad; }
+.tiles { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tpick { width: 48px; height: 48px; min-height: 48px; padding: 0; display: flex; align-items: center; justify-content: center; background: #0f1114; border: 2px solid transparent; border-radius: 10px; }
+.tpick.none { width: auto; padding: 0 10px; color: #c9ced5; font-size: 12px; }
+.tpick.sel { border-color: var(--accent); }
 .section-title { margin: 6px 0 0; font-size: 17px; font-weight: 600; }
 .fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .choice { border-radius: 10px; background: var(--inset); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -689,6 +701,136 @@ $("#copy").addEventListener("click", () => {
 });
 window.addEventListener("beforeunload", (e) => { if (($("#json").textContent && $("#json").textContent !== saved) || (iconsLoaded && JSON.stringify(iconsOut()) !== iconsSaved) || (extrasLoaded && JSON.stringify(extrasOut()) !== extrasSaved)) { e.preventDefault(); e.returnValue = ""; } });
 
+// ---- Level graphics and tile icons (drawn on a 90x90 canvas) ----------------
+// Level designs: draw(g, f, c) with f = 0..1 and c = { on, off } colors.
+const TAU = Math.PI * 2;
+function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+const LEVEL_DESIGNS = {
+  bar: { name: "Bar", draw(g, f, c) {
+    rr(g, 10, 37, 70, 16, 8); g.fillStyle = c.off; g.fill();
+    if (f > 0) { g.save(); rr(g, 10, 37, 70, 16, 8); g.clip(); g.fillStyle = c.on; g.fillRect(10, 37, 70 * f, 16); g.restore(); }
+  } },
+  column: { name: "Column", draw(g, f, c) {
+    rr(g, 33, 8, 24, 74, 12); g.fillStyle = c.off; g.fill();
+    if (f > 0) { g.save(); rr(g, 33, 8, 24, 74, 12); g.clip(); g.fillStyle = c.on; g.fillRect(33, 82 - 74 * f, 24, 74 * f); g.restore(); }
+  } },
+  arc: { name: "Arc gauge", draw(g, f, c) {
+    const a0 = Math.PI * 0.75, span = Math.PI * 1.5;
+    g.lineWidth = 11; g.lineCap = "round";
+    g.beginPath(); g.arc(45, 48, 30, a0, a0 + span); g.strokeStyle = c.off; g.stroke();
+    if (f > 0) { g.beginPath(); g.arc(45, 48, 30, a0, a0 + span * f); g.strokeStyle = c.on; g.stroke(); }
+  } },
+  ring: { name: "Ring", draw(g, f, c) {
+    g.lineWidth = 10;
+    g.beginPath(); g.arc(45, 45, 32, 0, TAU); g.strokeStyle = c.off; g.stroke();
+    if (f > 0) { g.lineCap = "round"; g.beginPath(); g.arc(45, 45, 32, -Math.PI / 2, -Math.PI / 2 + TAU * f); g.strokeStyle = c.on; g.stroke(); }
+    g.beginPath(); g.arc(45, 45, 6 + 12 * f, 0, TAU); g.fillStyle = f > 0 ? c.on : c.off; g.fill();
+  } },
+  dots: { name: "Dots", draw(g, f, c) {
+    const lit = Math.round(f * 10);
+    for (let i = 0; i < 10; i++) { const x = 15 + (i % 5) * 15, y = i < 5 ? 55 : 35;
+      g.beginPath(); g.arc(x, y, 5.5, 0, TAU); g.fillStyle = i < lit ? c.on : c.off; g.fill(); }
+  } },
+  signal: { name: "Signal", draw(g, f, c) {
+    const lit = Math.round(f * 5);
+    for (let i = 0; i < 5; i++) { const h = 14 + i * 14; rr(g, 9 + i * 15, 80 - h, 11, h, 3); g.fillStyle = i < lit ? c.on : c.off; g.fill(); }
+  } },
+  speaker: { name: "Speaker", draw(g, f, c) {
+    g.fillStyle = f > 0 ? c.on : c.off;
+    g.beginPath(); g.moveTo(12, 36); g.lineTo(24, 36); g.lineTo(40, 22); g.lineTo(40, 68); g.lineTo(24, 54); g.lineTo(12, 54); g.closePath(); g.fill();
+    const waves = f <= 0 ? 0 : Math.min(3, Math.ceil(f * 3));
+    g.lineWidth = 6; g.lineCap = "round";
+    for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(40, 45, 12 + i * 12, -0.8, 0.8); g.strokeStyle = i < waves ? c.on : c.off; g.stroke(); }
+    if (f <= 0) { g.strokeStyle = c.on; g.lineWidth = 5; g.beginPath(); g.moveTo(52, 34); g.lineTo(74, 56); g.moveTo(74, 34); g.lineTo(52, 56); g.stroke(); }
+  } },
+  knob: { name: "Knob", draw(g, f, c) {
+    const a0 = Math.PI * 0.75, span = Math.PI * 1.5;
+    for (let i = 0; i <= 10; i++) { const a = a0 + span * i / 10;
+      g.beginPath(); g.arc(45 + Math.cos(a) * 38, 45 + Math.sin(a) * 38, 3, 0, TAU); g.fillStyle = i / 10 <= f + 1e-9 && f > 0 ? c.on : c.off; g.fill(); }
+    g.beginPath(); g.arc(45, 45, 26, 0, TAU); g.fillStyle = c.off; g.fill();
+    const a = a0 + span * f; g.lineWidth = 6; g.lineCap = "round"; g.strokeStyle = c.on;
+    g.beginPath(); g.moveTo(45 + Math.cos(a) * 8, 45 + Math.sin(a) * 8); g.lineTo(45 + Math.cos(a) * 21, 45 + Math.sin(a) * 21); g.stroke();
+  } },
+  tank: { name: "Tank", draw(g, f, c) {
+    rr(g, 24, 10, 42, 72, 10); g.lineWidth = 5; g.strokeStyle = c.off; g.stroke();
+    if (f > 0) { g.save(); rr(g, 29, 15, 32, 62, 6); g.clip(); const top = 77 - 62 * f;
+      g.beginPath(); g.moveTo(29, top); g.quadraticCurveTo(37, top - 4, 45, top); g.quadraticCurveTo(53, top + 4, 61, top); g.lineTo(61, 77); g.lineTo(29, 77); g.closePath(); g.fillStyle = c.on; g.fill(); g.restore(); }
+  } },
+  thermo: { name: "Thermometer", draw(g, f, c) {
+    g.fillStyle = c.off; rr(g, 37, 8, 16, 58, 8); g.fill(); g.beginPath(); g.arc(45, 70, 13, 0, TAU); g.fill();
+    g.fillStyle = c.on; g.beginPath(); g.arc(45, 70, 8, 0, TAU); g.fill();
+    const h = 6 + 52 * f; rr(g, 41, 66 - h, 8, h + 2, 4); g.fill();
+  } },
+  eq: { name: "Equalizer", draw(g, f, c) {
+    const env = [0.55, 0.8, 1, 0.7, 0.9, 0.6, 0.75];
+    env.forEach((e, i) => { const x = 8 + i * 11; rr(g, x, 12, 8, 66, 4); g.fillStyle = c.off; g.fill();
+      const h = Math.max(f > 0 ? 8 : 0, 66 * e * f); if (h > 0) { rr(g, x, 78 - h, 8, h, 4); g.fillStyle = c.on; g.fill(); } });
+  } },
+  segments: { name: "Segments", draw(g, f, c) {
+    const n = 12, lit = Math.round(f * n); g.lineWidth = 11;
+    for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + TAU * i / n;
+      g.beginPath(); g.arc(45, 45, 32, a + 0.08, a + TAU / n - 0.08); g.strokeStyle = i < lit ? c.on : c.off; g.stroke(); }
+  } }
+};
+const LEVEL_COLORS = { orange: "#f2a541", green: "#2ecc71", blue: "#4aa3ff", white: "#f2f4f7", red: "#ff5a4e", purple: "#a67cff" };
+const LEVEL_OFF = "rgba(255,255,255,0.18)";
+
+// Tile icons: white line glyphs on transparent (the remote tints nothing; white suits its dark tiles).
+const W = "#ffffff";
+function stroke(g, w) { g.strokeStyle = W; g.fillStyle = W; g.lineWidth = w || 6; g.lineCap = "round"; g.lineJoin = "round"; }
+const TILE_ICONS = {
+  volume: { name: "Volume", draw(g) { stroke(g); g.beginPath(); g.moveTo(14, 36); g.lineTo(26, 36); g.lineTo(42, 22); g.lineTo(42, 68); g.lineTo(26, 54); g.lineTo(14, 54); g.closePath(); g.fill();
+    for (const r of [13, 25]) { g.beginPath(); g.arc(44, 45, r, -0.75, 0.75); g.stroke(); } } },
+  speaker: { name: "Speaker", draw(g) { stroke(g, 5); rr(g, 22, 8, 46, 74, 8); g.stroke(); g.beginPath(); g.arc(45, 55, 14, 0, TAU); g.stroke(); g.beginPath(); g.arc(45, 55, 4, 0, TAU); g.fill(); g.beginPath(); g.arc(45, 24, 6, 0, TAU); g.stroke(); } },
+  subwoofer: { name: "Subwoofer", draw(g) { stroke(g, 5); rr(g, 10, 10, 70, 70, 10); g.stroke(); g.beginPath(); g.arc(45, 45, 24, 0, TAU); g.stroke(); g.beginPath(); g.arc(45, 45, 12, 0, TAU); g.stroke(); g.beginPath(); g.arc(45, 45, 4, 0, TAU); g.fill(); } },
+  bulb: { name: "Light bulb", draw(g) { stroke(g, 5); g.beginPath(); g.arc(45, 36, 22, Math.PI * 0.8, Math.PI * 2.2); g.lineTo(55, 64); g.lineTo(35, 64); g.closePath(); g.stroke();
+    g.beginPath(); g.moveTo(36, 72); g.lineTo(54, 72); g.moveTo(39, 80); g.lineTo(51, 80); g.stroke(); } },
+  sun: { name: "Brightness", draw(g) { stroke(g, 5); g.beginPath(); g.arc(45, 45, 14, 0, TAU); g.fill();
+    for (let i = 0; i < 8; i++) { const a = TAU * i / 8; g.beginPath(); g.moveTo(45 + Math.cos(a) * 24, 45 + Math.sin(a) * 24); g.lineTo(45 + Math.cos(a) * 34, 45 + Math.sin(a) * 34); g.stroke(); } } },
+  blinds: { name: "Blinds", draw(g) { stroke(g, 5); g.beginPath(); g.moveTo(12, 12); g.lineTo(78, 12); g.stroke(); stroke(g, 6);
+    for (let y = 24; y <= 60; y += 12) { g.beginPath(); g.moveTo(18, y); g.lineTo(72, y); g.stroke(); }
+    stroke(g, 3); g.beginPath(); g.moveTo(66, 12); g.lineTo(66, 76); g.stroke(); g.beginPath(); g.arc(66, 79, 4, 0, TAU); g.fill(); } },
+  thermo: { name: "Temperature", draw(g) { stroke(g, 5); g.beginPath(); g.arc(40, 66, 13, -1.1, Math.PI + 1.1); g.lineTo(32, 16); g.arc(40, 16, 8, Math.PI, 0); g.closePath(); g.stroke();
+    g.beginPath(); g.arc(40, 66, 6, 0, TAU); g.fill(); g.beginPath(); g.moveTo(40, 62); g.lineTo(40, 32); g.stroke(); stroke(g, 4);
+    for (const y of [22, 34, 46]) { g.beginPath(); g.moveTo(60, y); g.lineTo(72, y); g.stroke(); } } },
+  fan: { name: "Fan", draw(g) { stroke(g, 5); for (let i = 0; i < 3; i++) { g.save(); g.translate(45, 45); g.rotate(TAU * i / 3);
+      g.beginPath(); g.moveTo(0, 0); g.bezierCurveTo(-20, -8, -14, -36, 4, -34); g.bezierCurveTo(14, -32, 10, -14, 0, 0); g.fill(); g.restore(); }
+    g.beginPath(); g.arc(45, 45, 7, 0, TAU); g.fill(); } },
+  knob: { name: "Knob", draw(g) { stroke(g, 5); g.beginPath(); g.arc(45, 45, 30, 0, TAU); g.stroke(); g.beginPath(); g.moveTo(45, 45); g.lineTo(28, 28); g.stroke();
+    for (let i = 0; i < 7; i++) { const a = Math.PI * 0.75 + Math.PI * 1.5 * i / 6; g.beginPath(); g.arc(45 + Math.cos(a) * 40, 45 + Math.sin(a) * 40, 2.5, 0, TAU); g.fill(); } } },
+  eq: { name: "Equalizer", draw(g) { stroke(g, 5); [[18, 20, 46], [36, 14, 62], [54, 34, 22], [72, 24, 52]].forEach(([x, y1, k]) => {
+      g.beginPath(); g.moveTo(x, 12); g.lineTo(x, 78); g.stroke(); rr(g, x - 7, k, 14, 10, 4); g.fill(); }); } },
+  mic: { name: "Microphone", draw(g) { stroke(g, 5); rr(g, 33, 8, 24, 44, 12); g.fill(); g.beginPath(); g.arc(45, 40, 22, 0, Math.PI); g.stroke();
+    g.beginPath(); g.moveTo(45, 62); g.lineTo(45, 78); g.moveTo(33, 80); g.lineTo(57, 80); g.stroke(); } },
+  list: { name: "List / input", draw(g) { stroke(g, 6); for (const y of [24, 45, 66]) { g.beginPath(); g.arc(18, y, 4, 0, TAU); g.fill(); g.beginPath(); g.moveTo(32, y); g.lineTo(76, y); g.stroke(); } } }
+};
+
+function gfxCanvas(draw) {
+  const c = document.createElement("canvas"); c.width = c.height = 90;
+  const g = c.getContext("2d"); draw(g);
+  g.fillStyle = "rgba(0,0,0,0.004)"; g.fillRect(0, 0, 1, 1); g.fillRect(89, 89, 1, 1); // keep margins (the remote crops transparent edges)
+  return c;
+}
+const levelFrame = (design, color, f) => gfxCanvas((g) => LEVEL_DESIGNS[design].draw(g, f, { on: LEVEL_COLORS[color] || color, off: LEVEL_OFF }));
+const tileCanvas = (key) => gfxCanvas((g) => TILE_ICONS[key].draw(g));
+
+const canvasData = (c) => { const u = c.toDataURL("image/png"); return { dataUrl: u, base64: u.split(",")[1] }; };
+async function uploadCanvas(name, c) {
+  const r = await api("POST", "/api/icons/upload", { name, data: canvasData(c).base64 });
+  if (!r.ok) throw new Error(r.data.error || "upload failed");
+  return r.data.icon;
+}
+/** Renders and uploads the 11 frames of a level design (reuses frames already on the remote). */
+async function uploadLevelFrames(design, color, onProgress) {
+  const out = [];
+  for (let i = 0; i <= 10; i++) {
+    out.push(await uploadCanvas(`lv_${design}_${color}_${String(i * 10).padStart(3, "0")}.png`, levelFrame(design, color, i / 10)));
+    onProgress && onProgress(i + 1);
+  }
+  return out;
+}
+const asImg = (c, size, alt) => el("img", { src: c.toDataURL("image/png"), width: size, height: size, alt: alt || "" });
+
 // ---------------------------------------------------------------------------
 // State icons tab
 // ---------------------------------------------------------------------------
@@ -697,8 +839,12 @@ let ICON_ACTS = [];      // [{ id, name, pageCount, page }]
 let iconsSaved = "[]";
 let iconsLoaded = false;
 
-const iconsOut = () => ICONS.map((b) => ({ id: b.id, name: b.name, activity: b.activity, location: b.location, entity: b.entity, attr: b.attr || "state",
-  states: b.states.map((s) => ({ value: s.value, icon: s.icon || null, text: s.text || null })) }));
+const iconsOut = () => ICONS.map((b) => {
+  const o = { id: b.id, name: b.name, activity: b.activity, location: b.location, entity: b.entity, attr: b.attr || "state",
+    states: b.kind === "level" ? [] : b.states.map((s) => ({ value: s.value, icon: s.icon || null, text: s.text || null })) };
+  if (b.kind === "level") Object.assign(o, { kind: "level", min: Number(b.min), max: Number(b.max), design: b.design, color: b.color, frames: b.frames || [] });
+  return o;
+});
 const iconImg = (icon, alt) => el("img", { src: iconUrl(icon), alt: alt || "", on: { error: (e) => e.target.replaceWith(document.createTextNode(String(icon || "").replace(/^custom:/, "").replace(/\.png$/, "").slice(0, 14))) } });
 const iconUrl = (icon) => (icon && icon.startsWith("custom:") ? "/api/icons/image?id=" + encodeURIComponent(icon.slice(7)) : null);
 const actById = (id) => ICON_ACTS.find((a) => a.id === id);
@@ -805,6 +951,34 @@ function dropZone(b, st) {
   return z;
 }
 
+function finishIconCard(card, b) {
+  if (b.status && b.status.error) card.append(el("p", { class: "status err" }, "On the remote: " + b.status.error));
+  else if (b.status && b.status.look) card.append(el("p", { class: "status ok" }, "On the remote: showing " + (b.status.look === "default" ? "the default look" : `"${b.status.look}"`)));
+}
+
+function levelEditor(b, id, dev) {
+  const box = el("div", { class: "lines" });
+  const numeric = dev ? Object.entries(dev.current || {}).filter(([, v]) => typeof v === "number").map(([k]) => k) : [];
+  if (dev && !numeric.includes(b.attr)) box.append(el("p", { class: "hint" }, `Pick a number to follow under "What to check"${numeric.length ? " (" + numeric.join(", ") + ")" : ""}.`));
+  box.append(el("div", { class: "fields" },
+    el("label", { class: "f", for: id + "-lo" }, "Empty at", input(id + "-lo", b.min, (v) => { b.min = v; iconsChanged(false); }, { label: "Empty at", type: "number", cls: "num" })),
+    el("label", { class: "f", for: id + "-hi" }, "Full at", input(id + "-hi", b.max, (v) => { b.max = v; iconsChanged(false); }, { label: "Full at", type: "number", cls: "num" })),
+    el("span", { class: "hint" }, "The graphic shows 11 steps: 0 %, 10 % … 100 % of this range.")));
+  const gal = el("div", { class: "gallery", role: "radiogroup", "aria-label": "Level design" });
+  for (const [k, d] of Object.entries(LEVEL_DESIGNS)) {
+    gal.append(el("button", { type: "button", class: "gpick" + (b.design === k ? " sel" : ""), role: "radio", "aria-checked": String(b.design === k), title: d.name,
+      on: { click: () => { b.design = k; b.frames = []; iconsChanged(true); } } }, asImg(levelFrame(k, b.color, 0.6), 54, d.name), el("span", {}, d.name)));
+  }
+  const sw = el("div", { class: "row", role: "radiogroup", "aria-label": "Color" });
+  for (const [k, c] of Object.entries(LEVEL_COLORS)) sw.append(el("button", { type: "button", class: "swatch" + (b.color === k ? " sel" : ""), role: "radio", "aria-checked": String(b.color === k), "aria-label": k, title: k, style: "background:" + c,
+    on: { click: () => { b.color = k; b.frames = []; iconsChanged(true); } } }));
+  const strip = el("div", { class: "strip" });
+  for (let i = 0; i <= 10; i++) strip.append(el("figure", {}, asImg(levelFrame(b.design, b.color, i / 10), 40), el("figcaption", {}, i * 10 + "")));
+  box.append(el("div", { class: "subhead" }, "Design"), gal, el("div", { class: "subhead" }, "Color"), sw, el("div", { class: "subhead" }, "All 11 steps"), strip,
+    el("p", { class: "hint" }, "The images are made and uploaded to the remote when you save. When the device reports no number, the button shows its own look."));
+  return box;
+}
+
 function renderIcons() {
   const host = $("#icons-list");
   host.replaceChildren();
@@ -844,6 +1018,12 @@ function renderIcons() {
 
     // 3. states
     card.append(el("div", { class: "subhead" }, "3 · Looks"));
+    card.append(el("div", { class: "row" }, select(id + "-k", [["states", "Picture per state"], ["level", "Level graphic"]], b.kind === "level" ? "level" : "states", (v) => {
+      if (v === "level") Object.assign(b, { kind: "level", min: b.min ?? 0, max: b.max ?? 100, design: b.design || "bar", color: b.color || "orange", frames: b.frames || [] });
+      else b.kind = "states";
+      iconsChanged(true);
+    }, "Kind of look")));
+    if (b.kind === "level") { card.append(levelEditor(b, id, dev)); finishIconCard(card, b); wrap.append(card); return; }
     const def = b.default && b.activity === b.savedActivity && b.location && b.savedLocation && b.location.x === b.savedLocation.x && b.location.y === b.savedLocation.y
       ? b.default : act ? itemAt(act, b.location) : null;
     const lines = el("div", { class: "lines" });
@@ -867,8 +1047,7 @@ function renderIcons() {
       b.states.push({ value: next, icon: null, text: "" }); iconsChanged(true);
     } } }, "Add state")));
 
-    if (b.status && b.status.error) card.append(el("p", { class: "status err" }, "On the remote: " + b.status.error));
-    else if (b.status && b.status.look) card.append(el("p", { class: "status ok" }, "On the remote: showing " + (b.status.look === "default" ? "the default look" : `"${b.status.look}"`)));
+    finishIconCard(card, b);
     wrap.append(card);
   });
   if (!ICONS.length) wrap.append(el("p", { class: "empty" }, usable.length ? "No state icons yet. Add one to make a button on a page follow a device's state." : "None of your activities has exactly one page. State icons need an activity with a single page."));
@@ -898,6 +1077,11 @@ $("#icons-save").addEventListener("click", async () => {
   const st = $("#icons-status"), errs = $("#icons-errors");
   errs.hidden = true; errs.replaceChildren();
   st.className = "status"; st.textContent = "Saving…";
+  try {
+    for (const b of ICONS) if (b.kind === "level" && (!b.frames || b.frames.length !== 11)) {
+      b.frames = await uploadLevelFrames(b.design, b.color, (n) => { st.textContent = `Uploading level images for ${b.name || b.id}… ${n}/11`; });
+    }
+  } catch (e) { st.className = "status err"; st.textContent = "Couldn't upload the level images: " + e.message; return; }
   const r = await api("POST", "/api/icons", { icons: iconsOut() });
   if (r.ok) {
     ICONS = r.data.icons.map((b) => ({ ...b, savedActivity: b.activity, savedLocation: b.location, states: b.states.map((s) => ({ ...s, preview: ICONS.find((x) => x.id === b.id)?.states.find((y) => y.value === s.value)?.preview })) }));
@@ -957,11 +1141,12 @@ function sliderFor(dev) {
 const extrasOut = () => ({
   sliders: SLIDERS.map((s) => {
     const o = { id: s.id, name: s.name, entity: s.entity, attr: s.attr || "", min: Number(s.min), max: Number(s.max), step: Number(s.step), mode: s.mode };
+    if (s.icon) o.icon = s.icon;
     if (s.mode === "steps") Object.assign(o, { up: s.up, down: s.down, per_press: Number(s.per_press), delay: Number(s.delay) });
     else Object.assign(o, { cmd: s.cmd, param: s.param });
     return o;
   }),
-  menus: MENUS.map((m) => ({ id: m.id, name: m.name, options: m.options.map((o) => {
+  menus: MENUS.map((m) => ({ id: m.id, name: m.name, ...(m.icon ? { icon: m.icon } : {}), options: m.options.map((o) => {
     const out = { label: o.label, do: o.steps.map(stepOut) };
     if (o.conds.length) out.when = condOut(o.conds[0]);
     return out;
@@ -969,7 +1154,7 @@ const extrasOut = () => ({
 });
 function extrasIn(cfg) {
   SLIDERS = (cfg.sliders || []).map((s) => ({ per_press: 1, delay: 200, up: "", down: "", cmd: "", param: "", ...s }));
-  MENUS = (cfg.menus || []).map((m) => ({ id: m.id, name: m.name, options: m.options.map((o) => ({ label: o.label, steps: (o.do || []).map((a) => stepIn(a, {})), conds: o.when ? [condIn(o.when, {})] : [] })) }));
+  MENUS = (cfg.menus || []).map((m) => ({ id: m.id, name: m.name, icon: m.icon || "", options: m.options.map((o) => ({ label: o.label, steps: (o.do || []).map((a) => stepIn(a, {})), conds: o.when ? [condIn(o.when, {})] : [] })) }));
 }
 
 function extrasChanged(rerender) {
@@ -991,6 +1176,39 @@ async function tryIt(body) {
   const r = await api("POST", "/api/extras/test", body);
   out.textContent = r.ok ? r.data.summary : "Couldn't run: " + (r.data.error || r.status);
   refreshExtrasStatus();
+}
+
+// Tile icon picker: the 12 drawn icons, uploaded to the remote when picked (ti_<key>.png).
+const TILE_PREFIX = "custom:ti_";
+function tilePicker(x, label) {
+  const row = el("div", { class: "tiles", role: "radiogroup", "aria-label": label });
+  const current = x.icon && x.icon.startsWith(TILE_PREFIX) ? x.icon.slice(TILE_PREFIX.length).replace(/\.png$/, "") : x.icon ? "other" : "";
+  row.append(el("button", { type: "button", class: "tpick none" + (!x.icon ? " sel" : ""), role: "radio", "aria-checked": String(!x.icon), title: "The remote's default icon",
+    on: { click: () => { x.icon = ""; extrasChanged(true); } } }, "Default"));
+  for (const [k, t] of Object.entries(TILE_ICONS)) {
+    row.append(el("button", { type: "button", class: "tpick" + (current === k ? " sel" : ""), role: "radio", "aria-checked": String(current === k), title: t.name, "aria-label": t.name,
+      on: { click: async (e) => {
+        const st = $("#extras-status");
+        try { e.currentTarget.disabled = true; x.icon = await uploadCanvas(`ti_${k}.png`, tileCanvas(k)); st.className = "status"; st.textContent = "Icon uploaded. Save to use it."; }
+        catch (err) { st.className = "status err"; st.textContent = "Couldn't upload the icon: " + err.message; }
+        extrasChanged(true);
+      } } }, asImg(tileCanvas(k), 34, t.name)));
+  }
+  if (current === "other") row.append(el("span", { class: "hint" }, "Custom: " + x.icon));
+  return row;
+}
+
+function showLevelOnPage(s) {
+  const go = () => {
+    const first = ICON_ACTS.find((a) => a.pageCount === 1);
+    let n = 1; while (ICONS.some((b) => b.id === "level_" + n)) n++;
+    ICONS.push({ id: "level_" + n, name: s.name + " level", activity: first?.id || "", location: null, entity: s.entity, attr: s.attr, kind: "level",
+      min: Number(s.min), max: Number(s.max), design: "bar", color: "orange", frames: [], states: [] });
+    showTab("icons");
+    iconsChanged(true);
+    setTimeout(() => document.querySelector("#icons-list article:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
+  if (iconsLoaded) go(); else loadIcons().then(go);
 }
 
 function sliderCard(s, si) {
@@ -1047,6 +1265,10 @@ function sliderCard(s, si) {
     field(id + "-st", "Step", input(id + "-st", s.step, (v) => { s.step = v; extrasChanged(false); }, { label: "Step", type: "number", cls: "num" })),
     el("span", { class: "hint" }, "The slider's bottom is the lowest value; switching the slider off sets it.")));
 
+  card.append(el("div", { class: "subhead" }, "4 · Tile icon (home pages and lists)"), tilePicker(s, "Tile icon"));
+  card.append(el("div", { class: "row" },
+    el("button", { class: "small", type: "button", disabled: !s.attr, on: { click: () => showLevelOnPage(s) } }, "Show its level on a page…"),
+    el("span", { class: "hint" }, s.attr ? "Adds a level graphic (bar, gauge, dots…) to a button on a single-page activity, in the State Icons tab." : "Needs a value to read (step 1).")));
   const tv = input(id + "-tv", "", () => {}, { label: "Value to try", type: "number", cls: "num", placeholder: String(s.min) });
   card.append(el("div", { class: "row" }, field(id + "-tv", "Try a value", tv),
     el("button", { class: "small", type: "button", on: { click: () => tryIt({ id: s.id, value: tv.value === "" ? Number(s.min) : Number(tv.value) }) } }, "Set")));
@@ -1079,6 +1301,7 @@ function menuCard(m, mi) {
       el("span", { class: "hint" }, "Without one, the menu shows the choice picked last.")));
     card.append(box);
   });
+  card.append(el("div", { class: "subhead" }, "Tile icon (home pages and lists)"), tilePicker(m, "Tile icon"));
   card.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { m.options.push({ label: "Choice " + (m.options.length + 1), steps: [newStep("cmd")], conds: [] }); extrasChanged(true); } } }, "Add choice")));
   if (XSTATUS[m.id]?.error) card.append(el("p", { class: "status err" }, "Last run: " + XSTATUS[m.id].error));
   return card;

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
-import { start, devices, commands, TV, MARANTZ } from "./mock-core.js";
+import { start, devices, commands, selfEntities, entityIcons, TV, MARANTZ } from "./mock-core.js";
 import { snap, toBrightness, fromBrightness, validateExtras, Extras } from "../src/bin/extras.js";
 
 const CORE_PORT = 18084;
@@ -93,7 +93,7 @@ ok(h.status === 200 && h.data.sliders.length === 0 && h.data.menus.length === 0,
 // ---- save ----------------------------------------------------------------------------
 const config = {
   sliders: [
-    { id: "slider_receiver_volume", name: "Receiver Volume", entity: MARANTZ, attr: "volume", min: 0, max: 80, step: 1, mode: "command", cmd: "media_player.volume", param: "volume" },
+    { id: "slider_receiver_volume", name: "Receiver Volume", entity: MARANTZ, attr: "volume", min: 0, max: 80, step: 1, mode: "command", cmd: "media_player.volume", param: "volume", icon: "custom:ti_volume.png" },
     { id: "slider_tv_volume", name: "TV Volume", entity: TV, attr: "volume", min: 0, max: 50, step: 1, mode: "steps", up: "media_player.volume_up", down: "media_player.volume_down", per_press: 1, delay: 0 }
   ],
   menus: [
@@ -111,6 +111,9 @@ ok(h.status === 422 && h.data.errors.some((e) => /unknown control/.test(e)), "un
 h = await http("POST", "/api/extras", config);
 ok(h.status === 200 && h.data.sliders.length === 2 && h.data.menus.length === 1, "sliders and menu saved");
 ok(JSON.parse(fs.readFileSync(path.join(cfgDir, "sliders_menus.json"), "utf8")).sliders.length === 2, "saved in sliders_menus.json");
+await sleep(300);
+ok(!entityIcons["self_control.main.slider_receiver_volume"], "tile icon not set while the slider isn't added to the integration yet");
+selfEntities.slider_receiver_volume = "Receiver Volume"; // the user adds it in the web configurator
 
 let r = await req("get_available_entities");
 const avail = r.msg_data.available_entities;
@@ -119,6 +122,10 @@ const mi = avail.find((e) => e.entity_id === "menu_receiver_input");
 ok(rv?.entity_type === "light" && rv.features.includes("dim") && rv.area === "Remote Sliders & Menus", "slider is a dimmable light in its own group");
 ok(mi?.entity_type === "select" && mi.area === "Remote Sliders & Menus", "menu is a select in the same group");
 await req("subscribe_events", { entity_ids: ["slider_receiver_volume", "slider_tv_volume", "menu_receiver_input"] });
+await sleep(400);
+ok(entityIcons["self_control.main.slider_receiver_volume"] === "custom:ti_volume.png", "after adding it, the slider's tile icon is set on the remote");
+h = await http("POST", "/api/extras", { ...config, sliders: [{ ...config.sliders[0], icon: "bad icon" }] });
+ok(h.status === 422 && h.data.errors.some((e) => /icon must be/.test(e)), "invalid tile icon refused");
 const states = async () => Object.fromEntries((await req("get_entity_states")).msg_data.map((e) => [e.entity_id, e.attributes]));
 const cmd = async (entity_id, entity_type, cmd_id, params) => (await req("entity_command", { entity_id, entity_type, cmd_id, params })).code;
 

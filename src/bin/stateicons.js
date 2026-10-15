@@ -7,20 +7,37 @@
 // Tested on a Remote 3 (2026-10-14): changing a page of the activity on screen redraws the change live
 // on a single-page activity, but on an activity with several pages the remote jumps back to page 1.
 // So state icons are only allowed on activities with exactly one page.
+//
+// A state icon can also be a *level graphic*: kind "level" with a range (min..max) and 11 frames
+// (0 %, 10 % … 100 %). The frame closest to the device's value is shown, like a volume bar.
 
 import fs from "node:fs";
 
 export const MAX_ICONS = 40;
 export const MAX_STATES = 12;
+export const LEVEL_FRAMES = 11;
 const ICON_RE = /^(custom|uc):[A-Za-z0-9_.\-]{1,120}$/;
 
 const nameOf = (n) => (n && typeof n === "object" ? n.en || n.en_US || Object.values(n)[0] || "" : n || "");
 const norm = (v) => String(v ?? "").trim().toLowerCase();
 const sameSpot = (a, b) => (a?.x ?? 0) === (b?.x ?? 0) && (a?.y ?? 0) === (b?.y ?? 0);
 
-/** Look of a button for a value: the matching state over the default. */
+/** Frame index (0..10) for a value in a level binding, or null when the value isn't a number. */
+export function levelIndex(binding, value) {
+  const v = typeof value === "number" ? value : parseFloat(String(value ?? "").replace(/[^0-9.+-]/g, ""));
+  if (!Number.isFinite(v)) return null;
+  const f = (v - binding.min) / (binding.max - binding.min);
+  return Math.round(Math.max(0, Math.min(1, f)) * (LEVEL_FRAMES - 1));
+}
+
+/** Look of a button for a value: the matching state (or level frame) over the default. */
 export function lookFor(binding, value) {
   const d = binding.default || {};
+  if (binding.kind === "level") {
+    const i = levelIndex(binding, value);
+    if (i === null) return { type: d.type, icon: d.icon, text: d.text, state: null };
+    return { type: "icon", icon: binding.frames[i], text: d.text, state: `${i * 10} %` };
+  }
   const st = (binding.states || []).find((s) => norm(s.value) === norm(value));
   if (!st) return { type: d.type, icon: d.icon, text: d.text, state: null };
   if (st.icon) return { type: "icon", icon: st.icon, text: st.text ?? d.text, state: st.value };
@@ -57,8 +74,17 @@ export function validateIcons(input) {
     if (!b.entity || typeof b.entity !== "string") errors.push(`${at}: pick a device`);
     const attr = String(b.attr || "state");
     if (!/^[a-z0-9_]{1,40}$/.test(attr)) errors.push(`${at}.attr: invalid attribute name`);
-    const states = Array.isArray(b.states) ? b.states : [];
-    if (!states.length) errors.push(`${at}: add at least one state`);
+    const level = b.kind === "level";
+    let levelOut = {};
+    if (level) {
+      const min = Number(b.min), max = Number(b.max);
+      if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) errors.push(`${at}: the level's highest value must be above the lowest`);
+      const frames = Array.isArray(b.frames) ? b.frames.map(String) : [];
+      if (frames.length !== LEVEL_FRAMES || !frames.every((f) => ICON_RE.test(f))) errors.push(`${at}: pick a level design (its ${LEVEL_FRAMES} images are missing)`);
+      levelOut = { kind: "level", min, max, frames, design: String(b.design || "").slice(0, 30), color: String(b.color || "").slice(0, 20) };
+    }
+    const states = level ? [] : Array.isArray(b.states) ? b.states : [];
+    if (!level && !states.length) errors.push(`${at}: add at least one state`);
     if (states.length > MAX_STATES) errors.push(`${at}: at most ${MAX_STATES} states`);
     const values = new Set();
     const cleanStates = states.map((s, k) => {
@@ -79,7 +105,8 @@ export function validateIcons(input) {
       location: { x: loc.x, y: loc.y },
       entity: b.entity,
       attr,
-      states: cleanStates
+      states: cleanStates,
+      ...levelOut
     };
   });
   return { errors, icons };
@@ -168,12 +195,15 @@ export class StateIcons {
         errors.push(`${b.name || b.id}: no icon or text button at that spot on the page`);
         continue;
       }
-      next.push({ ...b, page_id: pages[0].page_id, default: { type: item.type, icon: item.icon || null, text: item.text || null } });
+      // A spot that another (old) state icon controlled shows that one's look now: inherit its real default.
+      const before = [...old.values()].find((o) => o.activity === b.activity && sameSpot(o.location, b.location) && o.default);
+      next.push({ ...b, page_id: pages[0].page_id, default: before ? { ...before.default } : { type: item.type, icon: item.icon || null, text: item.text || null } });
     }
     if (errors.length) return { errors };
     // restore removed / moved ones
     const keep = new Set(next.map((b) => `${b.id}|${b.activity}|${b.location.x},${b.location.y}`));
-    const restore = [...old.values()].filter((b) => !keep.has(`${b.id}|${b.activity}|${b.location.x},${b.location.y}`));
+    const taken = new Set(next.map((b) => `${b.activity}|${b.location.x},${b.location.y}`));
+    const restore = [...old.values()].filter((b) => !keep.has(`${b.id}|${b.activity}|${b.location.x},${b.location.y}`) && !taken.has(`${b.activity}|${b.location.x},${b.location.y}`));
     for (const b of restore) {
       try {
         await this.write(core, b.activity, [{ location: b.location, look: { ...b.default } }]);

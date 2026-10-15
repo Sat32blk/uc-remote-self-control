@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
 import { start, activities, devices, icons as uploaded, TV, MARANTZ } from "./mock-core.js";
-import { lookFor, applyLook, validateIcons } from "../src/bin/stateicons.js";
+import { lookFor, applyLook, validateIcons, levelIndex } from "../src/bin/stateicons.js";
 
 const CORE_PORT = 18083;
 const WS_PORT = 19097;
@@ -31,6 +31,13 @@ const applied = applyLook({ type: "text", text: "Receiver", location: { x: 1, y:
 ok(applied.type === "icon" && applied.icon === "custom:on.png" && applied.command.cmd_id === "x" && applied.location.x === 1, "applying a look keeps the command and position");
 ok(validateIcons({ icons: [{ id: "Bad id", states: [] }] }).errors.length >= 4, "validation lists what's missing");
 ok(validateIcons({ icons: [{ id: "a1", activity: "x", location: { x: 0, y: 0 }, entity: "e", states: [{ value: "ON" }] }] }).errors.some((e) => /drop an image or type a label/.test(e)), "a state needs an image or a label");
+
+const FR = Array.from({ length: 11 }, (_, i) => `custom:lv_bar_orange_${String(i * 10).padStart(3, "0")}.png`);
+const lv = { kind: "level", min: 0, max: 80, frames: FR, default: { type: "text", text: "Vol" } };
+ok(levelIndex(lv, 0) === 0 && levelIndex(lv, 40) === 5 && levelIndex(lv, 80) === 10 && levelIndex(lv, 200) === 10 && levelIndex(lv, -5) === 0, "level: value → frame (0..10), clamped to the range");
+ok(lookFor(lv, 24).icon === FR[3] && lookFor(lv, 24).state === "30 %" && lookFor(lv, "n/a").type === "text", "level look: frame for numbers, default look otherwise");
+ok(validateIcons({ icons: [{ id: "l1", activity: "a", location: { x: 0, y: 0 }, entity: "e.x", attr: "volume", kind: "level", min: 0, max: 80, frames: FR.slice(0, 5) }] }).errors.some((e) => /level design/.test(e)), "level without its 11 images refused");
+ok(validateIcons({ icons: [{ id: "l1", activity: "a", location: { x: 0, y: 0 }, entity: "e.x", attr: "volume", kind: "level", min: 0, max: 80, frames: FR }] }).errors.length === 0, "level binding with 11 frames and no states is valid");
 
 // ---- driver -----------------------------------------------------------------------
 activities["uc.main.act3"] = { name: { en: "Movie Night" }, state: "OFF", entity_ids: [], buttons: {}, pages: [
@@ -134,6 +141,17 @@ devices[TV].state = "ON";
 await sleep(900);
 ok(item(0, 0).type === "icon" && item(0, 0).icon === "uc:tv" && !item(0, 0).text, "TV ON: original icon restored");
 ok(JSON.parse(fs.readFileSync(path.join(cfgDir, "state_icons.json"), "utf8")).icons.length === 2, "state icons saved in state_icons.json");
+
+// ---- level graphic on the receiver volume ---------------------------------------------------
+devices[MARANTZ].volume = 40;
+h = await http("POST", "/api/icons", { icons: [tv, { id: "rcv_level", name: "Receiver volume", activity: ACT, location: { x: 1, y: 0 }, entity: MARANTZ, attr: "volume", kind: "level", min: 0, max: 80, design: "bar", color: "orange", frames: FR }] });
+await sleep(600);
+ok(h.status === 200 && item(1, 0).type === "icon" && item(1, 0).icon === FR[5], "level graphic: volume 40 of 80 shows the 50 % image: " + item(1, 0).icon);
+devices[MARANTZ].volume = 72;
+await sleep(900);
+ok(item(1, 0).icon === FR[9], "volume 72 → 90 % image");
+h = await http("GET", "/api/icons");
+ok(h.data.icons.find((b) => b.id === "rcv_level")?.status?.look === "90 %", "builder shows which step is on the remote");
 
 // ---- removing one restores its button --------------------------------------------------------
 h = await http("POST", "/api/icons", { icons: [tv] });

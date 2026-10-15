@@ -186,8 +186,16 @@ A slider is a light entity of this integration that stands for a number on anoth
 3. **Save**, then type a value under **Try a value** and press **Set** to check it.
 4. Integrations → Remote Self-Control → add the new slider (group **Remote Sliders & Menus**).
 5. Put it on a **home page**: tapping the tile opens the slider pop-up. On a Remote 3 you can also set an activity's **touch slider** to it.
+6. Optional: pick a **tile icon** (step 4 on the slider card) and press **Show its level on a page…** to add a live level graphic (below).
 
 The slider follows changes made elsewhere (within about 2 seconds while the remote is awake). Switching the slider **off** sets the lowest value; **on** goes back to the last value. When you drag quickly, the newest position wins: values in between are skipped instead of queued.
+
+**Custom graphics.** The slider pop-up itself is drawn by the remote and can't be restyled, but two things can:
+
+- **Tile icon:** 12 icons (volume, speaker, subwoofer, light bulb, brightness, blinds, temperature, fan, knob, equalizer, microphone, list) for the slider's or menu's tile on home pages and in lists. Pick one on the card; it's uploaded to the remote and set once the entity has been added to the integration.
+- **Live level graphic:** a button on an activity page whose image shows the current value: bar, column, arc gauge, ring, dots, signal, speaker, knob, tank, thermometer, equalizer or segments, in 6 colors. It's a state icon of the kind *Level graphic*: 11 images (0 %, 10 % … 100 %) are made in the builder and uploaded when you save, and the button shows the one closest to the value. Same limits as state icons: **single-page activities only**, about 2 seconds' delay. What the button does when pressed doesn't change (map it to the slider's toggle or volume up, for example).
+
+![The 12 level graphics and 12 tile icons](docs/images/slider-graphics.png)
 
 ### 10. A pop-up menu for the receiver's inputs
 
@@ -362,7 +370,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
-- **0.6.0:** **Sliders & quick menus**: new *Sliders & Menus* tab in the builder. Sliders are light entities mapped to a number on any device (one "set value" command, or repeated up/down presses), with the remote's slider pop-up on home tiles and the Remote 3 touch slider; they follow the device's value. Quick menus are select entities whose choices run Smart Control steps, with an optional condition that marks the current choice; *Add from a device's list* builds one from a device's inputs or sound modes.
+- **0.6.0:** **Sliders & quick menus**: new *Sliders & Menus* tab in the builder. 12 tile icons for sliders and menus, and **level graphics** (12 designs × 6 colors) as a new kind of state icon that shows a number as a bar, gauge, dots and more. Sliders are light entities mapped to a number on any device (one "set value" command, or repeated up/down presses), with the remote's slider pop-up on home tiles and the Remote 3 touch slider; they follow the device's value. Quick menus are select entities whose choices run Smart Control steps, with an optional condition that marks the current choice; *Add from a device's list* builds one from a device's inputs or sound modes.
 - **0.5.0:** **State icons**: new *State Icons* tab in the builder. Pick a button on a single-page activity, a device and what to check, then drop an image and/or type a label per state; the button switches look within about 2 seconds and returns to its own look otherwise. Images are resized to 90×90 and uploaded to the remote. Builder renamed *Remote Self-Control Builder* with *Smart Controls* and *State Icons* tabs.
 - **0.4.0:** Return to previous activity: tracks the activities you start and keeps a ↩ text or icon button and/or a physical button pointed at the previous one, set up in the integration's Configure menu. New Previous Activity sensor (area Remote Navigation). Smart Control results name devices instead of showing entity ids.
 - **0.3.2:** new **Display Brightness** light entity so the Remote 3 touch slider can set the display brightness.
