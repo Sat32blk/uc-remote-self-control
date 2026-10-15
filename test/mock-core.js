@@ -162,6 +162,13 @@ export function start(port) {
         const list = Object.entries(activities).map(([id, a]) => ({ entity_id: id, entity_type: "activity", name: a.name, attributes: { state: a.state || "OFF" }, options: a.editable === false ? { editable: false } : {} }));
         return send(200, list.slice((page - 1) * limit, page * limit));
       }
+      const abd = /^\/api\/activities\/([^/?]+)\/buttons\/([A-Z0-9_]+)\/(short_press|long_press)$/.exec(url);
+      if (abd && req.method === "DELETE") {
+        const act = activities[decodeURIComponent(abd[1])];
+        if (!act) return send(404, { message: "no activity" });
+        if (act.buttons[abd[2]]) delete act.buttons[abd[2]][abd[3]];
+        return send(200, {});
+      }
       const ab = /^\/api\/activities\/([^/?]+)\/buttons(?:\/([A-Z0-9_]+))?$/.exec(url);
       if (ab) {
         const act = activities[decodeURIComponent(ab[1])];

@@ -272,13 +272,23 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       res.writeHead(200, { "Content-Type": img.type, "Cache-Control": "private, max-age=3600" });
       res.end(img.body);
     },
+    // Physical buttons of an activity, for mapping a quick menu to one
+    "GET /api/buttons": async (req, res) => {
+      const core = getCore();
+      if (!core) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      const id = new URL(req.url, "http://x").searchParams.get("activity") || "";
+      let list = [];
+      try { list = await core.get(`/activities/${encodeURI(id)}/buttons`); } catch {}
+      const buttons = (Array.isArray(list) ? list : []).map((b) => ({ button: b.button, short: b.short_press?.entity_id || null, long: b.long_press?.entity_id || null }));
+      send(res, 200, { buttons });
+    },
     "GET /api/extras": async (req, res) => send(res, 200, { ...extras().config, status: extras().status() }),
     "POST /api/extras": async (req, res) => {
       const body = await readJson(req);
       const v = validateExtras(body);
       if (v.errors.length) return send(res, 422, { ok: false, errors: v.errors });
       extras().replace(v.extras);
-      onExtrasChanged && onExtrasChanged();
+      onExtrasChanged && (await onExtrasChanged());
       send(res, 200, { ok: true, errors: [], ...extras().config, status: extras().status() });
     },
     "POST /api/extras/test": async (req, res) => {

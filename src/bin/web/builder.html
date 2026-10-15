@@ -126,6 +126,8 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .editbox-foot .grow { flex: 1; }
 button.danger { color: var(--danger); }
 input.missing { border-color: var(--danger); outline: 2px solid var(--danger); }
+label.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+label.check input { min-height: 0; width: 18px; height: 18px; }
 .section-title { margin: 6px 0 0; font-size: 17px; font-weight: 600; }
 .fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .choice { border-radius: 10px; background: var(--inset); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -1280,7 +1282,9 @@ const extrasOut = () => ({
     else Object.assign(o, { cmd: s.cmd, param: s.param });
     return o;
   }),
-  menus: MENUS.map((m) => ({ id: m.id, name: m.name, ...(m.icon ? { icon: m.icon } : {}), options: m.options.map((o) => {
+  menus: MENUS.map((m) => ({ id: m.id, name: m.name, ...(m.icon ? { icon: m.icon } : {}), cycle: m.cycle !== false,
+    ...(m.button?.activity && m.button?.button ? { button: { activity: m.button.activity, button: m.button.button, press: m.button.press || "short_press" } } : {}),
+    options: m.options.map((o) => {
     const out = { label: o.label, do: o.steps.map(stepOut) };
     if (o.conds.length) out.when = condOut(o.conds[0]);
     return out;
@@ -1288,7 +1292,7 @@ const extrasOut = () => ({
 });
 function extrasIn(cfg) {
   SLIDERS = (cfg.sliders || []).map((s) => ({ per_press: 1, delay: 200, up: "", down: "", cmd: "", param: "", ...s }));
-  MENUS = (cfg.menus || []).map((m) => ({ id: m.id, name: m.name, icon: m.icon || "", options: m.options.map((o) => ({ label: o.label, steps: (o.do || []).map((a) => stepIn(a, {})), conds: o.when ? [condIn(o.when, {})] : [] })) }));
+  MENUS = (cfg.menus || []).map((m) => ({ id: m.id, name: m.name, icon: m.icon || "", cycle: m.cycle !== false, button: m.button ? { ...m.button } : null, options: m.options.map((o) => ({ label: o.label, steps: (o.do || []).map((a) => stepIn(a, {})), conds: o.when ? [condIn(o.when, {})] : [] })) }));
 }
 
 function extrasChanged(rerender) {
@@ -1402,6 +1406,39 @@ function sliderCard(s, si) {
   return card;
 }
 
+// Physical buttons per activity, fetched once when needed.
+const BTN_CACHE = {};
+async function buttonsOf(activity) {
+  if (!BTN_CACHE[activity]) {
+    const r = await api("GET", "/api/buttons?activity=" + encodeURIComponent(activity));
+    BTN_CACHE[activity] = r.ok ? r.data.buttons : [];
+  }
+  return BTN_CACHE[activity];
+}
+const niceButton = (b) => b.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+function stepThrough(m, id) {
+  const box = el("div", { class: "lines" });
+  const cyc = el("input", { type: "checkbox", id: id + "-cy", checked: m.cycle !== false, on: { change: (e) => { m.cycle = e.target.checked; extrasChanged(false); } } });
+  box.append(el("label", { class: "check", for: id + "-cy" }, cyc, " After the last choice, start over at the first"));
+  box.append(el("p", { class: "hint" }, "Each press of the button runs the next choice: choice 1, then 2, then 3… (\"Select next\"). With conditions, it moves on from the choice that is current now."));
+  const b = m.button || { activity: "", button: "", press: "short_press" };
+  const actSel = select(id + "-ba", [["", "No button"], ...CAT.activities.map((a) => [a.id, a.name])], b.activity, (v) => { m.button = v ? { activity: v, button: "", press: b.press || "short_press" } : null; extrasChanged(true); }, "Activity");
+  const row = el("div", { class: "fields" }, field(id + "-ba", "In activity", actSel));
+  if (b.activity) {
+    const btnSel = select(id + "-bb", [["", "Loading buttons…"]], b.button, () => {}, "Button");
+    buttonsOf(b.activity).then((list) => {
+      const opts = [["", "Pick a button…"], ...list.map((x) => [x.button, niceButton(x.button) + (x[b.press === "long_press" ? "long" : "short"] && x[b.press === "long_press" ? "long" : "short"] !== "self_control.main." + m.id ? " (in use)" : "")])];
+      const fresh = select(id + "-bb", opts, b.button, (v) => { m.button = { ...b, button: v }; extrasChanged(true); }, "Button");
+      btnSel.replaceWith(fresh);
+    });
+    row.append(field(id + "-bb", "Button", btnSel),
+      field(id + "-bp", "Press", select(id + "-bp", [["short_press", "Short press"], ["long_press", "Long press"]], b.press || "short_press", (v) => { m.button = { ...b, press: v }; extrasChanged(true); }, "Press")));
+  }
+  box.append(row);
+  if (b.activity && b.button) box.append(el("p", { class: "hint" }, `Saving maps ${niceButton(b.button)} (${b.press === "long_press" ? "long" : "short"} press) in this activity to the menu, replacing what it did there. Add the menu to the integration first.`));
+  return box;
+}
+
 function menuCard(m, mi) {
   const id = nid("mn");
   const card = el("article", { class: "card", "aria-label": m.name || "Quick menu" });
@@ -1426,8 +1463,9 @@ function menuCard(m, mi) {
       el("span", { class: "hint" }, "Without one, the menu shows the choice picked last.")));
     card.append(box);
   });
-  card.append(el("div", { class: "subhead" }, "Tile icon (home pages and lists)"), tilePicker(m, "Tile icon"));
   card.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { m.options.push({ label: "Choice " + (m.options.length + 1), steps: [newStep("cmd")], conds: [] }); extrasChanged(true); } } }, "Add choice")));
+  card.append(el("div", { class: "subhead" }, "Step through the choices with a button"), stepThrough(m, id));
+  card.append(el("div", { class: "subhead" }, "Tile icon (home pages and lists)"), tilePicker(m, "Tile icon"));
   if (XSTATUS[m.id]?.error) card.append(el("p", { class: "status err" }, "Last run: " + XSTATUS[m.id].error));
   return card;
 }

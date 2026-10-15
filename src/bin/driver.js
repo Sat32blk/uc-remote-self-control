@@ -696,6 +696,46 @@ async function applyTileIcons() {
   }
 }
 
+// Quick menus can step through their choices on a physical button: the button is mapped to the
+// menu's "select next" command (PATCH /activities/{id}/buttons/{BUTTON}). The menu entity must be
+// added to the integration first; it's added to the activity's devices here.
+const appliedButtons = new Map(); // menu id -> "activity|button|press" mapped by us
+async function applyMenuButtons() {
+  if (!core || !extras) return;
+  const wanted = new Map(extras.menus.filter((m) => m.button?.activity && m.button?.button).map((m) => [m.id, m.button]));
+  // unmap buttons we set earlier that are no longer wanted (only if they still point at the menu)
+  for (const [id, key] of appliedButtons) {
+    const w = wanted.get(id);
+    if (w && `${w.activity}|${w.button}|${w.press}` === key) continue;
+    const [act, btn, press] = key.split("|");
+    try {
+      const list = await core.get(`/activities/${encodeURI(act)}/buttons`);
+      const cur = (Array.isArray(list) ? list : []).find((b) => b.button === btn)?.[press];
+      if (cur?.entity_id === "self_control.main." + id) await core.request("DELETE", `/activities/${encodeURI(act)}/buttons/${encodeURIComponent(btn)}/${press}`);
+    } catch (e) {
+      warn(`menu button: unmapping ${btn} failed:`, e.message);
+    }
+    appliedButtons.delete(id);
+  }
+  for (const [id, b] of wanted) {
+    const key = `${b.activity}|${b.button}|${b.press}`;
+    if (appliedButtons.get(id) === key) continue;
+    const entity = "self_control.main." + id;
+    try {
+      const act = await core.get(`/activities/${encodeURI(b.activity)}`);
+      const included = (act?.options?.included_entities || []).map((x) => x.entity_id).filter(Boolean);
+      if (!included.includes(entity)) await core.patch(`/activities/${encodeURI(b.activity)}`, { options: { entity_ids: [...included, entity] } });
+      await core.patch(`/activities/${encodeURI(b.activity)}/buttons/${encodeURIComponent(b.button)}`, { [b.press]: { entity_id: entity, cmd_id: "select.select_next" } });
+      appliedButtons.set(id, key);
+      extras.errors[id] = null;
+      log(`menu ${id}: ${b.button} (${b.press === "long_press" ? "long" : "short"} press) steps through its choices`);
+    } catch (e) {
+      extras.errors[id] = /does not exist|not found|404/i.test(e.message) ? "add the menu to the integration first, then save it again" : `button: ${e.message}`;
+      warn(`menu ${id}: mapping ${b.button} failed:`, e.message);
+    }
+  }
+}
+
 const reservedIds = () => [...LAYOUT.map(([, id]) => id), "previous_activity", "debug", "smart_last_result", ...(smart?.buttons || []).map((b) => b.id)];
 
 function loadRulesText() {
@@ -1172,6 +1212,7 @@ api.on(uc.Events.SubscribeEntities, async (ids) => {
   // refresh once more so the remote gets fresh values right away.
   if (core) scheduleRefresh();
   applyTileIcons();
+  applyMenuButtons();
 });
 
 createEntities();
@@ -1210,11 +1251,12 @@ startWebServer({
   stateIcons: () => stateIcons,
   extras: () => extras,
   validateExtras: (body) => validateExtras(body, selfApi.keys, reservedIds()),
-  onExtrasChanged: () => {
+  onExtrasChanged: async () => {
     buildExtraEntities();
     registerEntities();
     extras.publishAll();
     applyTileIcons();
+    await applyMenuButtons();
     log(`sliders saved: ${extras.sliders.map((s) => s.name).join(", ") || "none"}; quick menus: ${extras.menus.map((m) => m.name).join(", ") || "none"}`);
     startPolling();
   },

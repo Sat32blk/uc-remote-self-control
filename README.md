@@ -206,6 +206,8 @@ A quick menu is a list entity whose choices each run steps, the same steps as a 
 3. **Save**, then press **Run** on a choice to try it.
 4. Add the menu to the integration, and put it on a home page or an activity page: it opens the remote's list pop-up; picking a choice runs it.
 
+**Step through on a button:** in the menu's **Step through the choices with a button** section, pick an activity, a physical button and short or long press. Each press then runs the next choice (choice 1, then 2, then 3 …) and, with *start over at the first* ticked, goes back to choice 1 after the last. Add the menu to the integration before saving this; the integration maps the button and adds the menu to the activity's devices. Removing the button from the menu unmaps it again.
+
 Choices without a *current when* condition show as current after you pick them. **+ Create quick menu** starts an empty menu for anything else, for example scenes that set lights, inputs and volume together.
 
 ![A slider and a quick menu in the builder](docs/images/builder-sliders-menus.png)

@@ -124,7 +124,13 @@ export function validateExtras(input, selfKeys = [], taken = []) {
       if (o.when !== undefined && o.when !== null) out.when = o.when;
       return out;
     });
-    const out = { id: m.id, name: name.slice(0, 40), options };
+    const out = { id: m.id, name: name.slice(0, 40), options, cycle: m.cycle !== false };
+    if (m.button && typeof m.button === "object" && (m.button.activity || m.button.button)) {
+      const b = m.button;
+      if (typeof b.activity !== "string" || !b.activity) errors.push(`${label}: pick the activity for the physical button`);
+      if (!/^[A-Z0-9_]{1,24}$/.test(String(b.button || ""))) errors.push(`${label}: pick the physical button`);
+      out.button = { activity: String(b.activity || ""), button: String(b.button || ""), press: b.press === "long_press" ? "long_press" : "short_press" };
+    }
     if (m.icon) {
       if (!ICON_RE.test(String(m.icon))) errors.push(`${label}: icon must be custom:<file> or uc:<name>`);
       else out.icon = String(m.icon);
@@ -313,7 +319,8 @@ export class Extras {
     const labels = m.options.map((o) => o.label);
     const curLabel = this.current?.[id] ?? this.picked[id];
     let i = labels.indexOf(curLabel);
-    const cycle = params.cycle === true || params.cycle === "true";
+    // "Select next/previous" from a button: wraps around unless the menu says otherwise (or the command does)
+    const cycle = params.cycle === undefined ? m.cycle !== false : params.cycle === true || params.cycle === "true";
     switch (cmd) {
       case "select_option":
         i = labels.findIndex((l) => l.toLowerCase() === String(params.option ?? "").toLowerCase());

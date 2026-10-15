@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
-import { start, devices, commands, selfEntities, entityIcons, TV, MARANTZ } from "./mock-core.js";
+import { start, devices, commands, selfEntities, entityIcons, activities, TV, MARANTZ } from "./mock-core.js";
 import { snap, toBrightness, fromBrightness, validateExtras, Extras } from "../src/bin/extras.js";
 
 const CORE_PORT = 18084;
@@ -185,6 +185,39 @@ await cmd("menu_receiver_input", "select", "select_last");
 await sleep(300);
 ok((await states()).menu_receiver_input.current_option === "Backlight next", "select_last runs the last choice (a remote control step)");
 ok((await cmd("menu_receiver_input", "select", "select_option", { option: "Nope" })) !== 200, "unknown choice refused");
+
+// ---- step through the choices (select next) -------------------------------------------------------
+devices[MARANTZ].source = "HDMI2"; // no choice matches
+await sleep(1500);
+await cmd("menu_receiver_input", "select", "select_next");
+await sleep(300);
+ok((await states()).menu_receiver_input.current_option === "TV" && devices[MARANTZ].source === "HDMI1", "select next with nothing current: runs choice 1 (TV)");
+await sleep(1500);
+await cmd("menu_receiver_input", "select", "select_next");
+await sleep(300);
+ok(devices[MARANTZ].source === "SHIELD", "next press: choice 2 (Shield)");
+await sleep(1500);
+await cmd("menu_receiver_input", "select", "select_next");
+await sleep(300);
+ok((await states()).menu_receiver_input.current_option === "Backlight next", "next press: choice 3");
+await cmd("menu_receiver_input", "select", "select_next");
+await sleep(300);
+ok(devices[MARANTZ].source === "HDMI1", "after the last choice it starts over at choice 1 (cycle is on by default)");
+
+// ---- physical button for the menu ----------------------------------------------------------------
+const menuWithButton = { ...config.menus[0], button: { activity: "uc.main.act1", button: "RECORD", press: "long_press" } };
+h = await http("POST", "/api/extras", { ...config, menus: [menuWithButton] });
+ok(h.status === 200 && h.data.status.menu_receiver_input.error && /add the menu to the integration first/.test(h.data.status.menu_receiver_input.error), "button needs the menu added to the integration first: " + h.data.status.menu_receiver_input.error);
+selfEntities.menu_receiver_input = "Receiver Input";
+h = await http("POST", "/api/extras", { ...config, menus: [{ ...menuWithButton, name: "Receiver Input " }] });
+ok(activities["uc.main.act1"].buttons.RECORD.long_press?.entity_id === "self_control.main.menu_receiver_input" && activities["uc.main.act1"].buttons.RECORD.long_press.cmd_id === "select.select_next", "saving maps RECORD (long press) in Watch TV to the menu's select next");
+ok(activities["uc.main.act1"].entity_ids.includes("self_control.main.menu_receiver_input"), "the menu was added to the activity's devices");
+h = await http("GET", "/api/buttons?activity=uc.main.act1");
+ok(h.status === 200 && h.data.buttons.some((b) => b.button === "RECORD" && b.long === "self_control.main.menu_receiver_input"), "builder can list the activity's buttons and what they do");
+h = await http("POST", "/api/extras", config);
+ok(!activities["uc.main.act1"].buttons.RECORD.long_press, "removing the button from the menu unmaps it again");
+h = await http("POST", "/api/extras", { ...config, menus: [{ ...config.menus[0], button: { activity: "uc.main.act1", button: "bad button" } }] });
+ok(h.status === 422, "invalid button refused");
 
 // ---- builder test endpoint ---------------------------------------------------------------------
 h = await http("POST", "/api/extras/test", { id: "slider_receiver_volume", value: 33 });
