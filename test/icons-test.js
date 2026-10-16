@@ -38,7 +38,7 @@ ok(levelIndex(lv, 0) === 0 && levelIndex(lv, 40) === 5 && levelIndex(lv, 80) ===
 ok(lookFor(lv, 24).icon === FR[3] && lookFor(lv, 24).state === "30 %" && lookFor(lv, "n/a").type === "text", "level look: frame for numbers, default look otherwise");
 ok(validateIcons({ icons: [{ id: "l1", activity: "a", location: { x: 0, y: 0 }, entity: "e.x", attr: "volume", kind: "level", min: 0, max: 80, frames: FR.slice(0, 5) }] }).errors.some((e) => /level design/.test(e)), "level without its 11 images refused");
 ok(validateIcons({ icons: [{ id: "l1", activity: "a", location: { x: 0, y: 0 }, entity: "e.x", attr: "volume", kind: "level", min: 0, max: 80, frames: FR }] }).errors.length === 0, "level binding with 11 frames and no states is valid");
-ok(validateIcons({ icons: [{ id: "l1", activity: "a", location: { x: 0, y: 0 }, entity: "e.x", attr: "volume", kind: "level", min: 0, max: 80, frames: FR, slider: "slider_rv" }] }).icons[0].slider === "slider_rv", "a level graphic keeps the slider it belongs to");
+ok(validateIcons({ icons: [{ id: "l1", activity: "a", location: { x: 0, y: 0 }, entity: "e.x", attr: "volume", kind: "level", min: 0, max: 80, frames: FR, slider: "slider_rv", bg: "custom:tile.png", scale: 0.6 }] }).icons[0].bg === "custom:tile.png", "a level graphic keeps its slider, background picture and size");
 
 // ---- driver -----------------------------------------------------------------------
 activities["uc.main.act3"] = { name: { en: "Movie Night" }, state: "OFF", entity_ids: [], buttons: {}, pages: [

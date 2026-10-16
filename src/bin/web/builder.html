@@ -1092,7 +1092,32 @@ function gfxCanvas(draw) {
   g.fillStyle = "rgba(0,0,0,0.004)"; g.fillRect(0, 0, 1, 1); g.fillRect(89, 89, 1, 1); // keep margins (the remote crops transparent edges)
   return c;
 }
-const levelFrame = (design, color, f) => gfxCanvas((g) => LEVEL_DESIGNS[design].draw(g, f, { on: LEVEL_COLORS[color] || color, off: LEVEL_OFF }));
+const levelFrame = (design, color, f, bg = null, scale = 1) => gfxCanvas((g) => {
+  // bg: the button's own picture, drawn underneath (the remote shows one picture per button, so layering is baked in)
+  if (bg) g.drawImage(bg, 0, 0, 90, 90);
+  if (scale !== 1) { g.translate(45 * (1 - scale), 45 * (1 - scale)); g.scale(scale, scale); }
+  LEVEL_DESIGNS[design].draw(g, f, { on: LEVEL_COLORS[color] || color, off: LEVEL_OFF });
+});
+// Pictures of custom icons on the remote, loaded once (same origin, so canvases stay exportable).
+const BG_CACHE = {};
+function bgImage(icon, onLoad) {
+  if (!icon || !icon.startsWith("custom:")) return null;
+  const c = BG_CACHE[icon];
+  if (c instanceof Image) return c.complete && c.naturalWidth ? c : null;
+  const img = new Image();
+  BG_CACHE[icon] = img;
+  img.onload = () => onLoad && onLoad();
+  img.onerror = () => { BG_CACHE[icon] = "failed"; };
+  img.src = iconUrl(icon);
+  return null;
+}
+const loadBg = (icon) => new Promise((ok) => {
+  if (!icon) return ok(null);
+  const have = bgImage(icon, () => ok(BG_CACHE[icon]));
+  if (have) ok(have);
+  else if (BG_CACHE[icon] === "failed") ok(null);
+  else setTimeout(() => ok(bgImage(icon) || null), 4000);
+});
 const tileCanvas = (key) => gfxCanvas((g) => TILE_ICONS[key].draw(g));
 
 const canvasData = (c) => { const u = c.toDataURL("image/png"); return { dataUrl: u, base64: u.split(",")[1] }; };
@@ -1102,10 +1127,14 @@ async function uploadCanvas(name, c) {
   return r.data.icon;
 }
 /** Renders and uploads the 11 frames of a level design (reuses frames already on the remote). */
-async function uploadLevelFrames(design, color, onProgress) {
+async function uploadLevelFrames(design, color, onProgress, { bg = null, scale = 1 } = {}) {
   const out = [];
+  const img = bg ? await loadBg(bg) : null;
+  if (bg && !img) throw new Error("couldn't load the button's picture to draw over");
+  // pictures drawn over a background are unique to that background; plain ones are shared
+  const tag = img ? `_${slugPart(bg.replace(/^custom:/, "").replace(/\.png$/, "")).slice(0, 16)}_${Math.round(scale * 100)}` : scale !== 1 ? `_${Math.round(scale * 100)}` : "";
   for (let i = 0; i <= 10; i++) {
-    out.push(await uploadCanvas(`lv_${design}_${color}_${String(i * 10).padStart(3, "0")}.png`, levelFrame(design, color, i / 10)));
+    out.push(await uploadCanvas(`lv_${design}_${color}${tag}_${String(i * 10).padStart(3, "0")}.png`, levelFrame(design, color, i / 10, img, scale)));
     onProgress && onProgress(i + 1);
   }
   return out;
@@ -1122,7 +1151,7 @@ let iconsLoaded = false;
 const iconsOut = () => ICONS.map((b) => {
   const o = { id: b.id, name: b.name, activity: b.activity, location: b.location, entity: b.entity, attr: b.attr || "state",
     states: b.kind === "level" ? [] : b.states.map((s) => ({ value: s.value, icon: s.icon || null, text: s.text || null })) };
-  if (b.kind === "level") Object.assign(o, { kind: "level", min: Number(b.min), max: Number(b.max), design: b.design, color: b.color, frames: b.frames || [], ...(b.slider ? { slider: b.slider } : {}) });
+  if (b.kind === "level") Object.assign(o, { kind: "level", min: Number(b.min), max: Number(b.max), design: b.design, color: b.color, frames: b.frames || [], ...(b.slider ? { slider: b.slider } : {}), ...(b.bg ? { bg: b.bg } : {}), ...(b.scale && b.scale !== 1 ? { scale: b.scale } : {}) });
   return o;
 });
 const iconImg = (icon, alt) => el("img", { src: iconUrl(icon), alt: alt || "", on: { error: (e) => e.target.replaceWith(document.createTextNode(String(icon || "").replace(/^custom:/, "").replace(/\.png$/, "").slice(0, 14))) } });
@@ -1370,7 +1399,7 @@ $("#icon-add").addEventListener("click", () => {
 });
 async function postIcons(onProgress) {
   for (const b of ICONS) if (b.kind === "level" && (!b.frames || b.frames.length !== 11)) {
-    b.frames = await uploadLevelFrames(b.design, b.color, (n) => onProgress && onProgress(b, n));
+    b.frames = await uploadLevelFrames(b.design, b.color, (n) => onProgress && onProgress(b, n), { bg: b.bg || null, scale: b.scale || 1 });
   }
   return api("POST", "/api/icons", { icons: iconsOut() });
 }
@@ -1500,7 +1529,7 @@ function tilePicker(x, label) {
 const levelOf = (sid) => ICONS.find((b) => b.kind === "level" && b.slider === sid);
 /** Each slider gets its level settings (s.level) from its linked state icon, for editing. */
 function attachLevels() {
-  for (const s of SLIDERS) { const b = levelOf(s.id); s.level = b ? { activity: b.activity, location: b.location ? { ...b.location } : null, design: b.design, color: b.color } : s.level || null; }
+  for (const s of SLIDERS) { const b = levelOf(s.id); s.level = b ? { activity: b.activity, location: b.location ? { ...b.location } : null, design: b.design, color: b.color, over: !!b.bg, scale: b.scale || 1 } : s.level || null; }
 }
 function sliderLevel(s, id) {
   const box = el("div", { class: "lines" });
@@ -1526,9 +1555,32 @@ function sliderLevel(s, id) {
   const sw = el("div", { class: "row", role: "radiogroup", "aria-label": "Color" });
   for (const [k, c] of Object.entries(LEVEL_COLORS)) sw.append(el("button", { type: "button", class: "swatch" + (lv.color === k ? " sel" : ""), role: "radio", "aria-checked": String(lv.color === k), "aria-label": k, title: k, style: "background:" + c,
     on: { click: () => { lv.color = k; extrasChanged(true); } } }));
-  box.append(el("div", { class: "subhead" }, "Design"), gal, el("div", { class: "subhead" }, "Color"), sw,
+  // layering: the button's own picture under the gauge
+  const btnIcon = act?.page && lv.location ? itemAt(act, lv.location)?.icon : null;
+  const ownBg = levelBgOf(lv, levelOf(s.id));
+  const canLayer = !!(ownBg || (btnIcon && btnIcon.startsWith("custom:")));
+  const layer = el("div", { class: "fields" });
+  if (canLayer) {
+    if (lv.over === undefined) lv.over = true;
+    layer.append(el("label", { class: "check", for: id + "-ov" }, el("input", { type: "checkbox", id: id + "-ov", checked: !!lv.over, on: { change: (e) => { lv.over = e.target.checked; extrasChanged(true); } } }), " Draw over the button's own picture"));
+  } else if (lv.location) layer.append(el("span", { class: "hint" }, "This button has no custom picture, so the gauge is drawn on a transparent background."));
+  layer.append(field(id + "-sz", "Gauge size", select(id + "-sz", [["1", "Full"], ["0.8", "Large"], ["0.6", "Medium"]], String(lv.scale || 1), (v) => { lv.scale = Number(v); extrasChanged(true); }, "Gauge size")));
+  const bgImg = lv.over && canLayer ? bgImage(ownBg || btnIcon, () => extrasChanged(true)) : null;
+  const strip = el("div", { class: "strip" });
+  for (const f of [0, 0.3, 0.6, 1]) strip.append(el("figure", {}, asImg(levelFrame(lv.design, lv.color, f, bgImg, lv.scale || 1), 54), el("figcaption", {}, Math.round(f * 100) + " %")));
+  box.append(el("div", { class: "subhead" }, "Design"), gal, el("div", { class: "subhead" }, "Color"), sw, el("div", { class: "subhead" }, "Layering and size"), layer,
+    el("div", { class: "subhead" }, "Preview"), strip,
     el("p", { class: "hint" }, `The picture follows the slider's range (${s.min}–${s.max}) in 11 steps and updates within about 2 seconds. Single-page activities only: changing a page of a multi-page activity sends the remote back to its first page.`));
   return box;
+}
+/** The picture to draw under a slider's gauge: the one stored before, or the clicked button's custom icon. */
+function levelBgOf(lv, cur) {
+  if (cur?.bg && cur.activity === lv.activity && JSON.stringify(cur.location) === JSON.stringify(lv.location)) return cur.bg;
+  const act = ICON_ACTS.find((a) => a.id === lv.activity);
+  const ic = act?.page && lv.location ? itemAt(act, lv.location)?.icon : null;
+  // once the level graphic is live the page shows our frames; the original picture is the binding's default look
+  if (cur?.default?.icon && cur.activity === lv.activity && JSON.stringify(cur.location) === JSON.stringify(lv.location)) return cur.default.icon.startsWith("custom:") ? cur.default.icon : null;
+  return ic && ic.startsWith("custom:") && !/^custom:lv_/.test(ic) ? ic : null;
 }
 /** After a slider is saved or deleted: create, update or remove its level graphic. Returns an error text or null. */
 async function syncSliderLevels() {
@@ -1540,11 +1592,13 @@ async function syncSliderLevels() {
     if (!lv || !lv.activity || !lv.location) { if (cur && !lv) { ICONS.splice(ICONS.indexOf(cur), 1); changed = true; } continue; }
     const want = { id: cur?.id || ("lvl_" + s.id.replace(/^slider_/, "")).slice(0, 40), name: s.name + " level", activity: lv.activity, location: lv.location, entity: s.entity, attr: s.attr,
       kind: "level", min: Number(s.min), max: Number(s.max), design: lv.design, color: lv.color, slider: s.id, states: [],
-      frames: cur && cur.design === lv.design && cur.color === lv.color ? cur.frames : [] };
+      bg: lv.over ? levelBgOf(lv, cur) : null, scale: Number(lv.scale) || 1 };
+    if (!want.bg) delete want.bg;
+    want.frames = cur && cur.design === want.design && cur.color === want.color && (cur.bg || null) === (want.bg || null) && (cur.scale || 1) === want.scale ? cur.frames : [];
     if (!cur) { ICONS.push(want); changed = true; }
     else {
-      const keys = ["name", "activity", "location", "entity", "attr", "min", "max", "design", "color", "frames"];
-      if (keys.some((k) => JSON.stringify(cur[k]) !== JSON.stringify(want[k]))) { Object.assign(cur, want); changed = true; }
+      const keys = ["name", "activity", "location", "entity", "attr", "min", "max", "design", "color", "frames", "bg", "scale"];
+      if (keys.some((k) => JSON.stringify(cur[k] ?? null) !== JSON.stringify(want[k] ?? null))) { if (!want.bg) delete cur.bg; Object.assign(cur, want); changed = true; }
     }
   }
   for (const b of [...ICONS]) if (b.slider && !SLIDERS.some((s) => s.id === b.slider)) { ICONS.splice(ICONS.indexOf(b), 1); changed = true; }
