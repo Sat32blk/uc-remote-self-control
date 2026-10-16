@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
-import { start, activities } from "./mock-core.js";
+import { start, activities, groups } from "./mock-core.js";
 import { freeSpot, isReturnItem } from "../src/bin/returnbtn.js";
 
 const CORE_PORT = 18082;
@@ -179,6 +179,30 @@ ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.command?.entity_id === 
   ok(h.status === 200 && h.data.cfg.hosts.join() === `${TV_ACT},${MUSIC}` && h.data.cfg.press === "long_press" && h.data.cfg.buttonScope === "nofit", "builder: saving ticks activities (unknown ones dropped) and applies the settings");
   await sleep(400);
   ok(activities[MUSIC].buttons.RECORD?.long_press?.cmd_id === "activity.start", "builder: Play Music (no room on screen) got RECORD long press");
+
+  // ---- per-activity settings: custom picture, own button, turn off when leaving ------------------
+  h = await http("GET", "/api/return");
+  ok(h.data.groups.length === 2 && h.data.groups[0].name === "Living room AV" && TV_ACT in h.data.targets, "builder: lists the remote's activity groups and each ↩'s target");
+  h = await http("POST", "/api/return", { hosts: [TV_ACT, MUSIC], group: "g_av", hostCfg: {
+    [TV_ACT]: { screen: "custom", button: "NONE" } } });
+  ok(h.status === 422 && /drop a picture/.test(h.data.errors[0]), "builder: custom look without a picture is refused");
+  h = await http("POST", "/api/return", { hosts: [TV_ACT, MUSIC], group: "g_av", hostCfg: {
+    [TV_ACT]: { screen: "custom", icon: "custom:ret_back.png", button: "BACK", press: "long_press", close: true },
+    [MUSIC]: { screen: "none", button: "STOP", press: "short_press", close: true } } });
+  await sleep(500);
+  const tvRet = activities[TV_ACT].pages[0].items.find((it) => isReturnItem(it, ["custom:ret_back.png"]));
+  ok(h.status === 200 && tvRet?.type === "icon" && tvRet.icon === "custom:ret_back.png", "Watch TV: the ↩ button now shows the custom picture (same spot): " + JSON.stringify(tvRet?.location));
+  ok(activities[TV_ACT].buttons.BACK?.long_press?.cmd_id === "activity.start" && activities[TV_ACT].buttons.BACK.short_press?.cmd_id === "media_player.back", "Watch TV: its own button (BACK long press); BACK short press untouched");
+  ok(activities[MUSIC].buttons.STOP?.short_press?.cmd_id === "activity.start", "Play Music: its own button (STOP short press)");
+  const av = groups.find((g) => g.group_id === "g_av");
+  ok(av.activity_ids.includes(TV_ACT) && av.activity_ids.includes(MUSIC), "turn off when leaving: both activities put in the chosen activity group");
+  ok(groups.find((g) => g.group_id === "g_other").activity_ids.join() === "uc.main.someother", "other groups left alone");
+  h = await http("POST", "/api/return", { hosts: [TV_ACT, MUSIC], group: "g_av", hostCfg: {
+    [TV_ACT]: { screen: "text", button: "NONE", close: false },
+    [MUSIC]: { screen: "none", button: "STOP", close: true } } });
+  await sleep(500);
+  ok(!av.activity_ids.includes(TV_ACT) && av.activity_ids.includes(MUSIC), "unticking 'turn off' takes Watch TV out of the group again");
+  ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.type === "text", "Watch TV: back to a text ↩ button");
 }
 
 // ---- turn off ---------------------------------------------------------------------------

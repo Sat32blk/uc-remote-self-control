@@ -39,12 +39,15 @@ async function pagedGet(core, base) {
   return out;
 }
 
-export function isReturnItem(it) {
+/** A ↩ item: text starting with ↩, the back-arrow icon, or (with `icons`) one of the custom ↩ pictures. */
+export function isReturnItem(it, icons = []) {
   if (!it) return false;
   if (it.type === "text" && String(it.text || "").startsWith(RETURN_MARK)) return true;
-  if (it.type === "icon" && it.icon === RETURN_ICON && (!it.command || it.command.cmd_id === CMD)) return true;
+  const ours = it.icon === RETURN_ICON || (it.icon && Array.isArray(icons) && icons.includes(it.icon));
+  if (it.type === "icon" && ours && (!it.command || it.command.cmd_id === CMD)) return true;
   return false;
 }
+const SCREENS = ["text", "icon", "custom", "none"];
 
 /** First free spot of w×h on a grid, scanning from the bottom row up (left to right). */
 export function freeSpot(grid, items, w, h) {
@@ -64,6 +67,17 @@ export function freeSpot(grid, items, w, h) {
   return null;
 }
 
+/** The remote's activity groups: [{ id, name, members, offMode }]. */
+export async function activityGroups(core) {
+  const list = await pagedGet(core, "/activity_groups");
+  return list.map((g) => ({
+    id: g.group_id ?? g.id,
+    name: nameOf(g.name) || g.group_id || g.id,
+    members: (g.activity_ids || g.activities || []).map((a) => (typeof a === "string" ? a : a?.entity_id)).filter(Boolean),
+    offMode: g.options?.turn_off_unused_entities ?? g.turn_off_unused_entities ?? null
+  })).filter((g) => g.id);
+}
+
 export class ReturnTracker {
   constructor({ getCore, file, log, warn, onChange }) {
     this.getCore = getCore;
@@ -76,7 +90,9 @@ export class ReturnTracker {
     this.busy = Promise.resolve();
     const saved = this.read();
     this.history = saved.history || [];
-    this.cfg = { hosts: [], screen: "text", button: "NONE", press: "short_press", buttonScope: "all", ...(saved.cfg || {}) };
+    // cfg: hosts (ids) + defaults; hostCfg: per-activity overrides { screen, icon, button, press, buttonScope, close };
+    // group: activity group used to turn off the activity you leave; groupManaged: ids we put in it.
+    this.cfg = { hosts: [], screen: "text", button: "NONE", press: "short_press", buttonScope: "all", hostCfg: {}, group: null, groupManaged: [], ...(saved.cfg || {}) };
     this.hostState = saved.hostState || {}; // host -> { target, placed }
   }
 
@@ -95,6 +111,19 @@ export class ReturnTracker {
     }
   }
 
+  /** Settings for one host: its own over the defaults. */
+  optsFor(host) {
+    const o = { screen: this.cfg.screen, icon: null, button: this.cfg.button, press: this.cfg.press, buttonScope: this.cfg.buttonScope, close: false, ...(this.cfg.hostCfg?.[host] || {}) };
+    if (!SCREENS.includes(o.screen) || (o.screen === "custom" && !o.icon)) o.screen = o.screen === "custom" ? "icon" : "text";
+    return o;
+  }
+  /** Every custom ↩ picture in use (so moved/old ones are still recognised). */
+  customIcons() {
+    const out = new Set();
+    for (const h of Object.values(this.cfg.hostCfg || {})) if (h?.icon) out.add(h.icon);
+    for (const hs of Object.values(this.hostState || {})) if (hs?.icon) out.add(hs.icon);
+    return [...out];
+  }
   get enabled() {
     return this.cfg.hosts.length > 0;
   }
@@ -172,21 +201,29 @@ export class ReturnTracker {
     }
     const command = target ? { entity_id: target, cmd_id: CMD } : undefined;
     const label = `${RETURN_MARK} ${target ? this.nameOf(target) : "Previous"}`.slice(0, 50);
+    const o = this.optsFor(host);
+    const style = o.screen === "custom" ? "custom:" + o.icon : o.screen;
+    const restyle = hs.style !== undefined && hs.style !== style; // the look was changed in the settings
+    const known = this.customIcons();
 
     hs.onScreen = false;
-    if (this.cfg.screen !== "none") {
+    if (o.screen !== "none") {
       const pages = (await core.get(`/activities/${enc}/ui/pages`)) || [];
       let found = 0;
       for (const p of pages) {
         let changed = false;
         const items = (p.items || []).map((it) => {
-          if (!isReturnItem(it)) return it;
+          if (!isReturnItem(it, known)) return it;
           found++;
           changed = true;
           const out = { ...it };
           if (command) out.command = command;
           else delete out.command;
-          if (it.type === "text") out.text = label;
+          if (restyle && (out.size?.width ?? 1) <= 2) {
+            // switch the existing button to the new look, keeping its place
+            if (o.screen === "text") { out.type = "text"; out.text = label; delete out.icon; }
+            else { out.type = "icon"; out.icon = o.screen === "custom" ? o.icon : RETURN_ICON; delete out.text; }
+          } else if (out.type === "text") out.text = label;
           return out;
         });
         if (changed) await core.patch(`/activities/${enc}/ui/pages/${encodeURIComponent(p.page_id)}`, { items });
@@ -194,7 +231,8 @@ export class ReturnTracker {
       if (found) hs.onScreen = true;
       if (!found && !hs.placed && pages.length) {
         const p = pages[0];
-        const isIcon = this.cfg.screen === "icon";
+        const isIcon = o.screen !== "text";
+        const iconId = o.screen === "custom" ? o.icon : RETURN_ICON;
         const grid = { width: p.grid?.width || 4, height: p.grid?.height || 6 };
         // a text button needs 2 cells; fall back to the 1-cell icon when only one is free
         let spot = isIcon ? freeSpot(grid, p.items, 1, 1) : freeSpot(grid, p.items, 2, 1);
@@ -205,7 +243,7 @@ export class ReturnTracker {
         }
         if (spot) {
           const item = useIcon
-            ? { type: "icon", icon: RETURN_ICON, location: spot, size: { width: 1, height: 1 } }
+            ? { type: "icon", icon: isIcon ? iconId : RETURN_ICON, location: spot, size: { width: 1, height: 1 } }
             : { type: "text", text: label, location: spot, size: { width: 2, height: 1 } };
           if (command) item.command = command;
           await core.patch(`/activities/${enc}/ui/pages/${encodeURIComponent(p.page_id)}`, { items: [...(p.items || []), item] });
@@ -217,19 +255,63 @@ export class ReturnTracker {
       }
       hs.placed = true;
     }
-    const physical = this.cfg.button && this.cfg.button !== "NONE" && (this.cfg.buttonScope !== "nofit" || !hs.onScreen);
+    hs.style = style;
+    if (o.screen === "custom") hs.icon = o.icon;
+    const physical = o.button && o.button !== "NONE" && (o.buttonScope !== "nofit" || !hs.onScreen);
     if (physical && command) {
-      await core.patch(`/activities/${enc}/buttons/${encodeURIComponent(this.cfg.button)}`, { [this.cfg.press === "long_press" ? "long_press" : "short_press"]: command });
+      await core.patch(`/activities/${enc}/buttons/${encodeURIComponent(o.button)}`, { [o.press === "long_press" ? "long_press" : "short_press"]: command });
     }
   }
 
   /** New settings from the setup screen; places buttons and points them right away. */
-  async configure({ hosts, screen, button, press, buttonScope }) {
-    this.cfg = { hosts, screen, button, press, buttonScope: buttonScope === "nofit" ? "nofit" : "all" };
-    for (const h of hosts) this.hostState[h] = { placed: false };
+  /**
+   * New settings (setup screen or builder); places buttons and points them right away.
+   * hostCfg (builder) replaces the per-activity settings; without it they're kept.
+   */
+  async configure({ hosts, screen, button, press, buttonScope, hostCfg, group }) {
+    const keepHost = this.cfg.hostCfg || {};
+    this.cfg = {
+      ...this.cfg,
+      hosts,
+      screen: SCREENS.includes(screen) && screen !== "custom" ? screen : this.cfg.screen || "text",
+      button: button || "NONE",
+      press: press === "long_press" ? "long_press" : "short_press",
+      buttonScope: buttonScope === "nofit" ? "nofit" : "all",
+      hostCfg: hostCfg ? Object.fromEntries(hosts.filter((h) => hostCfg[h]).map((h) => [h, hostCfg[h]])) : Object.fromEntries(hosts.filter((h) => keepHost[h]).map((h) => [h, keepHost[h]])),
+      group: group === undefined ? this.cfg.group : group || null
+    };
+    for (const h of hosts) this.hostState[h] = { ...(this.hostState[h] || {}), placed: false, target: undefined };
     this.save();
     if (!this.states) await this.poll().catch(() => {});
+    const groupError = await this.syncGroup().catch((e) => e.message);
     await this.refresh(true);
+    return groupError || null;
+  }
+
+  /**
+   * "Turn off the activity I leave": the hosts marked `close` go into the chosen activity group, where the
+   * remote turns off the activity you switch away from (keeping devices the new one uses). Members that we
+   * didn't add are left alone; members we added earlier and that are no longer marked are taken out.
+   */
+  async syncGroup() {
+    const core = this.getCore();
+    if (!core) return null;
+    const want = this.cfg.hosts.filter((h) => this.cfg.hostCfg?.[h]?.close);
+    const managed = this.cfg.groupManaged || [];
+    const groups = await activityGroups(core);
+    const out = [];
+    for (const g of groups) {
+      const isTarget = g.id === this.cfg.group;
+      let members = g.members.filter((m) => !managed.includes(m) || (isTarget && want.includes(m)));
+      if (isTarget) for (const h of want) if (!members.includes(h)) members.push(h);
+      if (members.join() !== g.members.join()) out.push([g, members]);
+    }
+    if (want.length && !groups.some((g) => g.id === this.cfg.group)) throw new Error("pick the activity group to use for turning activities off");
+    for (const [g, members] of out) await core.patch(`/activity_groups/${encodeURIComponent(g.id)}`, { activity_ids: members });
+    this.cfg.groupManaged = this.cfg.group ? want : [];
+    this.save();
+    if (out.length) this.log(`return: activity group ${groups.find((g) => g.id === this.cfg.group)?.name || "-"} now holds ${want.map((h) => this.nameOf(h)).join(", ") || "none of the ↩ activities"}`);
+    return null;
   }
 
   async buttonsOf(activityId) {

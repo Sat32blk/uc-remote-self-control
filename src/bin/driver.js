@@ -12,7 +12,7 @@ import { CoreClient, CoreError } from "./core.js";
 import { SmartEngine, validateRules } from "./smart.js";
 import { startWebServer, builderUrls } from "./web.js";
 import { listActivities, addTile, PAGE_NAME } from "./tile.js";
-import { ReturnTracker, RETURN_MARK } from "./returnbtn.js";
+import { ReturnTracker, RETURN_MARK, activityGroups } from "./returnbtn.js";
 import { StateIcons, validateIcons } from "./stateicons.js";
 import { Extras, validateExtras } from "./extras.js";
 
@@ -1253,8 +1253,12 @@ startWebServer({
   returnSettings: async () => ({
     cfg: returnTracker.cfg,
     activities: core ? await listActivities(core).catch(() => []) : [],
+    groups: core ? await activityGroups(core).catch(() => []) : [],
+    targets: Object.fromEntries(returnTracker.cfg.hosts.map((h) => [h, returnTracker.nameOf(returnTracker.targetFor(h)) || null])),
+    noRoom: returnTracker.cfg.hosts.filter((h) => { const hs = returnTracker.hostState[h]; return hs?.placed && !hs.onScreen && returnTracker.optsFor(h).screen !== "none"; }),
     current: returnTracker.nameOf(returnTracker.current) || null,
-    previous: returnTracker.nameOf(returnTracker.previous) || null
+    previous: returnTracker.nameOf(returnTracker.previous) || null,
+    groupError: returnTracker.groupError || null
   }),
   saveReturn: async (body) => {
     const acts = await listActivities(core).catch(() => []);
@@ -1264,15 +1268,32 @@ startWebServer({
     const button = /^[A-Z0-9_]{1,20}$/.test(String(body.button || "")) ? String(body.button) : "NONE";
     const press = body.press === "long_press" ? "long_press" : "short_press";
     const buttonScope = body.buttonScope === "nofit" ? "nofit" : "all";
+    // per-activity settings from the builder's Return tab
+    let hostCfg;
+    if (body.hostCfg && typeof body.hostCfg === "object") {
+      hostCfg = {};
+      for (const h of hosts) {
+        const c = body.hostCfg[h] || {};
+        const scr = ["text", "icon", "custom", "none"].includes(c.screen) ? c.screen : "text";
+        const icon = /^custom:[A-Za-z0-9_.\-]{1,120}$/.test(String(c.icon || "")) ? String(c.icon) : null;
+        if (scr === "custom" && !icon) return [`${returnTracker.nameOf(h) || h}: drop a picture for the custom ↩ button`];
+        const btn = /^[A-Z0-9_]{1,20}$/.test(String(c.button || "")) ? String(c.button) : "NONE";
+        if (scr === "none" && btn === "NONE") return [`${returnTracker.nameOf(h) || h}: choose an on-screen button, a physical button, or both`];
+        hostCfg[h] = { screen: scr, icon, button: btn, press: c.press === "long_press" ? "long_press" : "short_press", buttonScope: c.buttonScope === "nofit" ? "nofit" : "all", close: c.close === true };
+      }
+    }
+    const group = body.group === undefined ? undefined : body.group ? String(body.group) : null;
     if (!hosts.length) {
-      returnTracker.cfg = { ...returnTracker.cfg, hosts: [], screen, button, press, buttonScope };
+      returnTracker.cfg = { ...returnTracker.cfg, hosts: [], screen, button, press, buttonScope, hostCfg: {} };
       returnTracker.save();
+      returnTracker.groupError = await returnTracker.syncGroup().catch((e) => e.message);
       log("return: turned off (no activities chosen)");
       return [];
     }
-    if (screen === "none" && button === "NONE") return ["Choose an on-screen button, a physical button, or both."];
-    await returnTracker.configure({ hosts, screen, button, press, buttonScope });
-    log(`return: on for ${hosts.map((h) => returnTracker.nameOf(h)).join(", ")}; screen ${screen}; button ${button} ${press} (${buttonScope}) (from the builder)`);
+    if (!hostCfg && screen === "none" && button === "NONE") return ["Choose an on-screen button, a physical button, or both."];
+    returnTracker.groupError = await returnTracker.configure({ hosts, screen, button, press, buttonScope, hostCfg, group });
+    if (returnTracker.groupError) warn("return: activity group:", returnTracker.groupError);
+    log(`return: on for ${hosts.map((h) => { const o = returnTracker.optsFor(h); return `${returnTracker.nameOf(h)} (${o.screen === "custom" ? "picture" : o.screen}${o.button !== "NONE" ? ", " + o.button + " " + (o.press === "long_press" ? "long" : "short") : ""}${o.close ? ", turns off when left" : ""})`; }).join(", ")} (from the builder)`);
     startPolling();
     return [];
   },

@@ -39,6 +39,10 @@ export const activities = {
 };
 let pageSeq = 100;
 export const icons = {}; // uploaded icon id -> raw body
+export const groups = [
+  { group_id: "g_av", name: { en: "Living room AV" }, activity_ids: [], options: { turn_off_unused_entities: "run_off_sequence" } },
+  { group_id: "g_other", name: { en: "Bedroom" }, activity_ids: ["uc.main.someother"], options: { turn_off_unused_entities: "always" } }
+];
 export const entityIcons = {}; // entity id -> icon set with PATCH /entities/{id}
 
 // Command metadata as GET /cfg/entity/commands returns it (subset).
@@ -154,6 +158,19 @@ export function start(port) {
         res.writeHead(200, { "Content-Type": "image/png" });
         // a real (green 2x2) PNG so builder thumbnails render
         return res.end(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR42mPU2tDwn4GBgYEJxmBkZAQAI48DP5/3hu8AAAAASUVORK5CYII=", "base64"));
+      }
+      const gm = /^\/api\/activity_groups(?:\/([^/?]+))?(?:\?(.*))?$/.exec(url);
+      if (gm && req.method === "GET" && !gm[1]) {
+        const q = new URLSearchParams(gm[2] || "");
+        const limit = Number(q.get("limit") || 10), page = Number(q.get("page") || 1);
+        return send(200, groups.slice((page - 1) * limit, page * limit));
+      }
+      if (gm && req.method === "PATCH" && gm[1]) {
+        const g = groups.find((x) => x.group_id === decodeURIComponent(gm[1]));
+        if (!g) return send(404, { message: "no group" });
+        const b = JSON.parse(body);
+        if (b.activity_ids) g.activity_ids = b.activity_ids;
+        return send(200, g);
       }
       const am = /^\/api\/activities(?:\?(.*))?$/.exec(url);
       if (am && req.method === "GET") {

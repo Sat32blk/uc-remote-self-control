@@ -159,6 +159,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
   <nav class="tabs" id="tabs" role="tablist" hidden>
     <button type="button" role="tab" id="tab-smart" aria-selected="true" aria-controls="app">Smart Controls</button>
     <button type="button" role="tab" id="tab-icons" aria-selected="false" aria-controls="icons-app">Icons &amp; Sliders</button>
+    <button type="button" role="tab" id="tab-ret" aria-selected="false" aria-controls="ret-app">Return ↩</button>
   </nav>
 
   <section class="pane" id="app" hidden aria-label="Smart controls">
@@ -208,6 +209,20 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     </details>
   </section>
 
+  <section class="pane" id="ret-app" hidden aria-label="Return to previous activity">
+    <div class="createbar">
+      <button class="primary" id="ret-add" type="button">+ Add an activity</button>
+    </div>
+    <div id="ret-editor"></div>
+    <h2 class="list-title">Activities with a ↩ button</h2>
+    <div id="ret-list" class="bars"></div>
+    <p class="status" id="ret-status" role="status"></p>
+    <details class="panel">
+      <summary>How the ↩ button works</summary>
+      <p class="note">The integration watches which activity you start (whether or not the old one turns off). In every activity listed here it keeps a ↩ button pointed at the activity you used before; pressing it opens that activity. The ↩ button can be on screen (text, back arrow or your own picture), on a physical button, or both.</p>
+      <p class="note"><b>Turn off when leaving</b> uses one of the remote's <b>activity groups</b>: the activities you mark are put in that group, and when you switch between them the remote turns off the one you leave but keeps devices the new one uses (like a shared receiver). This applies to every switch between them, not only ↩. How the group powers devices off is the group's own setting in the web configurator.</p>
+    </details>
+  </section>
 </div>
 
 <script>
@@ -505,9 +520,9 @@ function stepsBlock(list) {
 // Create / edit pattern: one editor box at the top of a tab, saved items as bars below.
 // ---------------------------------------------------------------------------
 const ED = { smart: null, icons: null, extras: null, ret: null }; // { item, snap, isNew, kind, msg: { cls, text, errors } }
-const RERENDER = { smart: () => render(), icons: () => renderIcons(), extras: () => renderExtras(), ret: () => render() };
+const RERENDER = { smart: () => render(), icons: () => renderIcons(), extras: () => renderExtras(), ret: () => renderRet() };
 // Quick menus are edited in the Smart Controls tab, sliders in the Icons & Sliders tab.
-const paneOf = (tab, kind) => (tab === "smart" || tab === "ret" || (tab === "extras" && kind === "menu") ? "smart" : "icons");
+const paneOf = (tab, kind) => (tab === "ret" ? "ret" : tab === "smart" || (tab === "extras" && kind === "menu") ? "smart" : "icons");
 const slotSel = (tab) => `#${paneOf(tab, ED[tab]?.kind)}-editor`;
 const edDirty = (tab) => { const e = ED[tab]; return !!e && (e.isNew || JSON.stringify(e.item) !== e.snap); };
 
@@ -549,7 +564,7 @@ function openEdit(tab, item, { isNew = false, kind } = {}) {
   // one editor per tab: close the other kind's editor in the same tab
   for (const t of Object.keys(ED)) if (t !== tab && ED[t] && paneOf(t, ED[t].kind) === paneOf(tab, kind)) cancelEdit(t, false);
   ED[tab] = { item, snap: JSON.stringify(item), isNew, kind, msg: null };
-  render(); if (iconsLoaded) renderIcons();
+  render(); if (iconsLoaded) renderIcons(); if (RET) renderRet();
   setTimeout(() => { const box = document.querySelector(`${slotSel(tab)} .editbox`); box?.scrollIntoView({ behavior: "smooth", block: "start" }); if (isNew) box?.querySelector("input")?.focus(); }, 0);
 }
 /** The list an item of a tab lives in. */
@@ -557,7 +572,7 @@ const listOf = (tab, kind) => (tab === "smart" ? buttons : tab === "icons" ? ICO
 function cancelEdit(tab, rerender = true) {
   const e = ED[tab];
   if (!e) return;
-  if (tab === "ret") { ED.ret = null; if (rerender) render(); return; }
+  if (tab === "ret") { ED.ret = null; if (rerender) renderRet(); return; }
   const list = listOf(tab, e.kind);
   const i = list.indexOf(e.item);
   if (i >= 0) { if (e.isNew) list.splice(i, 1); else list[i] = JSON.parse(e.snap); }
@@ -663,66 +678,154 @@ function smartCard(b) {
 }
 
 // ---- ↩ Return to previous activity ------------------------------------------
-let RET = null; // { cfg: { hosts, screen, button, press, buttonScope }, activities: [{ id, name }], current, previous }
+let RET = null; // { cfg: { hosts, hostCfg, group, ...defaults }, activities, groups, targets, current, previous, groupError }
 const RET_BUTTONS = ["BACK", "HOME", "MENU", "RECORD", "STOP", "PLAY", "PREV", "NEXT", "MUTE", "CHANNEL_UP", "CHANNEL_DOWN", "VOICE"];
 const actName = (id) => RET?.activities.find((a) => a.id === id)?.name || CAT.activities.find((a) => a.id === id)?.name || id;
-function describeReturn() {
+/** Settings of one ↩ activity (its own, or the old shared ones). */
+function hostOpts(h) {
   const c = RET.cfg;
-  if (!c.hosts.length) return "Off · pick the activities that get a ↩ button";
-  const screen = c.screen === "icon" ? "back-arrow icon" : c.screen === "none" ? "nothing on screen" : "text button";
-  const btn = c.button && c.button !== "NONE" ? `${niceButton(c.button)} (${c.press === "long_press" ? "long" : "short"} press${c.buttonScope === "nofit" ? ", where the screen button doesn't fit" : ""})` : "no physical button";
-  return `${c.hosts.map(actName).join(", ")} · ${screen} · ${btn}`;
+  return { activity: h, screen: c.screen || "text", icon: null, button: c.button || "NONE", press: c.press || "short_press", buttonScope: c.buttonScope || "all", close: false, ...(c.hostCfg?.[h] || {}) };
 }
+function describeHost(o) {
+  const screen = { text: "text button", icon: "back arrow", custom: "your picture", none: "nothing on screen" }[o.screen] || "text button";
+  const btn = o.button && o.button !== "NONE" ? `${niceButton(o.button)} (${o.press === "long_press" ? "long" : "short"} press${o.buttonScope === "nofit" ? ", if no room on screen" : ""})` : "no physical button";
+  return `${screen} · ${btn}${o.close ? " · turns off when you leave it" : ""}`;
+}
+
+// A drop zone for a picture: resized to 90×90 and uploaded to the remote as a custom icon.
+function imageDrop(current, prefix, onDone) {
+  const z = el("label", { class: "drop", title: "Drop an image or click to choose one" });
+  let busy = false, preview = null;
+  const show = () => {
+    z.replaceChildren();
+    if (preview) z.append(el("img", { src: preview, alt: "" }));
+    else if (current) z.append(iconImg(current));
+    else z.append(busy ? "Uploading…" : "Drop image");
+    z.append(el("input", { type: "file", accept: "image/png,image/jpeg,image/svg+xml,image/webp,image/gif", "aria-label": "Picture", on: { change: (e) => e.target.files[0] && take(e.target.files[0]) } }));
+  };
+  const take = async (file) => {
+    try {
+      busy = true; show();
+      const p = await processImage(file);
+      const r = await api("POST", "/api/icons/upload", { name: `${prefix}_${Math.random().toString(16).slice(2, 8)}.png`, data: p.base64 });
+      if (!r.ok) throw new Error(r.data.error || "upload failed");
+      preview = p.dataUrl; current = r.data.icon;
+      onDone(r.data.icon, null);
+    } catch (e) { onDone(null, e.message); }
+    finally { busy = false; show(); }
+  };
+  z.addEventListener("dragover", (e) => { e.preventDefault(); z.classList.add("over"); });
+  z.addEventListener("dragleave", () => z.classList.remove("over"));
+  z.addEventListener("drop", (e) => { e.preventDefault(); z.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) take(f); });
+  show();
+  return z;
+}
+
 function retCard(r) {
   const id = nid("rt");
-  const card = el("article", { class: "card", "aria-label": "Return to previous activity" });
-  card.append(el("p", { class: "hint" }, "The integration watches which activity you start (whether or not the old one turns off) and keeps a ↩ button in the activities you tick pointed at the activity you used before. Pressing it opens that activity."));
-  card.append(el("div", { class: "subhead" }, "1 · Activities with a ↩ button"));
-  const acts = el("div", { class: "checks" });
-  for (const a of RET.activities) {
-    const cb = el("input", { type: "checkbox", id: id + "-h-" + a.id, checked: r.hosts.includes(a.id), on: { change: (e) => { r.hosts = e.target.checked ? [...r.hosts, a.id] : r.hosts.filter((h) => h !== a.id); retChanged(true); } } });
-    acts.append(el("label", { class: "check", for: id + "-h-" + a.id }, cb, " " + a.name));
+  const card = el("article", { class: "card", "aria-label": "↩ button for " + actName(r.activity) });
+  const e = ED.ret;
+  const taken = new Set(RET.cfg.hosts.filter((h) => h !== (e.isNew ? null : r.activity)));
+  card.append(el("div", { class: "subhead" }, "1 · Activity"));
+  if (e.isNew) {
+    const free = RET.activities.filter((a) => !taken.has(a.id));
+    card.append(el("div", { class: "fields" }, field(id + "-a", "Activity that gets a ↩ button *", select(id + "-a", [["", "Pick an activity…"], ...free.map((a) => [a.id, a.name])], r.activity || "", (v) => { r.activity = v; renderRet(); }, "Activity"))));
+  } else {
+    card.append(el("p", { class: "live" }, el("b", {}, actName(r.activity)), RET.targets?.[r.activity] ? ` · ↩ goes to ${RET.targets[r.activity]} now` : ""));
   }
-  if (!RET.activities.length) acts.append(el("p", { class: "empty" }, "No activities found."));
-  card.append(acts, el("p", { class: "hint" }, "Untick all to turn the ↩ button off (buttons already placed stay where they are)."));
+
   card.append(el("div", { class: "subhead" }, "2 · On screen"));
-  card.append(el("div", { class: "fields" }, field(id + "-s", "Button on the activity's first page", select(id + "-s", [["text", "Text button \"↩ <previous activity>\""], ["icon", "Back-arrow icon"], ["none", "None"]], r.screen || "text", (v) => { r.screen = v; retChanged(false); }, "On-screen button"))),
-    el("p", { class: "hint" }, "It goes in the first free spot; move it anywhere you like in the web configurator. If a page has no free spot, it's left as it is."));
+  const looks = [["text", "Text \"↩ <previous>\""], ["icon", "Back arrow"], ["custom", "Your own picture"], ["none", "Nothing on screen"]];
+  const radios = el("div", { class: "row", role: "radiogroup", "aria-label": "On-screen look" });
+  for (const [v, t] of looks) {
+    const rid = id + "-l-" + v;
+    radios.append(el("label", { class: "check", for: rid }, el("input", { type: "radio", name: id + "-look", id: rid, value: v, checked: r.screen === v, on: { change: () => { r.screen = v; renderRet(); } } }), " " + t));
+  }
+  card.append(radios);
+  if (r.screen === "custom") {
+    card.append(el("div", { class: "row" }, imageDrop(r.icon, "ret_" + slugPart(actName(r.activity)), (icon, err) => {
+      if (err) return edMsg("ret", "err", "Couldn't use that image: " + err);
+      r.icon = icon; edMsg("ret", "ok", "Picture uploaded to the remote. Save to use it.");
+    }), el("span", { class: "hint" }, "Drop a picture (PNG, JPG, SVG…) or click to choose one. It's resized to 90×90 and pressing it opens the previous activity.")));
+  }
+  card.append(el("p", { class: "hint" }, "It's placed on the first free spot of the activity's first page (never adding rows); move it anywhere in the web configurator. Changing the look here updates the button where it is."));
+
   card.append(el("div", { class: "subhead" }, "3 · Physical button (optional)"));
   const row = el("div", { class: "fields" });
-  const btnSel = select(id + "-b", [["NONE", "None"], ...RET_BUTTONS.map((b) => [b, niceButton(b)])], r.button || "NONE", (v) => { r.button = v; retChanged(true); }, "Physical button");
-  const first = r.hosts[0];
-  if (first) buttonsOf(first).then((list) => {
-    const names = list.map((x) => x.button);
-    if (!names.length) return;
-    btnSel.replaceWith(select(id + "-b", [["NONE", "None"], ...names.map((b) => [b, niceButton(b)])], r.button || "NONE", (v) => { r.button = v; retChanged(true); }, "Physical button"));
-  });
+  const mkBtn = (names) => select(id + "-b", [["NONE", "None"], ...names.map((b) => [b, niceButton(b)])], r.button || "NONE", (v) => { r.button = v; renderRet(); }, "Physical button");
+  const btnSel = mkBtn(RET_BUTTONS);
+  if (r.activity) buttonsOf(r.activity).then((list) => { if (list.length) btnSel.replaceWith(mkBtn(list.map((x) => x.button))); });
   row.append(field(id + "-b", "Button", btnSel));
   if (r.button && r.button !== "NONE") row.append(
-    field(id + "-p", "Press", select(id + "-p", [["short_press", "Short press"], ["long_press", "Long press"]], r.press || "short_press", (v) => { r.press = v; retChanged(false); }, "Press")),
-    field(id + "-sc", "Use it", select(id + "-sc", [["all", "In every ticked activity"], ["nofit", "Only where the on-screen button doesn't fit"]], r.buttonScope || "all", (v) => { r.buttonScope = v; retChanged(false); }, "Use it")));
+    field(id + "-p", "Press", select(id + "-p", [["short_press", "Short press"], ["long_press", "Long press"]], r.press || "short_press", (v) => { r.press = v; }, "Press")),
+    field(id + "-sc", "Use it", select(id + "-sc", [["all", "Always"], ["nofit", "Only if there's no room on screen"]], r.buttonScope || "all", (v) => { r.buttonScope = v; }, "Use it")));
   card.append(row);
-  if (r.button && r.button !== "NONE") card.append(el("p", { class: "hint" }, "This replaces what that button does in those activities."));
-  if (RET.current || RET.previous) card.append(el("p", { class: "live" }, "Now: ", el("b", {}, RET.current || "–"), " · previous: ", el("b", {}, RET.previous || "–")));
+  if (r.button && r.button !== "NONE") card.append(el("p", { class: "hint" }, "This replaces what that button does in this activity."));
+
+  card.append(el("div", { class: "subhead" }, "4 · Leaving this activity"));
+  card.append(el("label", { class: "check", for: id + "-c" }, el("input", { type: "checkbox", id: id + "-c", checked: !!r.close, on: { change: (ev) => { r.close = ev.target.checked; renderRet(); } } }), " Turn this activity off when I switch to another one"));
+  if (r.close) {
+    const gopts = RET.groups.map((g) => [g.id, `${g.name}${g.members.length ? " (" + g.members.map(actName).join(", ") + ")" : ""}`]);
+    card.append(el("div", { class: "fields" }, field(id + "-g", "Using the activity group", select(id + "-g", [["", "Pick an activity group…"], ...gopts], r.group || "", (v) => { r.group = v; }, "Activity group"))),
+      el("p", { class: "hint" }, "Every activity marked like this goes into that group (one group for all of them). When you switch between activities of the group, the remote turns off the one you leave and keeps devices the new one uses on, like a shared receiver. It applies to every switch between them, not only ↩."));
+  }
   return card;
 }
-function retChanged(rerender) { if (rerender) render(); }
-function retEditorBox() {
-  return editorBox("ret", { title: "↩ Return to previous activity", card: retCard(ED.ret.item), onSave: saveRet });
+function renderRet() {
+  if (!RET) { $("#ret-list").replaceChildren(el("p", { class: "hint" }, "Loading…")); return; }
+  const e = ED.ret;
+  $("#ret-editor").replaceChildren(...(e ? [editorBox("ret", {
+    title: e.isNew ? "New ↩ button" : "↩ button: " + actName(e.item.activity),
+    card: retCard(e.item),
+    onSave: saveRet,
+    onDelete: deleteRet
+  })] : []));
+  const rows = RET.cfg.hosts.map((h) => { const o = hostOpts(h); const noRoom = (RET.noRoom || []).includes(h) && (!o.button || o.button === "NONE"); return bar({ kind: "↩", name: actName(h), sub: describeHost(o), state: noRoom ? "no room on screen: pick a physical button" : RET.targets?.[h] ? "↩ goes to " + RET.targets[h] : "", stateErr: noRoom, editing: e && !e.isNew && e.item.activity === h, onEdit: () => openEdit("ret", { ...o, group: RET.cfg.group || "" }) }); });
+  $("#ret-list").replaceChildren(...rows);
+  if (!rows.length) $("#ret-list").append(el("p", { class: "empty" }, "No activity has a ↩ button yet. Add one: the ↩ button always opens the activity you used before."));
+  const st = $("#ret-status");
+  st.className = "status" + (RET.groupError ? " err" : "");
+  st.textContent = RET.groupError ? "Activity group: " + RET.groupError : RET.current ? `Now: ${RET.current}${RET.previous ? " · previous: " + RET.previous : ""}` : "";
 }
+async function postRet(hosts, hostCfg, group) {
+  const res = await api("POST", "/api/return", { hosts, hostCfg, group, screen: RET.cfg.screen, button: RET.cfg.button, press: RET.cfg.press, buttonScope: RET.cfg.buttonScope });
+  if (res.ok) RET = res.data;
+  return res;
+}
+const allHostCfg = () => Object.fromEntries(RET.cfg.hosts.map((h) => { const { activity, group, ...o } = hostOpts(h); return [h, o]; }));
 async function saveRet() {
-  const r = ED.ret.item;
+  const e = ED.ret, r = e.item;
+  if (!r.activity) { edMsg("ret", "err", "Pick the activity first."); return; }
+  if (r.screen === "custom" && !r.icon) { edMsg("ret", "err", "Drop a picture for the ↩ button, or pick another look."); return; }
+  if (r.close && !r.group) { edMsg("ret", "err", "Pick the activity group to use for turning activities off."); return; }
+  const hosts = RET.cfg.hosts.includes(r.activity) ? [...RET.cfg.hosts] : [...RET.cfg.hosts, r.activity];
+  const hostCfg = allHostCfg();
+  const { activity, group, ...mine } = r;
+  hostCfg[r.activity] = mine;
   edMsg("ret", "", "Saving…");
-  const res = await api("POST", "/api/return", { hosts: r.hosts, screen: r.screen, button: r.button, press: r.press, buttonScope: r.buttonScope });
+  const res = await postRet(hosts, hostCfg, r.close ? r.group : RET.cfg.group || null);
   if (!res.ok) { edMsg("ret", "err", res.data.error || "Not saved:", res.data.errors); return; }
-  RET = res.data;
   ED.ret = null;
-  render();
+  renderRet();
+}
+async function deleteRet() {
+  const h = ED.ret.item.activity;
+  const hosts = RET.cfg.hosts.filter((x) => x !== h);
+  const hostCfg = allHostCfg(); delete hostCfg[h];
+  const res = await postRet(hosts, hostCfg, RET.cfg.group || null);
+  if (!res.ok) { edMsg("ret", "err", res.data.error || "Couldn't remove:", res.data.errors); return; }
+  ED.ret = null;
+  renderRet();
 }
 async function loadReturn() {
   const r = await api("GET", "/api/return");
   if (r.ok) RET = r.data;
 }
+$("#ret-add").addEventListener("click", () => {
+  if (!RET) return;
+  const free = RET.activities.find((a) => !RET.cfg.hosts.includes(a.id));
+  openEdit("ret", { activity: free?.id || "", screen: "text", icon: null, button: "NONE", press: "short_press", buttonScope: "all", close: false, group: RET.cfg.group || "" }, { isNew: true });
+});
 
 function render() {
   const e = ED.smart;
@@ -733,13 +836,12 @@ function render() {
     onSave: () => saveSmart(true),
     onDelete: deleteSmart,
     extra: [el("button", { type: "button", on: { click: testSmart } }, "Save & test")]
-  })] : xm ? [extrasEditorBox()] : ED.ret ? [retEditorBox()] : []));
+  })] : xm ? [extrasEditorBox()] : []));
   const host = $("#buttons");
   const rows = buttons.filter((b) => !(e && e.isNew && b === e.item)).map((b) => bar({
     kind: "Smart", name: b.name, sub: describeSmart(b), editing: e && e.item === b, flash: flashOnce(b.id), onEdit: () => openEdit("smart", b)
   }));
   rows.push(...menuBars());
-  if (RET) rows.unshift(bar({ kind: "Return", name: "↩ Return to previous activity", sub: describeReturn(), state: RET.cfg.hosts.length && RET.previous ? "previous: " + RET.previous : "", editing: !!ED.ret, onEdit: () => openEdit("ret", { ...RET.cfg, hosts: [...RET.cfg.hosts] }) }));
   host.replaceChildren(...rows);
   if (!rows.length) host.append(el("p", { class: "empty" }, "No smart controls or quick menus yet. Create one, start from a template, or load the defaults below."));
 }
@@ -1636,6 +1738,7 @@ async function loadExtras() {
 
 const TABS = {
   smart: { pane: "#app", intro: "Buttons and pop-up menus for the Remote Self-Control integration. A smart control checks your devices or the remote, then runs the first branch that matches; a quick menu runs the steps of the choice you pick." },
+  ret: { pane: "#ret-app", intro: "A ↩ button in your activities that always opens the activity you used before, on screen (text, back arrow or your own picture) and/or on a physical button, with settings per activity." },
   icons: { pane: "#icons-app", intro: "Show and control your devices: state icons make a button on a page follow a device's state (like a green power icon); sliders control a number like the receiver's volume with the remote's slider pop-up." }
 };
 function showTab(which) {
@@ -1649,6 +1752,7 @@ function showTab(which) {
   try { localStorage.setItem("scb_tab", which); } catch {}
   if (which === "icons") { if (!iconsLoaded) loadIcons(); else renderIcons(); }
   if (which === "smart") render();
+  if (which === "ret") renderRet();
 }
 for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () => showTab(k));
 
