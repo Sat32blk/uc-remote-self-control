@@ -82,6 +82,7 @@ export function validateIcons(input) {
       const frames = Array.isArray(b.frames) ? b.frames.map(String) : [];
       if (frames.length !== LEVEL_FRAMES || !frames.every((f) => ICON_RE.test(f))) errors.push(`${at}: pick a level design (its ${LEVEL_FRAMES} images are missing)`);
       levelOut = { kind: "level", min, max, frames, design: String(b.design || "").slice(0, 30), color: String(b.color || "").slice(0, 20) };
+      if (b.slider && /^slider_[a-z0-9_]{1,36}$/.test(String(b.slider))) levelOut.slider = String(b.slider); // level graphic of a slider
     }
     const states = level ? [] : Array.isArray(b.states) ? b.states : [];
     if (!level && !states.length) errors.push(`${at}: add at least one state`);

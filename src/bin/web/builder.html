@@ -204,7 +204,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <details class="panel">
       <summary>How state icons and sliders work</summary>
       <p class="note"><b>Sliders</b> are light entities for a number on one of your devices, like the receiver's volume. Put one on a home page: tapping the tile opens the remote's slider pop-up. On a Remote 3 you can also assign it to an activity's touch slider. New sliders are in the <b>Remote Sliders &amp; Menus</b> group when you add them to the integration.</p>
-      <p class="note">Pick a button on an activity page. Its current icon or text is the <b>default</b> look. Then drop an image (or type a label) for each state of a device, like <i>ON</i> or an input name, or pick a <b>level graphic</b> that follows a number. The button switches look within about 2 seconds of the change and goes back to its default when no state matches. What the button does when pressed doesn't change.</p>
+      <p class="note">Pick a button on an activity page. Its current icon or text is the <b>default</b> look. Then drop an image (or type a label) for each state of a device, like <i>ON</i> or an input name. (Level graphics that follow a number are part of <b>sliders</b>: Create slider → Show the level on a page.) The button switches look within about 2 seconds of the change and goes back to its default when no state matches. What the button does when pressed doesn't change.</p>
       <p class="note">Only activities with <b>one page</b> are offered: when a page of the activity on screen changes, the remote jumps back to that activity's first page, which would interrupt you on activities with more pages.</p>
     </details>
   </section>
@@ -1122,7 +1122,7 @@ let iconsLoaded = false;
 const iconsOut = () => ICONS.map((b) => {
   const o = { id: b.id, name: b.name, activity: b.activity, location: b.location, entity: b.entity, attr: b.attr || "state",
     states: b.kind === "level" ? [] : b.states.map((s) => ({ value: s.value, icon: s.icon || null, text: s.text || null })) };
-  if (b.kind === "level") Object.assign(o, { kind: "level", min: Number(b.min), max: Number(b.max), design: b.design, color: b.color, frames: b.frames || [] });
+  if (b.kind === "level") Object.assign(o, { kind: "level", min: Number(b.min), max: Number(b.max), design: b.design, color: b.color, frames: b.frames || [], ...(b.slider ? { slider: b.slider } : {}) });
   return o;
 });
 const iconImg = (icon, alt) => el("img", { src: iconUrl(icon), alt: alt || "", on: { error: (e) => e.target.replaceWith(document.createTextNode(String(icon || "").replace(/^custom:/, "").replace(/\.png$/, "").slice(0, 14))) } });
@@ -1144,7 +1144,7 @@ function lookThumb(look) {
   return box;
 }
 
-function pageDrawing(b, act) {
+function pageDrawing(b, act, isOwn = () => false, onPick = null) {
   const page = act.page;
   const grid = page.grid || { width: 4, height: 6 };
   const box = el("div", { class: "pagegrid", role: "group", "aria-label": "Page " + (page.name || ""), style: `grid-template-columns: repeat(${grid.width}, 1fr); grid-template-rows: repeat(${grid.height}, 48px);` });
@@ -1153,7 +1153,7 @@ function pageDrawing(b, act) {
     const style = `grid-column: ${x + 1} / span ${w}; grid-row: ${y + 1} / span ${h};`;
     const pickable = it.type === "icon" || it.type === "text";
     const sel = b.location && b.location.x === x && b.location.y === y;
-    const usedBy = ICONS.find((o) => o !== b && o.activity === act.id && o.location?.x === x && o.location?.y === y);
+    const usedBy = ICONS.find((o) => o !== b && !isOwn(o) && o.activity === act.id && o.location?.x === x && o.location?.y === y);
     const label = it.type === "text" ? it.text || "text" : it.type === "icon" ? "" : it.type.replace("_", " ");
     const inner = [];
     if (it.type === "icon") {
@@ -1164,7 +1164,7 @@ function pageDrawing(b, act) {
       box.append(el("div", { class: "it off" + (usedBy ? " bound" : ""), style, title: usedBy ? "Already used by " + (usedBy.name || usedBy.id) : "Only icon and text buttons can change" }, ...inner));
     } else {
       box.append(el("button", { type: "button", class: "it" + (sel ? " sel bound" : ""), style, "aria-pressed": sel ? "true" : "false", title: "Use this button",
-        on: { click: () => { b.location = { x, y }; iconsChanged(true); } } }, ...inner));
+        on: { click: () => { b.location = { x, y }; if (onPick) onPick(); else iconsChanged(true); } } }, ...inner));
     }
   }
   return box;
@@ -1288,12 +1288,11 @@ function iconCard(b) {
 
   // 3. states
   card.append(el("div", { class: "subhead" }, "3 · Looks"));
-  card.append(el("div", { class: "row" }, select(id + "-k", [["states", "Picture per state"], ["level", "Level graphic"]], b.kind === "level" ? "level" : "states", (v) => {
-    if (v === "level") Object.assign(b, { kind: "level", min: b.min ?? 0, max: b.max ?? 100, design: b.design || "bar", color: b.color || "orange", frames: b.frames || [] });
-    else b.kind = "states";
-    iconsChanged(true);
-  }, "Kind of look")));
-  if (b.kind === "level") { card.append(levelEditor(b, id, dev)); finishIconCard(card, b); return card; }
+  if (b.kind === "level") {
+    // older level graphics made here before they moved to sliders
+    card.append(el("p", { class: "hint" }, "Level graphics now belong to sliders (Create slider → Show the level on a page). This older one still works and can be edited or deleted here."));
+    card.append(levelEditor(b, id, dev)); finishIconCard(card, b); return card;
+  }
   const def = b.default && b.activity === b.savedActivity && b.location && b.savedLocation && b.location.x === b.savedLocation.x && b.location.y === b.savedLocation.y
     ? b.default : act ? itemAt(act, b.location) : null;
   const lines = el("div", { class: "lines" });
@@ -1343,7 +1342,7 @@ function renderIcons() {
     onDelete: deleteIcon
   })] : xs ? [extrasEditorBox()] : []));
   const host = $("#icons-list");
-  const shown = ICONS.filter((b) => !(e && e.isNew && b === e.item));
+  const shown = ICONS.filter((b) => !(e && e.isNew && b === e.item) && !b.slider);
   const rows = shown.map((b) => { const st = iconState(b); return bar({ kind: "Icon", name: b.name || b.id, sub: describeIcon(b), state: st?.text, stateErr: st?.err, editing: e && e.item === b, flash: flashOnce(b.id), onEdit: () => openEdit("icons", b) }); });
   rows.push(...sliderBars());
   host.replaceChildren(...rows);
@@ -1359,6 +1358,7 @@ async function loadIcons() {
   ICON_ACTS = r.data.activities;
   ICONS = iconsFromServer(r.data.icons);
   iconsLoaded = true;
+  attachLevels();
   renderIcons();
 }
 
@@ -1495,18 +1495,66 @@ function tilePicker(x, label) {
   return row;
 }
 
-function showLevelOnPage(s) {
-  const go = () => {
-    const first = ICON_ACTS.find((a) => a.pageCount === 1);
-    const item = { id: "", name: s.name + " level", activity: first?.id || "", location: null, entity: s.entity, attr: s.attr, kind: "level",
-      min: Number(s.min), max: Number(s.max), design: "bar", color: "orange", frames: [], states: [] };
-    ICONS.push(item);
-    showTab("icons");
-    openEdit("icons", item, { isNew: true });
-  };
-  if (edDirty("extras")) { edMsg("extras", "err", "Save or cancel this slider first."); return; }
-  cancelEdit("extras", false);
-  if (iconsLoaded) go(); else loadIcons().then(go);
+// A slider's level graphic: a button on a single-page activity whose picture shows the slider's value
+// (bar, gauge, dots…). Stored as a state icon of kind "level" linked to the slider; edited here only.
+const levelOf = (sid) => ICONS.find((b) => b.kind === "level" && b.slider === sid);
+/** Each slider gets its level settings (s.level) from its linked state icon, for editing. */
+function attachLevels() {
+  for (const s of SLIDERS) { const b = levelOf(s.id); s.level = b ? { activity: b.activity, location: b.location ? { ...b.location } : null, design: b.design, color: b.color } : s.level || null; }
+}
+function sliderLevel(s, id) {
+  const box = el("div", { class: "lines" });
+  if (!iconsLoaded) { box.append(el("p", { class: "hint" }, "Loading your activities…")); return box; }
+  if (!s.attr) { box.append(el("p", { class: "hint" }, "Needs a value to read (step 1).")); return box; }
+  const lv = s.level;
+  const on = el("input", { type: "checkbox", id: id + "-lv", checked: !!lv, on: { change: (e) => {
+    s.level = e.target.checked ? { activity: ICON_ACTS.find((a) => a.pageCount === 1)?.id || "", location: null, design: "bar", color: "orange" } : null;
+    extrasChanged(true);
+  } } });
+  box.append(el("label", { class: "check", for: id + "-lv" }, on, " Show the slider's level on a button of an activity page (bar, gauge, dots…)"));
+  if (!lv) return box;
+  const usable = ICON_ACTS.filter((a) => a.pageCount === 1);
+  const actSel = select(id + "-la", [["", "Pick an activity…"], ...usable.map((a) => [a.id, a.name])], lv.activity || "", (v) => { lv.activity = v; lv.location = null; extrasChanged(true); }, "Activity for the level");
+  for (const a of ICON_ACTS.filter((a) => a.pageCount !== 1)) actSel.append(el("option", { value: a.id, disabled: true }, `${a.name} (${a.pageCount} pages)`));
+  box.append(el("div", { class: "fields" }, field(id + "-la", "Activity (one page only)", actSel)));
+  const act = ICON_ACTS.find((a) => a.id === lv.activity);
+  if (act?.page) box.append(el("p", { class: "hint" }, lv.location ? "Selected. Click another button to change." : "Click the icon or text button that should show the level."),
+    pageDrawing(lv, act, (o) => o.slider === s.id, () => extrasChanged(true)));
+  const gal = el("div", { class: "gallery", role: "radiogroup", "aria-label": "Level design" });
+  for (const [k, d] of Object.entries(LEVEL_DESIGNS)) gal.append(el("button", { type: "button", class: "gpick" + (lv.design === k ? " sel" : ""), role: "radio", "aria-checked": String(lv.design === k), title: d.name,
+    on: { click: () => { lv.design = k; extrasChanged(true); } } }, asImg(levelFrame(k, lv.color, 0.6), 54, d.name), el("span", {}, d.name)));
+  const sw = el("div", { class: "row", role: "radiogroup", "aria-label": "Color" });
+  for (const [k, c] of Object.entries(LEVEL_COLORS)) sw.append(el("button", { type: "button", class: "swatch" + (lv.color === k ? " sel" : ""), role: "radio", "aria-checked": String(lv.color === k), "aria-label": k, title: k, style: "background:" + c,
+    on: { click: () => { lv.color = k; extrasChanged(true); } } }));
+  box.append(el("div", { class: "subhead" }, "Design"), gal, el("div", { class: "subhead" }, "Color"), sw,
+    el("p", { class: "hint" }, `The picture follows the slider's range (${s.min}–${s.max}) in 11 steps and updates within about 2 seconds. Single-page activities only: changing a page of a multi-page activity sends the remote back to its first page.`));
+  return box;
+}
+/** After a slider is saved or deleted: create, update or remove its level graphic. Returns an error text or null. */
+async function syncSliderLevels() {
+  if (!iconsLoaded) return null;
+  let changed = false;
+  for (const s of SLIDERS) {
+    const cur = levelOf(s.id);
+    const lv = s.level;
+    if (!lv || !lv.activity || !lv.location) { if (cur && !lv) { ICONS.splice(ICONS.indexOf(cur), 1); changed = true; } continue; }
+    const want = { id: cur?.id || ("lvl_" + s.id.replace(/^slider_/, "")).slice(0, 40), name: s.name + " level", activity: lv.activity, location: lv.location, entity: s.entity, attr: s.attr,
+      kind: "level", min: Number(s.min), max: Number(s.max), design: lv.design, color: lv.color, slider: s.id, states: [],
+      frames: cur && cur.design === lv.design && cur.color === lv.color ? cur.frames : [] };
+    if (!cur) { ICONS.push(want); changed = true; }
+    else {
+      const keys = ["name", "activity", "location", "entity", "attr", "min", "max", "design", "color", "frames"];
+      if (keys.some((k) => JSON.stringify(cur[k]) !== JSON.stringify(want[k]))) { Object.assign(cur, want); changed = true; }
+    }
+  }
+  for (const b of [...ICONS]) if (b.slider && !SLIDERS.some((s) => s.id === b.slider)) { ICONS.splice(ICONS.indexOf(b), 1); changed = true; }
+  if (!changed) return null;
+  try {
+    const r = await postIcons((b, n) => edMsg("extras", "", `Making the level pictures… ${n}/11`));
+    if (!r.ok) return (r.data.errors || [r.data.error]).join(" | ");
+    ICONS = iconsFromServer(r.data.icons, ICONS);
+  } catch (e) { return e.message; }
+  return null;
 }
 
 function sliderCard(s, si) {
@@ -1563,9 +1611,7 @@ function sliderCard(s, si) {
     el("span", { class: "hint" }, "The slider's bottom is the lowest value; switching the slider off sets it.")));
 
   card.append(el("div", { class: "subhead" }, "4 · Tile icon (home pages and lists)"), tilePicker(s, "Tile icon"));
-  card.append(el("div", { class: "row" },
-    el("button", { class: "small", type: "button", disabled: !s.attr, on: { click: () => showLevelOnPage(s) } }, "Show its level on a page…"),
-    el("span", { class: "hint" }, s.attr ? "Adds a level graphic (bar, gauge, dots…) to a button on a single-page activity, in the State Icons tab." : "Needs a value to read (step 1).")));
+  card.append(el("div", { class: "subhead" }, "5 · Show the level on a page (optional)"), sliderLevel(s, id));
   const tv = input(id + "-tv", "", () => {}, { label: "Value to try", type: "number", cls: "num", placeholder: String(s.min) });
   card.append(el("div", { class: "row" }, field(id + "-tv", "Try a value", tv),
     el("button", { class: "small", type: "button", on: { click: () => tryIt({ id: s.id, value: tv.value === "" ? Number(s.min) : Number(tv.value) }) } }, "Set")));
@@ -1639,7 +1685,8 @@ function menuCard(m, mi) {
 
 function describeSlider(s) {
   const how = s.mode === "steps" ? "up/down presses" : "one command";
-  return `${devName(s.entity)} ${s.attr ? s.attr.replace(/_/g, " ") : "(remembered)"} · ${s.min}–${s.max} · ${how}`;
+  const lv = typeof levelOf === "function" && levelOf(s.id);
+  return `${devName(s.entity)} ${s.attr ? s.attr.replace(/_/g, " ") : "(remembered)"} · ${s.min}–${s.max} · ${how}${lv ? ` · level on ${ICON_ACTS.find((a) => a.id === lv.activity)?.name || "a page"}` : ""}`;
 }
 const describeMenu = (m) => `${m.options.length} choice${m.options.length === 1 ? "" : "s"}: ${m.options.map((o) => o.label).join(", ")}`;
 function extrasEditorBox() {
@@ -1710,6 +1757,9 @@ async function saveExtras(close) {
   const r = await api("POST", "/api/extras", extrasOut());
   if (!r.ok) { edMsg("extras", "err", r.data.error || "Not saved. Fix these and save again:", r.data.errors); return false; }
   XSTATUS = r.data.status || {};
+  if (e.kind === "slider" && e.item.level && (!e.item.level.activity || !e.item.level.location)) { edMsg("extras", "err", "Saved, but pick the activity and the button for the level (or untick it)."); e.snap = JSON.stringify(e.item); e.isNew = false; renderExtras(); return false; }
+  const lvErr = e.kind === "slider" ? await syncSliderLevels() : null;
+  if (lvErr) { edMsg("extras", "err", "Saved the slider, but the level graphic failed: " + lvErr); e.snap = JSON.stringify(e.item); e.isNew = false; return false; }
   if (close) { flashId = e.item.id; ED.extras = null; }
   else { e.snap = JSON.stringify(e.item); e.isNew = false; e.msg = { cls: "ok", text: "Saved." }; }
   renderExtras();
@@ -1723,6 +1773,7 @@ async function deleteExtra() {
   const r = await api("POST", "/api/extras", extrasOut());
   if (!r.ok) { list.splice(i, 0, e.item); edMsg("extras", "err", "Couldn't delete: " + (r.data.error || ""), r.data.errors); return; }
   XSTATUS = r.data.status || {};
+  if (e.kind === "slider") await syncSliderLevels();
   ED.extras = null;
   renderExtras();
 }
@@ -1732,6 +1783,7 @@ async function loadExtras() {
   extrasIn(r.data);
   XSTATUS = r.data.status || {};
   extrasLoaded = true;
+  if (iconsLoaded) attachLevels();
   fillMenuSelect();
   renderExtras();
 }

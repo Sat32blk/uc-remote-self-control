@@ -188,14 +188,14 @@ A slider is a light entity of this integration that stands for a number on anoth
 3. **Save**, then type a value under **Try a value** and press **Set** to check it.
 4. Integrations → Remote Self-Control → add the new slider (group **Remote Sliders & Menus**).
 5. Put it on a **home page**: tapping the tile opens the slider pop-up. On a Remote 3 you can also set an activity's **touch slider** to it.
-6. Optional: pick a **tile icon** (step 4 on the slider card) and press **Show its level on a page…** to add a live level graphic (below).
+6. Optional: pick a **tile icon** (step 4) and tick **Show the level on a page** (step 5) to add a live level graphic: pick a single-page activity, click the button, pick a design and color (below).
 
 The slider follows changes made elsewhere (within about 2 seconds while the remote is awake). Switching the slider **off** sets the lowest value; **on** goes back to the last value. When you drag quickly, the newest position wins: values in between are skipped instead of queued.
 
 **Custom graphics.** The slider pop-up itself is drawn by the remote and can't be restyled, but two things can:
 
 - **Tile icon:** 12 icons (volume, speaker, subwoofer, light bulb, brightness, blinds, temperature, fan, knob, equalizer, microphone, list) for the slider's or menu's tile on home pages and in lists. Pick one on the card; it's uploaded to the remote and set once the entity has been added to the integration.
-- **Live level graphic:** a button on an activity page whose image shows the current value: bar, column, arc gauge, ring, dots, signal, speaker, knob, tank, thermometer, equalizer or segments, in 6 colors. It's a state icon of the kind *Level graphic*: 11 images (0 %, 10 % … 100 %) are made in the builder and uploaded when you save, and the button shows the one closest to the value. Same limits as state icons: **single-page activities only**, about 2 seconds' delay. What the button does when pressed doesn't change (map it to the slider's toggle or volume up, for example).
+- **Live level graphic:** a button on an activity page whose image shows the current value: bar, column, arc gauge, ring, dots, signal, speaker, knob, tank, thermometer, equalizer or segments, in 6 colors. It's set up in the slider itself (step 5), the only place level graphics are made: 11 images (0 %, 10 % … 100 %) are made in the builder and uploaded when you save, and the button shows the one closest to the value. Same limits as state icons: **single-page activities only**, about 2 seconds' delay. What the button does when pressed doesn't change (map it to the slider's toggle or volume up, for example).
 
 ![The 12 level graphics and 12 tile icons](docs/images/slider-graphics.png)
 
