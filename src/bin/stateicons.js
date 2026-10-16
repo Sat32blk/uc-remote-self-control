@@ -16,6 +16,19 @@ import fs from "node:fs";
 export const MAX_ICONS = 40;
 export const MAX_STATES = 12;
 export const LEVEL_FRAMES = 11;
+export const MAX_CELLS = 24;
+
+/**
+ * The spots a binding controls: one button, or (level graphics over several tiles) a rectangle of
+ * buttons, each with its own 11 frames and its own default look.
+ */
+export function spotsOf(b) {
+  if (b.kind === "level" && Array.isArray(b.cells) && b.cells.length) {
+    return b.cells.map((c, k) => ({ location: { x: c.x, y: c.y }, frames: c.frames, def: b.cellDefaults?.[k] || null }));
+  }
+  return [{ location: b.location, frames: b.frames, def: b.default || null }];
+}
+const spotKey = (activity, loc) => `${activity}|${loc.x},${loc.y}`;
 const ICON_RE = /^(custom|uc):[A-Za-z0-9_.\-]{1,120}$/;
 
 const nameOf = (n) => (n && typeof n === "object" ? n.en || n.en_US || Object.values(n)[0] || "" : n || "");
@@ -79,9 +92,25 @@ export function validateIcons(input) {
     if (level) {
       const min = Number(b.min), max = Number(b.max);
       if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) errors.push(`${at}: the level's highest value must be above the lowest`);
-      const frames = Array.isArray(b.frames) ? b.frames.map(String) : [];
-      if (frames.length !== LEVEL_FRAMES || !frames.every((f) => ICON_RE.test(f))) errors.push(`${at}: pick a level design (its ${LEVEL_FRAMES} images are missing)`);
+      const okFrames = (f) => Array.isArray(f) && f.length === LEVEL_FRAMES && f.every((x) => ICON_RE.test(String(x)));
+      let cells = null;
+      if (Array.isArray(b.cells) && b.cells.length) {
+        if (b.cells.length > MAX_CELLS) errors.push(`${at}: at most ${MAX_CELLS} buttons for one level graphic`);
+        cells = b.cells.map((c) => ({ x: c?.x, y: c?.y, frames: Array.isArray(c?.frames) ? c.frames.map(String) : [] }));
+        if (!cells.every((c) => Number.isInteger(c.x) && Number.isInteger(c.y) && c.x >= 0 && c.y >= 0)) errors.push(`${at}: invalid button positions`);
+        if (!cells.every((c) => okFrames(c.frames))) errors.push(`${at}: pick a level design (its images are missing)`);
+      }
+      const frames = cells ? cells[0].frames : Array.isArray(b.frames) ? b.frames.map(String) : [];
+      if (!cells && !okFrames(frames)) errors.push(`${at}: pick a level design (its ${LEVEL_FRAMES} images are missing)`);
       levelOut = { kind: "level", min, max, frames, design: String(b.design || "").slice(0, 30), color: String(b.color || "").slice(0, 20) };
+      if (cells) levelOut.cells = cells;
+      if (b.show === "change") {
+        const ms = Number(b.showMs ?? 4000);
+        if (!(ms >= 1000 && ms <= 60000)) errors.push(`${at}: show the level for 1–60 seconds`);
+        Object.assign(levelOut, { show: "change", showMs: ms });
+      }
+      if (b.fit === "keep") levelOut.fit = "keep";
+      if (b.sig && /^[a-z0-9_]{1,64}$/.test(String(b.sig))) levelOut.sig = String(b.sig); // builder's fingerprint of the drawn frames
       if (b.slider && /^slider_[a-z0-9_]{1,36}$/.test(String(b.slider))) levelOut.slider = String(b.slider); // level graphic of a slider
       if (b.bg && ICON_RE.test(String(b.bg))) levelOut.bg = String(b.bg); // drawn over the button's own picture
       if ([1, 0.8, 0.6].includes(Number(b.scale))) levelOut.scale = Number(b.scale);
@@ -101,11 +130,12 @@ export function validateIcons(input) {
       if (!icon && !text) errors.push(`${at}.states[${k}] (${v || "?"}): drop an image or type a label`);
       return { value: v, icon, text };
     });
+    const first = levelOut.cells ? levelOut.cells[0] : loc;
     return {
       id,
       name: String(b.name || "").slice(0, 60),
       activity: b.activity,
-      location: { x: loc.x, y: loc.y },
+      location: { x: first.x, y: first.y },
       entity: b.entity,
       attr,
       states: cleanStates,
@@ -172,6 +202,9 @@ export class StateIcons {
   async replace(icons) {
     const core = this.getCore();
     const old = new Map(this.icons.map((b) => [b.id, b]));
+    // default look per spot of the old bindings (a spot another state icon controlled shows that one's look now)
+    const oldDefaults = new Map();
+    for (const o of old.values()) for (const sp of spotsOf(o)) if (sp.def) oldDefaults.set(spotKey(o.activity, sp.location), sp.def);
     const pageCache = new Map();
     const pageOf = async (activity) => {
       if (!pageCache.has(activity)) {
@@ -183,38 +216,46 @@ export class StateIcons {
     const errors = [];
     const next = [];
     for (const b of icons) {
-      const prev = old.get(b.id);
-      if (prev && prev.activity === b.activity && sameSpot(prev.location, b.location) && prev.default) {
-        next.push({ ...b, default: prev.default });
-        continue;
-      }
+      const spots = spotsOf(b);
       const pages = await pageOf(b.activity);
       if (pages.length !== 1) {
         errors.push(`${b.name || b.id}: the activity must have exactly one page (it has ${pages.length})`);
         continue;
       }
-      const item = (pages[0].items || []).find((it) => sameSpot(it.location, b.location));
-      if (!item || !["icon", "text"].includes(item.type)) {
-        errors.push(`${b.name || b.id}: no icon or text button at that spot on the page`);
+      const defs = [];
+      let bad = false;
+      for (const sp of spots) {
+        const kept = oldDefaults.get(spotKey(b.activity, sp.location));
+        if (kept) { defs.push({ ...kept }); continue; }
+        const item = (pages[0].items || []).find((it) => sameSpot(it.location, sp.location));
+        if (!item || !["icon", "text"].includes(item.type)) { bad = true; break; }
+        defs.push({ type: item.type, icon: item.icon || null, text: item.text || null });
+      }
+      if (bad) {
+        errors.push(`${b.name || b.id}: ${spots.length > 1 ? "every spot of the shape needs an icon or text button" : "no icon or text button at that spot on the page"}`);
         continue;
       }
-      // A spot that another (old) state icon controlled shows that one's look now: inherit its real default.
-      const before = [...old.values()].find((o) => o.activity === b.activity && sameSpot(o.location, b.location) && o.default);
-      next.push({ ...b, page_id: pages[0].page_id, default: before ? { ...before.default } : { type: item.type, icon: item.icon || null, text: item.text || null } });
+      const out = { ...b, page_id: pages[0].page_id, default: defs[0] };
+      if (spots.length > 1) out.cellDefaults = defs;
+      else delete out.cellDefaults;
+      next.push(out);
     }
     if (errors.length) return { errors };
-    // restore removed / moved ones
-    const keep = new Set(next.map((b) => `${b.id}|${b.activity}|${b.location.x},${b.location.y}`));
-    const taken = new Set(next.map((b) => `${b.activity}|${b.location.x},${b.location.y}`));
-    const restore = [...old.values()].filter((b) => !keep.has(`${b.id}|${b.activity}|${b.location.x},${b.location.y}`) && !taken.has(`${b.activity}|${b.location.x},${b.location.y}`));
-    for (const b of restore) {
+    // restore spots that no binding controls any more
+    const taken = new Set(next.flatMap((b) => spotsOf(b).map((sp) => spotKey(b.activity, sp.location))));
+    const byAct = new Map();
+    for (const o of old.values()) for (const sp of spotsOf(o)) {
+      if (taken.has(spotKey(o.activity, sp.location)) || !sp.def) continue;
+      (byAct.get(o.activity) || byAct.set(o.activity, []).get(o.activity)).push({ location: sp.location, look: { ...sp.def } });
+    }
+    for (const [act, changes] of byAct) {
       try {
-        await this.write(core, b.activity, [{ location: b.location, look: { ...b.default } }]);
+        await this.write(core, act, changes);
       } catch (e) {
-        this.warn(`state icons: restoring ${b.name || b.id} failed:`, e.message);
+        this.warn(`state icons: restoring buttons failed:`, e.message);
       }
     }
-    this.icons = next.map((b) => ({ ...b, page_id: b.page_id || old.get(b.id)?.page_id }));
+    this.icons = next;
     this.status = {};
     this.save();
     await this.refresh(true);
@@ -240,6 +281,7 @@ export class StateIcons {
       }
     }
     const byActivity = new Map();
+    const now = Date.now();
     for (const b of this.icons) {
       const attrs = values.get(b.entity);
       const st = (this.status[b.id] = this.status[b.id] || {});
@@ -248,23 +290,40 @@ export class StateIcons {
         continue;
       }
       const value = attrs[b.attr];
-      const look = lookFor(b, value);
-      const key = JSON.stringify(look);
+      // "show on change": the level appears when the value changes and hides again after showMs
+      let visible = true;
+      if (b.kind === "level" && b.show === "change") {
+        if (st.seen && JSON.stringify(value) !== JSON.stringify(st.lastValue)) st.showUntil = now + (b.showMs || 4000);
+        st.seen = true;
+        st.lastValue = value;
+        visible = (st.showUntil || 0) > now;
+      }
+      const spots = spotsOf(b);
+      const looks = spots.map((sp) => {
+        if (!visible) return { type: sp.def?.type, icon: sp.def?.icon, text: sp.def?.text, state: null };
+        if (b.kind === "level") {
+          const i = levelIndex(b, value);
+          if (i === null) return { type: sp.def?.type, icon: sp.def?.icon, text: sp.def?.text, state: null };
+          return { type: "icon", icon: sp.frames[i], text: spots.length > 1 ? null : sp.def?.text, state: `${i * 10} %` };
+        }
+        return lookFor(b, value);
+      });
+      const key = JSON.stringify(looks);
       st.value = value === undefined ? null : value;
       if (!force && st.key === key && !st.error) continue;
-      (byActivity.get(b.activity) || byActivity.set(b.activity, []).get(b.activity)).push({ b, look, key });
+      (byActivity.get(b.activity) || byActivity.set(b.activity, []).get(b.activity)).push({ b, looks, spots, key });
     }
     for (const [activity, changes] of byActivity) {
       try {
-        const missing = await this.write(core, activity, changes.map((c) => ({ location: c.b.location, look: c.look })));
+        const missing = await this.write(core, activity, changes.flatMap((c) => c.spots.map((sp, k) => ({ location: sp.location, look: c.looks[k] }))));
         for (const c of changes) {
           const st = this.status[c.b.id];
-          if (missing.has(`${c.b.location.x},${c.b.location.y}`)) {
-            st.error = "the button is no longer at its spot on the page";
+          if (c.spots.some((sp) => missing.has(`${sp.location.x},${sp.location.y}`))) {
+            st.error = c.spots.length > 1 ? "a button of the shape is no longer on the page" : "the button is no longer at its spot on the page";
             st.key = null;
           } else {
             st.key = c.key;
-            st.look = c.look.state ? c.look.state : "default";
+            st.look = c.looks[0].state ? c.looks[0].state : "default";
             st.error = null;
             st.at = new Date().toISOString();
           }

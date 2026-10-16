@@ -1139,6 +1139,66 @@ async function uploadLevelFrames(design, color, onProgress, { bg = null, scale =
   }
   return out;
 }
+// ---- level graphics over several buttons (a rectangle of tiles, e.g. a column down the left side) ----
+const hashStr = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return h.toString(36); };
+/** The rectangle spanned by the two clicked corners. */
+function shapeRect(lv) {
+  const a = lv.location, b = lv.location2 || lv.location;
+  if (!a) return null;
+  return { x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), w: Math.abs(a.x - b.x) + 1, h: Math.abs(a.y - b.y) + 1 };
+}
+/** Buttons inside the rectangle: usable (1×1 icon/text), blocked (other kinds or bigger), and the number of empty spots. */
+function shapeCells(lv, act) {
+  const r = shapeRect(lv);
+  if (!r || !act?.page) return { rect: r, cells: [], blocked: [], gaps: 0 };
+  const inside = (x, y) => x >= r.x0 && x < r.x0 + r.w && y >= r.y0 && y < r.y0 + r.h;
+  const cells = [], blocked = [];
+  const covered = new Set();
+  for (const it of act.page.items || []) {
+    const x = it.location?.x ?? 0, y = it.location?.y ?? 0, w = it.size?.width ?? 1, h = it.size?.height ?? 1;
+    let hit = false;
+    for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) if (inside(x + i, y + j)) { hit = true; covered.add(x + i + "," + (y + j)); }
+    if (!hit) continue;
+    if ((it.type === "icon" || it.type === "text") && w === 1 && h === 1) cells.push({ x, y });
+    else blocked.push(it);
+  }
+  cells.sort((p, q) => p.y - q.y || p.x - q.x);
+  return { rect: r, cells, blocked, gaps: r.w * r.h - covered.size };
+}
+/** The whole picture for a rectangle of tiles at value f (0..1); bgs maps "x,y" to a loaded image. */
+function levelComposite(design, color, f, { rect, fit = "stretch", scale = 1, bgs = {} }) {
+  const W = rect.w * 90, H = rect.h * 90;
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  for (const [k, img] of Object.entries(bgs)) if (img) { const [x, y] = k.split(",").map(Number); g.drawImage(img, (x - rect.x0) * 90, (y - rect.y0) * 90, 90, 90); }
+  g.save();
+  if (fit === "keep") { const k = Math.min(rect.w, rect.h); g.translate((W - 90 * k) / 2, (H - 90 * k) / 2); g.scale(k, k); }
+  else g.scale(rect.w, rect.h);
+  if (scale !== 1) { g.translate(45 * (1 - scale), 45 * (1 - scale)); g.scale(scale, scale); }
+  LEVEL_DESIGNS[design].draw(g, f, { on: LEVEL_COLORS[color] || color, off: LEVEL_OFF });
+  g.restore();
+  return c;
+}
+const sliceCell = (big, rect, x, y) => gfxCanvas((g) => g.drawImage(big, (x - rect.x0) * 90, (y - rect.y0) * 90, 90, 90, 0, 0, 90, 90));
+/** Renders the 11 steps of a multi-button level graphic, slices them per button and uploads them (11 × buttons). */
+async function uploadCellFrames(draw, onProgress) {
+  const bgs = {};
+  for (const [k, icon] of Object.entries(draw.bgs || {})) {
+    const img = await loadBg(icon);
+    if (!img) throw new Error("couldn't load a button's picture to draw over");
+    bgs[k] = img;
+  }
+  const frames = draw.cells.map(() => []);
+  let n = 0;
+  for (let i = 0; i <= 10; i++) {
+    const big = levelComposite(draw.design, draw.color, i / 10, { rect: draw.rect, fit: draw.fit, scale: draw.scale, bgs });
+    for (const [k, c] of draw.cells.entries()) {
+      frames[k].push(await uploadCanvas(`lv_${draw.sig}_${c.x}_${c.y}_${String(i * 10).padStart(3, "0")}.png`, sliceCell(big, draw.rect, c.x, c.y)));
+      onProgress && onProgress(++n, 11 * draw.cells.length);
+    }
+  }
+  return frames;
+}
 const asImg = (c, size, alt) => el("img", { src: c.toDataURL("image/png"), width: size, height: size, alt: alt || "" });
 
 // ---------------------------------------------------------------------------
@@ -1151,7 +1211,9 @@ let iconsLoaded = false;
 const iconsOut = () => ICONS.map((b) => {
   const o = { id: b.id, name: b.name, activity: b.activity, location: b.location, entity: b.entity, attr: b.attr || "state",
     states: b.kind === "level" ? [] : b.states.map((s) => ({ value: s.value, icon: s.icon || null, text: s.text || null })) };
-  if (b.kind === "level") Object.assign(o, { kind: "level", min: Number(b.min), max: Number(b.max), design: b.design, color: b.color, frames: b.frames || [], ...(b.slider ? { slider: b.slider } : {}), ...(b.bg ? { bg: b.bg } : {}), ...(b.scale && b.scale !== 1 ? { scale: b.scale } : {}) });
+  if (b.kind === "level") Object.assign(o, { kind: "level", min: Number(b.min), max: Number(b.max), design: b.design, color: b.color, frames: b.frames || [], ...(b.slider ? { slider: b.slider } : {}), ...(b.bg ? { bg: b.bg } : {}), ...(b.scale && b.scale !== 1 ? { scale: b.scale } : {}),
+    ...(b.cells?.length ? { cells: b.cells.map((c) => ({ x: c.x, y: c.y, frames: c.frames || [] })) } : {}),
+    ...(b.show === "change" ? { show: "change", showMs: b.showMs || 4000 } : {}), ...(b.fit === "keep" ? { fit: "keep" } : {}), ...(b.sig ? { sig: b.sig } : {}) });
   return o;
 });
 const iconImg = (icon, alt) => el("img", { src: iconUrl(icon), alt: alt || "", on: { error: (e) => e.target.replaceWith(document.createTextNode(String(icon || "").replace(/^custom:/, "").replace(/\.png$/, "").slice(0, 14))) } });
@@ -1173,7 +1235,9 @@ function lookThumb(look) {
   return box;
 }
 
-function pageDrawing(b, act, isOwn = () => false, onPick = null) {
+const spotsOfB = (o) => (o.cells?.length ? o.cells : o.location ? [o.location] : []);
+/** opts.isSel(x,y) / opts.onClick(x,y) replace the default "one button" picking (used for shapes over several buttons). */
+function pageDrawing(b, act, isOwn = () => false, onPick = null, opts = {}) {
   const page = act.page;
   const grid = page.grid || { width: 4, height: 6 };
   const box = el("div", { class: "pagegrid", role: "group", "aria-label": "Page " + (page.name || ""), style: `grid-template-columns: repeat(${grid.width}, 1fr); grid-template-rows: repeat(${grid.height}, 48px);` });
@@ -1181,8 +1245,8 @@ function pageDrawing(b, act, isOwn = () => false, onPick = null) {
     const x = it.location?.x ?? 0, y = it.location?.y ?? 0, w = it.size?.width ?? 1, h = it.size?.height ?? 1;
     const style = `grid-column: ${x + 1} / span ${w}; grid-row: ${y + 1} / span ${h};`;
     const pickable = it.type === "icon" || it.type === "text";
-    const sel = b.location && b.location.x === x && b.location.y === y;
-    const usedBy = ICONS.find((o) => o !== b && !isOwn(o) && o.activity === act.id && o.location?.x === x && o.location?.y === y);
+    const sel = opts.isSel ? opts.isSel(x, y) : b.location && b.location.x === x && b.location.y === y;
+    const usedBy = ICONS.find((o) => o !== b && !isOwn(o) && o.activity === act.id && spotsOfB(o).some((p) => p.x === x && p.y === y));
     const label = it.type === "text" ? it.text || "text" : it.type === "icon" ? "" : it.type.replace("_", " ");
     const inner = [];
     if (it.type === "icon") {
@@ -1193,7 +1257,7 @@ function pageDrawing(b, act, isOwn = () => false, onPick = null) {
       box.append(el("div", { class: "it off" + (usedBy ? " bound" : ""), style, title: usedBy ? "Already used by " + (usedBy.name || usedBy.id) : "Only icon and text buttons can change" }, ...inner));
     } else {
       box.append(el("button", { type: "button", class: "it" + (sel ? " sel bound" : ""), style, "aria-pressed": sel ? "true" : "false", title: "Use this button",
-        on: { click: () => { b.location = { x, y }; if (onPick) onPick(); else iconsChanged(true); } } }, ...inner));
+        on: { click: () => { if (opts.onClick) return opts.onClick(x, y); b.location = { x, y }; if (onPick) onPick(); else iconsChanged(true); } } }, ...inner));
     }
   }
   return box;
@@ -1398,7 +1462,13 @@ $("#icon-add").addEventListener("click", () => {
   openEdit("icons", item, { isNew: true });
 });
 async function postIcons(onProgress) {
-  for (const b of ICONS) if (b.kind === "level" && (!b.frames || b.frames.length !== 11)) {
+  for (const b of ICONS) if (b.kind === "level" && b.cells?.length && b.cells.some((c) => !c.frames || c.frames.length !== 11)) {
+    if (!b._draw) throw new Error(`open "${b.name}" in its slider and save it again`);
+    const fr = await uploadCellFrames(b._draw, (n, t) => onProgress && onProgress(b, n, t));
+    b.cells.forEach((c, k) => { c.frames = fr[k]; });
+    b.frames = fr[0];
+  }
+  for (const b of ICONS) if (b.kind === "level" && !b.cells?.length && (!b.frames || b.frames.length !== 11)) {
     b.frames = await uploadLevelFrames(b.design, b.color, (n) => onProgress && onProgress(b, n), { bg: b.bg || null, scale: b.scale || 1 });
   }
   return api("POST", "/api/icons", { icons: iconsOut() });
@@ -1529,7 +1599,28 @@ function tilePicker(x, label) {
 const levelOf = (sid) => ICONS.find((b) => b.kind === "level" && b.slider === sid);
 /** Each slider gets its level settings (s.level) from its linked state icon, for editing. */
 function attachLevels() {
-  for (const s of SLIDERS) { const b = levelOf(s.id); s.level = b ? { activity: b.activity, location: b.location ? { ...b.location } : null, design: b.design, color: b.color, over: !!b.bg, scale: b.scale || 1 } : s.level || null; }
+  for (const s of SLIDERS) {
+    const b = levelOf(s.id);
+    if (!b) { s.level = s.level || null; continue; }
+    const multi = b.cells?.length > 1;
+    let loc2 = null;
+    if (multi) { const xs = b.cells.map((c) => c.x), ys = b.cells.map((c) => c.y); s.level = null; loc2 = { x: Math.max(...xs), y: Math.max(...ys) }; }
+    const loc = multi ? { x: Math.min(...b.cells.map((c) => c.x)), y: Math.min(...b.cells.map((c) => c.y)) } : b.location ? { ...b.location } : null;
+    s.level = { activity: b.activity, location: loc, location2: loc2, shape: multi ? "rect" : "one", design: b.design, color: b.color,
+      over: multi ? String(b.sig || "").startsWith("o") : !!b.bg, scale: b.scale || 1, fit: b.fit === "keep" ? "keep" : "stretch", show: b.show === "change" ? "change" : "always", showSec: Math.round((b.showMs || 4000) / 1000) };
+  }
+}
+/** The button's own look at a spot (before any state icon or level graphic changed it). */
+function origIconAt(act, x, y) {
+  for (const o of ICONS) {
+    if (o.activity !== act.id) continue;
+    const k = spotsOfB(o).findIndex((p) => p.x === x && p.y === y);
+    if (k < 0) continue;
+    const d = o.cells?.length > 1 ? o.cellDefaults?.[k] : o.default;
+    if (d) return d.type === "icon" ? d.icon : null;
+  }
+  const ic = itemAt(act, { x, y })?.icon;
+  return ic && !/^custom:lv_/.test(ic) ? ic : null;
 }
 function sliderLevel(s, id) {
   const box = el("div", { class: "lines" });
@@ -1537,18 +1628,42 @@ function sliderLevel(s, id) {
   if (!s.attr) { box.append(el("p", { class: "hint" }, "Needs a value to read (step 1).")); return box; }
   const lv = s.level;
   const on = el("input", { type: "checkbox", id: id + "-lv", checked: !!lv, on: { change: (e) => {
-    s.level = e.target.checked ? { activity: ICON_ACTS.find((a) => a.pageCount === 1)?.id || "", location: null, design: "bar", color: "orange" } : null;
+    s.level = e.target.checked ? { activity: ICON_ACTS.find((a) => a.pageCount === 1)?.id || "", location: null, location2: null, shape: "one", design: "bar", color: "orange", fit: "stretch", show: "always", showSec: 4 } : null;
     extrasChanged(true);
   } } });
   box.append(el("label", { class: "check", for: id + "-lv" }, on, " Show the slider's level on a button of an activity page (bar, gauge, dots…)"));
   if (!lv) return box;
   const usable = ICON_ACTS.filter((a) => a.pageCount === 1);
-  const actSel = select(id + "-la", [["", "Pick an activity…"], ...usable.map((a) => [a.id, a.name])], lv.activity || "", (v) => { lv.activity = v; lv.location = null; extrasChanged(true); }, "Activity for the level");
+  const actSel = select(id + "-la", [["", "Pick an activity…"], ...usable.map((a) => [a.id, a.name])], lv.activity || "", (v) => { lv.activity = v; lv.location = null; lv.location2 = null; extrasChanged(true); }, "Activity for the level");
   for (const a of ICON_ACTS.filter((a) => a.pageCount !== 1)) actSel.append(el("option", { value: a.id, disabled: true }, `${a.name} (${a.pageCount} pages)`));
   box.append(el("div", { class: "fields" }, field(id + "-la", "Activity (one page only)", actSel)));
   const act = ICON_ACTS.find((a) => a.id === lv.activity);
-  if (act?.page) box.append(el("p", { class: "hint" }, lv.location ? "Selected. Click another button to change." : "Click the icon or text button that should show the level."),
+  const multi = lv.shape === "rect";
+  const shapeSel = select(id + "-sh", [["one", "One button"], ["rect", "Several buttons (a rectangle: column, row or block)"]], multi ? "rect" : "one",
+    (v) => { lv.shape = v; lv.location2 = null; extrasChanged(true); }, "Shape");
+  box.append(el("div", { class: "fields" }, field(id + "-sh", "Draw over", shapeSel)));
+  let sc = null;
+  if (act?.page && !multi) box.append(el("p", { class: "hint" }, lv.location ? "Selected. Click another button to change." : "Click the icon or text button that should show the level."),
     pageDrawing(lv, act, (o) => o.slider === s.id, () => extrasChanged(true)));
+  if (act?.page && multi) {
+    sc = shapeCells(lv, act);
+    const r = sc.rect;
+    const inRect = (x, y) => r && x >= r.x0 && x < r.x0 + r.w && y >= r.y0 && y < r.y0 + r.h;
+    const step = !lv.location ? "Click the button at one corner of the shape (e.g. the top-left button)."
+      : !lv.location2 ? "Now click the button at the opposite corner (e.g. the bottom-left one for a column). Click the same button again for a single tile."
+      : `${r.w} × ${r.h} buttons selected. Click any button to start a new shape.`;
+    box.append(el("p", { class: "hint" }, step),
+      pageDrawing(lv, act, (o) => o.slider === s.id, null, {
+        isSel: (x, y) => inRect(x, y) && (!!lv.location2 || (lv.location.x === x && lv.location.y === y)),
+        onClick: (x, y) => { if (!lv.location || lv.location2) { lv.location = { x, y }; lv.location2 = null; } else lv.location2 = { x, y }; extrasChanged(true); } }));
+    if (lv.location2) {
+      const taken = sc.cells.filter((c) => ICONS.some((o) => o.slider !== s.id && o.activity === act.id && spotsOfB(o).some((p) => p.x === c.x && p.y === c.y)));
+      if (sc.blocked.length) box.append(el("p", { class: "err", role: "alert" }, `The shape covers ${sc.blocked.length} button(s) that can't change picture (sliders, big tiles or other kinds). Pick a shape of only 1×1 icon or text buttons.`));
+      if (taken.length) box.append(el("p", { class: "err", role: "alert" }, "Part of the shape is already used by another state icon."));
+      if (sc.cells.length > 24) box.append(el("p", { class: "err", role: "alert" }, "At most 24 buttons in one shape."));
+      if (sc.gaps) box.append(el("p", { class: "hint" }, `${sc.gaps} empty spot(s) in the shape: that part of the picture isn't shown.`));
+    }
+  }
   const gal = el("div", { class: "gallery", role: "radiogroup", "aria-label": "Level design" });
   for (const [k, d] of Object.entries(LEVEL_DESIGNS)) gal.append(el("button", { type: "button", class: "gpick" + (lv.design === k ? " sel" : ""), role: "radio", "aria-checked": String(lv.design === k), title: d.name,
     on: { click: () => { lv.design = k; extrasChanged(true); } } }, asImg(levelFrame(k, lv.color, 0.6), 54, d.name), el("span", {}, d.name)));
@@ -1556,19 +1671,34 @@ function sliderLevel(s, id) {
   for (const [k, c] of Object.entries(LEVEL_COLORS)) sw.append(el("button", { type: "button", class: "swatch" + (lv.color === k ? " sel" : ""), role: "radio", "aria-checked": String(lv.color === k), "aria-label": k, title: k, style: "background:" + c,
     on: { click: () => { lv.color = k; extrasChanged(true); } } }));
   // layering: the button's own picture under the gauge
-  const btnIcon = act?.page && lv.location ? itemAt(act, lv.location)?.icon : null;
-  const ownBg = levelBgOf(lv, levelOf(s.id));
-  const canLayer = !!(ownBg || (btnIcon && btnIcon.startsWith("custom:")));
+  const btnIcon = act?.page && lv.location && !multi ? itemAt(act, lv.location)?.icon : null;
+  const ownBg = multi ? null : levelBgOf(lv, levelOf(s.id));
+  const cellBgs = multi && sc ? cellBgsOf(lv, act, sc) : {};
+  const canLayer = multi ? Object.keys(cellBgs).length > 0 : !!(ownBg || (btnIcon && btnIcon.startsWith("custom:")));
   const layer = el("div", { class: "fields" });
   if (canLayer) {
     if (lv.over === undefined) lv.over = true;
     layer.append(el("label", { class: "check", for: id + "-ov" }, el("input", { type: "checkbox", id: id + "-ov", checked: !!lv.over, on: { change: (e) => { lv.over = e.target.checked; extrasChanged(true); } } }), " Draw over the button's own picture"));
-  } else if (lv.location) layer.append(el("span", { class: "hint" }, "This button has no custom picture, so the gauge is drawn on a transparent background."));
+  } else if (lv.location) layer.append(el("span", { class: "hint" }, multi ? "These buttons have no custom pictures, so the gauge is drawn on a transparent background." : "This button has no custom picture, so the gauge is drawn on a transparent background."));
+  if (multi) layer.append(field(id + "-fit", "Fit to the shape", select(id + "-fit", [["stretch", "Stretch to fill the shape"], ["keep", "Keep proportions (centered)"]], lv.fit || "stretch", (v) => { lv.fit = v; extrasChanged(true); }, "Fit")));
   layer.append(field(id + "-sz", "Gauge size", select(id + "-sz", [["1", "Full"], ["0.8", "Large"], ["0.6", "Medium"]], String(lv.scale || 1), (v) => { lv.scale = Number(v); extrasChanged(true); }, "Gauge size")));
-  const bgImg = lv.over && canLayer ? bgImage(ownBg || btnIcon, () => extrasChanged(true)) : null;
   const strip = el("div", { class: "strip" });
-  for (const f of [0, 0.3, 0.6, 1]) strip.append(el("figure", {}, asImg(levelFrame(lv.design, lv.color, f, bgImg, lv.scale || 1), 54), el("figcaption", {}, Math.round(f * 100) + " %")));
+  if (multi && sc?.rect && lv.location2) {
+    const bgs = {};
+    if (lv.over) for (const [k, ic] of Object.entries(cellBgs)) bgs[k] = bgImage(ic, () => extrasChanged(true));
+    const r = sc.rect, k = Math.min(0.7, 240 / Math.max(r.w * 90, r.h * 90));
+    for (const f of [0, 0.3, 0.6, 1]) strip.append(el("figure", {}, compositePreview(lv.design, lv.color, f, { rect: r, fit: lv.fit, scale: lv.scale || 1, bgs }, sc.cells, k), el("figcaption", {}, Math.round(f * 100) + " %")));
+  } else if (!multi) {
+    const bgImg = lv.over && canLayer ? bgImage(ownBg || btnIcon, () => extrasChanged(true)) : null;
+    for (const f of [0, 0.3, 0.6, 1]) strip.append(el("figure", {}, asImg(levelFrame(lv.design, lv.color, f, bgImg, lv.scale || 1), 54), el("figcaption", {}, Math.round(f * 100) + " %")));
+  } else strip.append(el("span", { class: "hint" }, "Pick the two corners of the shape to see a preview."));
+  // when to show it
+  const showBox = el("div", { class: "fields" });
+  showBox.append(field(id + "-show", "Show the level", select(id + "-show", [["always", "Always"], ["change", "Only for a few seconds when the value changes"]], lv.show || "always", (v) => { lv.show = v; extrasChanged(true); }, "When to show")));
+  if (lv.show === "change") showBox.append(field(id + "-sec", "Seconds", input(id + "-sec", String(lv.showSec ?? 4), (v) => { lv.showSec = Number(v); extrasChanged(false); }, { label: "Seconds to show", type: "number", min: 1, max: 60 })));
   box.append(el("div", { class: "subhead" }, "Design"), gal, el("div", { class: "subhead" }, "Color"), sw, el("div", { class: "subhead" }, "Layering and size"), layer,
+    el("div", { class: "subhead" }, "When"), showBox,
+    lv.show === "change" ? el("p", { class: "hint" }, "Between changes the buttons show their own pictures. The level appears when the value changes (from any source, e.g. the remote's volume keys) and hides again after these seconds.") : "",
     el("div", { class: "subhead" }, "Preview"), strip,
     el("p", { class: "hint" }, `The picture follows the slider's range (${s.min}–${s.max}) in 11 steps and updates within about 2 seconds. Single-page activities only: changing a page of a multi-page activity sends the remote back to its first page.`));
   return box;
@@ -1583,28 +1713,70 @@ function levelBgOf(lv, cur) {
   return ic && ic.startsWith("custom:") && !/^custom:lv_/.test(ic) ? ic : null;
 }
 /** After a slider is saved or deleted: create, update or remove its level graphic. Returns an error text or null. */
+/** Custom pictures of the buttons in a shape, keyed "x,y" (only the ones with a custom picture). */
+function cellBgsOf(lv, act, sc) {
+  const out = {};
+  for (const c of sc.cells) { const ic = origIconAt(act, c.x, c.y); if (ic && ic.startsWith("custom:")) out[c.x + "," + c.y] = ic; }
+  return out;
+}
+/** A preview of a multi-button graphic: the tiles with small gaps, as on the remote. */
+function compositePreview(design, color, f, o, cells, k) {
+  const big = levelComposite(design, color, f, o);
+  const gap = 3, t = Math.round(90 * k);
+  const c = document.createElement("canvas");
+  c.width = o.rect.w * (t + gap); c.height = o.rect.h * (t + gap);
+  const g = c.getContext("2d");
+  for (const p of cells) g.drawImage(big, (p.x - o.rect.x0) * 90, (p.y - o.rect.y0) * 90, 90, 90, (p.x - o.rect.x0) * (t + gap), (p.y - o.rect.y0) * (t + gap), t, t);
+  return el("img", { src: c.toDataURL("image/png"), width: c.width, height: c.height, alt: "Preview" });
+}
 async function syncSliderLevels() {
   if (!iconsLoaded) return null;
   let changed = false;
   for (const s of SLIDERS) {
     const cur = levelOf(s.id);
     const lv = s.level;
+    if (lv && lv.activity && lv.location && lv.shape === "rect" && !lv.location2) return `${s.name}: click the second corner of the level shape`;
     if (!lv || !lv.activity || !lv.location) { if (cur && !lv) { ICONS.splice(ICONS.indexOf(cur), 1); changed = true; } continue; }
+    const showOut = lv.show === "change" ? { show: "change", showMs: Math.round(Math.min(60, Math.max(1, Number(lv.showSec) || 4)) * 1000) } : {};
+    if (lv.shape === "rect") {
+      const act = ICON_ACTS.find((a) => a.id === lv.activity);
+      const sc = shapeCells(lv, act);
+      if (sc.blocked.length || !sc.cells.length) return `${s.name}: the level shape must only cover 1×1 icon or text buttons`;
+      if (sc.cells.length > 24) return `${s.name}: at most 24 buttons in one level shape`;
+      const bgs = lv.over ? cellBgsOf(lv, act, sc) : {};
+      const fit = lv.fit === "keep" ? "keep" : "stretch", scale = Number(lv.scale) || 1;
+      const sig = (Object.keys(bgs).length ? "o" : "p") + hashStr(JSON.stringify([lv.design, lv.color, sc.rect, sc.cells, fit, scale, bgs]));
+      const same = cur && cur.sig === sig && cur.cells?.length === sc.cells.length;
+      const want = { id: cur?.id || ("lvl_" + s.id.replace(/^slider_/, "")).slice(0, 40), name: s.name + " level", activity: lv.activity, location: sc.cells[0], entity: s.entity, attr: s.attr,
+        kind: "level", min: Number(s.min), max: Number(s.max), design: lv.design, color: lv.color, slider: s.id, states: [], scale, sig,
+        cells: same ? cur.cells : sc.cells.map((c) => ({ x: c.x, y: c.y, frames: [] })), frames: same ? cur.frames : [], ...(fit === "keep" ? { fit } : {}), ...showOut,
+        _draw: { design: lv.design, color: lv.color, rect: sc.rect, cells: sc.cells, fit, scale, bgs, sig } };
+      if (!cur) { ICONS.push(want); changed = true; continue; }
+      const keys = ["name", "activity", "location", "entity", "attr", "min", "max", "design", "color", "cells", "scale", "sig", "fit", "show", "showMs"];
+      if (keys.some((k) => JSON.stringify(cur[k] ?? null) !== JSON.stringify(want[k] ?? null))) {
+        for (const k of ["bg", "fit", "show", "showMs"]) delete cur[k];
+        Object.assign(cur, want); changed = true;
+      } else cur._draw = want._draw;
+      continue;
+    }
     const want = { id: cur?.id || ("lvl_" + s.id.replace(/^slider_/, "")).slice(0, 40), name: s.name + " level", activity: lv.activity, location: lv.location, entity: s.entity, attr: s.attr,
       kind: "level", min: Number(s.min), max: Number(s.max), design: lv.design, color: lv.color, slider: s.id, states: [],
-      bg: lv.over ? levelBgOf(lv, cur) : null, scale: Number(lv.scale) || 1 };
+      bg: lv.over ? levelBgOf(lv, cur) : null, scale: Number(lv.scale) || 1, ...showOut };
     if (!want.bg) delete want.bg;
     want.frames = cur && cur.design === want.design && cur.color === want.color && (cur.bg || null) === (want.bg || null) && (cur.scale || 1) === want.scale ? cur.frames : [];
     if (!cur) { ICONS.push(want); changed = true; }
     else {
-      const keys = ["name", "activity", "location", "entity", "attr", "min", "max", "design", "color", "frames", "bg", "scale"];
-      if (keys.some((k) => JSON.stringify(cur[k] ?? null) !== JSON.stringify(want[k] ?? null))) { if (!want.bg) delete cur.bg; Object.assign(cur, want); changed = true; }
+      const keys = ["name", "activity", "location", "entity", "attr", "min", "max", "design", "color", "frames", "bg", "scale", "show", "showMs", "cells"];
+      if (keys.some((k) => JSON.stringify(cur[k] ?? null) !== JSON.stringify(want[k] ?? null))) {
+        for (const k of ["bg", "show", "showMs", "cells", "cellDefaults", "sig", "fit", "_draw"]) if (!(k in want)) delete cur[k];
+        Object.assign(cur, want); changed = true;
+      }
     }
   }
   for (const b of [...ICONS]) if (b.slider && !SLIDERS.some((s) => s.id === b.slider)) { ICONS.splice(ICONS.indexOf(b), 1); changed = true; }
   if (!changed) return null;
   try {
-    const r = await postIcons((b, n) => edMsg("extras", "", `Making the level pictures… ${n}/11`));
+    const r = await postIcons((b, n, t) => edMsg("extras", "", `Making the level pictures… ${n}/${t || 11}`));
     if (!r.ok) return (r.data.errors || [r.data.error]).join(" | ");
     ICONS = iconsFromServer(r.data.icons, ICONS);
   } catch (e) { return e.message; }
@@ -1740,7 +1912,7 @@ function menuCard(m, mi) {
 function describeSlider(s) {
   const how = s.mode === "steps" ? "up/down presses" : "one command";
   const lv = typeof levelOf === "function" && levelOf(s.id);
-  return `${devName(s.entity)} ${s.attr ? s.attr.replace(/_/g, " ") : "(remembered)"} · ${s.min}–${s.max} · ${how}${lv ? ` · level on ${ICON_ACTS.find((a) => a.id === lv.activity)?.name || "a page"}` : ""}`;
+  return `${devName(s.entity)} ${s.attr ? s.attr.replace(/_/g, " ") : "(remembered)"} · ${s.min}–${s.max} · ${how}${lv ? ` · level on ${ICON_ACTS.find((a) => a.id === lv.activity)?.name || "a page"}${lv.cells?.length > 1 ? `, over ${lv.cells.length} buttons` : ""}${lv.show === "change" ? `, shown ${Math.round((lv.showMs || 4000) / 1000)} s after a change` : ""}` : ""}`;
 }
 const describeMenu = (m) => `${m.options.length} choice${m.options.length === 1 ? "" : "s"}: ${m.options.map((o) => o.label).join(", ")}`;
 function extrasEditorBox() {

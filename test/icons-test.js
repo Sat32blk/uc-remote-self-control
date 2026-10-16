@@ -154,6 +154,28 @@ ok(item(1, 0).icon === FR[9], "volume 72 → 90 % image");
 h = await http("GET", "/api/icons");
 ok(h.data.icons.find((b) => b.id === "rcv_level")?.status?.look === "90 %", "builder shows which step is on the remote");
 
+// ---- level graphic over several tiles, shown only for a while after a change -----------------
+activities["uc.main.act5"] = { name: { en: "Skin" }, state: "OFF", entity_ids: [], buttons: {}, pages: [
+  { page_id: "s1", name: "Main", grid: { width: 2, height: 3 }, items: [0, 1, 2].map((y) => ({ type: "icon", icon: `custom:skin_${y}.png`, location: { x: 0, y }, size: { width: 1, height: 1 } })) }] };
+const skin = (y) => activities["uc.main.act5"].pages[0].items.find((it) => it.location.y === y);
+const cf = (y) => Array.from({ length: 11 }, (_, i) => `custom:col_${y}_${String(i * 10).padStart(3, "0")}.png`);
+const column = { id: "col_level", name: "Volume column", activity: "uc.main.act5", location: { x: 0, y: 0 }, entity: MARANTZ, attr: "volume", kind: "level", min: 0, max: 80,
+  design: "column", color: "orange", frames: cf(0), cells: [0, 1, 2].map((y) => ({ x: 0, y, frames: cf(y) })), show: "change", showMs: 1200 };
+devices[MARANTZ].volume = 40;
+h = await http("POST", "/api/icons", { icons: [tv, column] });
+ok(h.status === 200 && h.data.icons.find((b) => b.id === "col_level")?.cellDefaults?.length === 3, "column over 3 tiles saved; each tile's own picture kept as its default");
+await sleep(600);
+ok(skin(0).icon === "custom:skin_0.png" && skin(2).icon === "custom:skin_2.png", "show on change: nothing shown before the volume changes");
+devices[MARANTZ].volume = 72;
+await sleep(700);
+ok(skin(0).icon === cf(0)[9] && skin(1).icon === cf(1)[9] && skin(2).icon === cf(2)[9], "volume changed: all 3 tiles show their part of the 90 % picture");
+await sleep(1800);
+ok(skin(0).icon === "custom:skin_0.png" && skin(1).icon === "custom:skin_1.png" && skin(2).icon === "custom:skin_2.png", "after the show time the tiles go back to their own pictures");
+ok(validateIcons({ icons: [{ ...column, cells: [{ x: 0, y: 0, frames: cf(0) }, { x: 0, y: 1, frames: [] }] }] }).errors.some((e) => /images are missing/.test(e)), "every tile needs its 11 images");
+h = await http("POST", "/api/icons", { icons: [tv] });
+await sleep(300);
+ok(skin(1).icon === "custom:skin_1.png", "removing the column leaves the tiles as they were");
+
 // ---- removing one restores its button --------------------------------------------------------
 h = await http("POST", "/api/icons", { icons: [tv] });
 await sleep(300);
