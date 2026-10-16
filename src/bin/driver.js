@@ -1249,6 +1249,33 @@ startWebServer({
     "power_saving.standby_sec": "Sleep timeout (seconds, 0 = never)"
   },
   stateIcons: () => stateIcons,
+  // ↩ Return to previous activity, also editable in the builder
+  returnSettings: async () => ({
+    cfg: returnTracker.cfg,
+    activities: core ? await listActivities(core).catch(() => []) : [],
+    current: returnTracker.nameOf(returnTracker.current) || null,
+    previous: returnTracker.nameOf(returnTracker.previous) || null
+  }),
+  saveReturn: async (body) => {
+    const acts = await listActivities(core).catch(() => []);
+    const known = new Set(acts.map((a) => a.id));
+    const hosts = (Array.isArray(body.hosts) ? body.hosts : []).filter((h) => known.has(h));
+    const screen = ["text", "icon", "none"].includes(body.screen) ? body.screen : "text";
+    const button = /^[A-Z0-9_]{1,20}$/.test(String(body.button || "")) ? String(body.button) : "NONE";
+    const press = body.press === "long_press" ? "long_press" : "short_press";
+    const buttonScope = body.buttonScope === "nofit" ? "nofit" : "all";
+    if (!hosts.length) {
+      returnTracker.cfg = { ...returnTracker.cfg, hosts: [], screen, button, press, buttonScope };
+      returnTracker.save();
+      log("return: turned off (no activities chosen)");
+      return [];
+    }
+    if (screen === "none" && button === "NONE") return ["Choose an on-screen button, a physical button, or both."];
+    await returnTracker.configure({ hosts, screen, button, press, buttonScope });
+    log(`return: on for ${hosts.map((h) => returnTracker.nameOf(h)).join(", ")}; screen ${screen}; button ${button} ${press} (${buttonScope}) (from the builder)`);
+    startPolling();
+    return [];
+  },
   extras: () => extras,
   validateExtras: (body) => validateExtras(body, selfApi.keys, reservedIds()),
   onExtrasChanged: async () => {

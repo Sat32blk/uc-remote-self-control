@@ -126,6 +126,7 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .editbox-foot .grow { flex: 1; }
 button.danger { color: var(--danger); }
 input.missing { border-color: var(--danger); outline: 2px solid var(--danger); }
+.checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 14px; }
 label.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
 label.check input { min-height: 0; width: 18px; height: 18px; }
 .section-title { margin: 6px 0 0; font-size: 17px; font-weight: 600; }
@@ -503,10 +504,10 @@ function stepsBlock(list) {
 // ---------------------------------------------------------------------------
 // Create / edit pattern: one editor box at the top of a tab, saved items as bars below.
 // ---------------------------------------------------------------------------
-const ED = { smart: null, icons: null, extras: null }; // { item, snap, isNew, kind, msg: { cls, text, errors } }
-const RERENDER = { smart: () => render(), icons: () => renderIcons(), extras: () => renderExtras() };
+const ED = { smart: null, icons: null, extras: null, ret: null }; // { item, snap, isNew, kind, msg: { cls, text, errors } }
+const RERENDER = { smart: () => render(), icons: () => renderIcons(), extras: () => renderExtras(), ret: () => render() };
 // Quick menus are edited in the Smart Controls tab, sliders in the Icons & Sliders tab.
-const paneOf = (tab, kind) => (tab === "smart" || (tab === "extras" && kind === "menu") ? "smart" : "icons");
+const paneOf = (tab, kind) => (tab === "smart" || tab === "ret" || (tab === "extras" && kind === "menu") ? "smart" : "icons");
 const slotSel = (tab) => `#${paneOf(tab, ED[tab]?.kind)}-editor`;
 const edDirty = (tab) => { const e = ED[tab]; return !!e && (e.isNew || JSON.stringify(e.item) !== e.snap); };
 
@@ -516,7 +517,7 @@ function editorBox(tab, { title, card, onSave, onDelete, extra = [] }) {
   const errs = el("ul", { class: "errors" }, (e.msg?.errors || []).map((x) => el("li", {}, x)));
   errs.hidden = !(e.msg?.errors || []).length;
   let del = null;
-  if (!e.isNew) {
+  if (!e.isNew && onDelete) {
     del = el("button", { class: "ghost danger", type: "button" }, "Delete");
     del.addEventListener("click", () => {
       if (del.dataset.armed === "1") return onDelete();
@@ -556,6 +557,7 @@ const listOf = (tab, kind) => (tab === "smart" ? buttons : tab === "icons" ? ICO
 function cancelEdit(tab, rerender = true) {
   const e = ED[tab];
   if (!e) return;
+  if (tab === "ret") { ED.ret = null; if (rerender) render(); return; }
   const list = listOf(tab, e.kind);
   const i = list.indexOf(e.item);
   if (i >= 0) { if (e.isNew) list.splice(i, 1); else list[i] = JSON.parse(e.snap); }
@@ -660,6 +662,68 @@ function smartCard(b) {
   return card;
 }
 
+// ---- ↩ Return to previous activity ------------------------------------------
+let RET = null; // { cfg: { hosts, screen, button, press, buttonScope }, activities: [{ id, name }], current, previous }
+const RET_BUTTONS = ["BACK", "HOME", "MENU", "RECORD", "STOP", "PLAY", "PREV", "NEXT", "MUTE", "CHANNEL_UP", "CHANNEL_DOWN", "VOICE"];
+const actName = (id) => RET?.activities.find((a) => a.id === id)?.name || CAT.activities.find((a) => a.id === id)?.name || id;
+function describeReturn() {
+  const c = RET.cfg;
+  if (!c.hosts.length) return "Off · pick the activities that get a ↩ button";
+  const screen = c.screen === "icon" ? "back-arrow icon" : c.screen === "none" ? "nothing on screen" : "text button";
+  const btn = c.button && c.button !== "NONE" ? `${niceButton(c.button)} (${c.press === "long_press" ? "long" : "short"} press${c.buttonScope === "nofit" ? ", where the screen button doesn't fit" : ""})` : "no physical button";
+  return `${c.hosts.map(actName).join(", ")} · ${screen} · ${btn}`;
+}
+function retCard(r) {
+  const id = nid("rt");
+  const card = el("article", { class: "card", "aria-label": "Return to previous activity" });
+  card.append(el("p", { class: "hint" }, "The integration watches which activity you start (whether or not the old one turns off) and keeps a ↩ button in the activities you tick pointed at the activity you used before. Pressing it opens that activity."));
+  card.append(el("div", { class: "subhead" }, "1 · Activities with a ↩ button"));
+  const acts = el("div", { class: "checks" });
+  for (const a of RET.activities) {
+    const cb = el("input", { type: "checkbox", id: id + "-h-" + a.id, checked: r.hosts.includes(a.id), on: { change: (e) => { r.hosts = e.target.checked ? [...r.hosts, a.id] : r.hosts.filter((h) => h !== a.id); retChanged(true); } } });
+    acts.append(el("label", { class: "check", for: id + "-h-" + a.id }, cb, " " + a.name));
+  }
+  if (!RET.activities.length) acts.append(el("p", { class: "empty" }, "No activities found."));
+  card.append(acts, el("p", { class: "hint" }, "Untick all to turn the ↩ button off (buttons already placed stay where they are)."));
+  card.append(el("div", { class: "subhead" }, "2 · On screen"));
+  card.append(el("div", { class: "fields" }, field(id + "-s", "Button on the activity's first page", select(id + "-s", [["text", "Text button \"↩ <previous activity>\""], ["icon", "Back-arrow icon"], ["none", "None"]], r.screen || "text", (v) => { r.screen = v; retChanged(false); }, "On-screen button"))),
+    el("p", { class: "hint" }, "It goes in the first free spot; move it anywhere you like in the web configurator. If a page has no free spot, it's left as it is."));
+  card.append(el("div", { class: "subhead" }, "3 · Physical button (optional)"));
+  const row = el("div", { class: "fields" });
+  const btnSel = select(id + "-b", [["NONE", "None"], ...RET_BUTTONS.map((b) => [b, niceButton(b)])], r.button || "NONE", (v) => { r.button = v; retChanged(true); }, "Physical button");
+  const first = r.hosts[0];
+  if (first) buttonsOf(first).then((list) => {
+    const names = list.map((x) => x.button);
+    if (!names.length) return;
+    btnSel.replaceWith(select(id + "-b", [["NONE", "None"], ...names.map((b) => [b, niceButton(b)])], r.button || "NONE", (v) => { r.button = v; retChanged(true); }, "Physical button"));
+  });
+  row.append(field(id + "-b", "Button", btnSel));
+  if (r.button && r.button !== "NONE") row.append(
+    field(id + "-p", "Press", select(id + "-p", [["short_press", "Short press"], ["long_press", "Long press"]], r.press || "short_press", (v) => { r.press = v; retChanged(false); }, "Press")),
+    field(id + "-sc", "Use it", select(id + "-sc", [["all", "In every ticked activity"], ["nofit", "Only where the on-screen button doesn't fit"]], r.buttonScope || "all", (v) => { r.buttonScope = v; retChanged(false); }, "Use it")));
+  card.append(row);
+  if (r.button && r.button !== "NONE") card.append(el("p", { class: "hint" }, "This replaces what that button does in those activities."));
+  if (RET.current || RET.previous) card.append(el("p", { class: "live" }, "Now: ", el("b", {}, RET.current || "–"), " · previous: ", el("b", {}, RET.previous || "–")));
+  return card;
+}
+function retChanged(rerender) { if (rerender) render(); }
+function retEditorBox() {
+  return editorBox("ret", { title: "↩ Return to previous activity", card: retCard(ED.ret.item), onSave: saveRet });
+}
+async function saveRet() {
+  const r = ED.ret.item;
+  edMsg("ret", "", "Saving…");
+  const res = await api("POST", "/api/return", { hosts: r.hosts, screen: r.screen, button: r.button, press: r.press, buttonScope: r.buttonScope });
+  if (!res.ok) { edMsg("ret", "err", res.data.error || "Not saved:", res.data.errors); return; }
+  RET = res.data;
+  ED.ret = null;
+  render();
+}
+async function loadReturn() {
+  const r = await api("GET", "/api/return");
+  if (r.ok) RET = r.data;
+}
+
 function render() {
   const e = ED.smart;
   const xm = ED.extras?.kind === "menu" ? ED.extras : null;
@@ -669,12 +733,13 @@ function render() {
     onSave: () => saveSmart(true),
     onDelete: deleteSmart,
     extra: [el("button", { type: "button", on: { click: testSmart } }, "Save & test")]
-  })] : xm ? [extrasEditorBox()] : []));
+  })] : xm ? [extrasEditorBox()] : ED.ret ? [retEditorBox()] : []));
   const host = $("#buttons");
   const rows = buttons.filter((b) => !(e && e.isNew && b === e.item)).map((b) => bar({
     kind: "Smart", name: b.name, sub: describeSmart(b), editing: e && e.item === b, flash: flashOnce(b.id), onEdit: () => openEdit("smart", b)
   }));
   rows.push(...menuBars());
+  if (RET) rows.unshift(bar({ kind: "Return", name: "↩ Return to previous activity", sub: describeReturn(), state: RET.cfg.hosts.length && RET.previous ? "previous: " + RET.previous : "", editing: !!ED.ret, onEdit: () => openEdit("ret", { ...RET.cfg, hosts: [...RET.cfg.hosts] }) }));
   host.replaceChildren(...rows);
   if (!rows.length) host.append(el("p", { class: "empty" }, "No smart controls or quick menus yet. Create one, start from a template, or load the defaults below."));
 }
@@ -813,7 +878,7 @@ $("#copy").addEventListener("click", () => {
   const fallback = () => { const r = document.createRange(); r.selectNodeContents($("#json")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); st.className = "status"; st.textContent = "Selected: press Ctrl+C."; };
   try { navigator.clipboard.writeText($("#json").textContent).then(() => { st.className = "status ok"; st.textContent = "Copied."; }, fallback); } catch { fallback(); }
 });
-window.addEventListener("beforeunload", (e) => { if (edDirty("smart") || edDirty("icons") || edDirty("extras")) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("beforeunload", (e) => { if (edDirty("smart") || edDirty("icons") || edDirty("extras") || edDirty("ret")) { e.preventDefault(); e.returnValue = ""; } });
 
 // ---- Level graphics and tile icons (drawn on a 90x90 canvas) ----------------
 // Level designs: draw(g, f, c) with f = 0..1 and c = { on, off } colors.
@@ -1591,7 +1656,7 @@ for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () =
 // Session
 // ---------------------------------------------------------------------------
 function showLogin(msg) {
-  $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
+  $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = ED.ret = null; RET = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
   $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
   $("#pin").focus();
 }
@@ -1607,7 +1672,7 @@ async function loadAll() {
   saved = JSON.stringify(toRules(buttons), null, 2);
   $("#json").textContent = saved;
   $("#login").hidden = true; $("#tabs").hidden = false; $("#session-bar").hidden = false;
-  await loadExtras();
+  await Promise.all([loadExtras(), loadReturn()]);
   changed(true);
   let tab = "smart";
   try { tab = localStorage.getItem("scb_tab") || "smart"; } catch {}

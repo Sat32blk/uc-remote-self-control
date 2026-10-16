@@ -120,7 +120,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, validateExtras, onExtrasChanged, log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, validateExtras, onExtrasChanged, returnSettings, saveReturn, log, warn }) {
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -281,6 +281,21 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       try { list = await core.get(`/activities/${encodeURI(id)}/buttons`); } catch {}
       const buttons = (Array.isArray(list) ? list : []).map((b) => ({ button: b.button, short: b.short_press?.entity_id || null, long: b.long_press?.entity_id || null }));
       send(res, 200, { buttons });
+    },
+    "GET /api/return": async (req, res) => {
+      if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      send(res, 200, await returnSettings());
+    },
+    "POST /api/return": async (req, res) => {
+      const body = await readJson(req);
+      if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      try {
+        const errors = await saveReturn(body);
+        if (errors.length) return send(res, 422, { ok: false, errors });
+        send(res, 200, { ok: true, ...(await returnSettings()) });
+      } catch (e) {
+        send(res, 502, { ok: false, error: e.message });
+      }
     },
     "GET /api/extras": async (req, res) => send(res, 200, { ...extras().config, status: extras().status() }),
     "POST /api/extras": async (req, res) => {

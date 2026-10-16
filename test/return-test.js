@@ -158,6 +158,29 @@ activities[MUSIC].state = "ON";
 await sleep(1200);
 ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.command?.entity_id === MUSIC, "after restart it keeps tracking");
 
+// ---- builder: the same settings over HTTP -------------------------------------------------
+{
+  const WEB = "http://127.0.0.1:10933";
+  let cookie = "";
+  const http = async (method, url, body) => {
+    const res = await fetch(WEB + url, { method, headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(cookie ? { Cookie: cookie } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    const sc = res.headers.get("set-cookie");
+    if (sc) cookie = sc.split(";")[0];
+    return { status: res.status, data: await res.json() };
+  };
+  let h = await http("GET", "/api/return");
+  ok(h.status === 401, "builder: return settings need a login");
+  await http("POST", "/api/login", { pin: "1234" });
+  h = await http("GET", "/api/return");
+  ok(h.status === 200 && h.data.cfg.hosts.join() === TV_ACT && h.data.activities.length === 2 && h.data.current, "builder: reads the ↩ settings, activities and current activity");
+  h = await http("POST", "/api/return", { hosts: [TV_ACT], screen: "none", button: "NONE" });
+  ok(h.status === 422 && /on-screen button, a physical button/.test(h.data.errors[0]), "builder: nothing to show is refused");
+  h = await http("POST", "/api/return", { hosts: [TV_ACT, MUSIC, "uc.main.bogus"], screen: "icon", button: "RECORD", press: "long_press", buttonScope: "nofit" });
+  ok(h.status === 200 && h.data.cfg.hosts.join() === `${TV_ACT},${MUSIC}` && h.data.cfg.press === "long_press" && h.data.cfg.buttonScope === "nofit", "builder: saving ticks activities (unknown ones dropped) and applies the settings");
+  await sleep(400);
+  ok(activities[MUSIC].buttons.RECORD?.long_press?.cmd_id === "activity.start", "builder: Play Music (no room on screen) got RECORD long press");
+}
+
 // ---- turn off ---------------------------------------------------------------------------
 r = await returnSetup({ host_0: "false", host_1: "false", screen: "text", button: "NONE", press: "short_press" });
 ok(r.after?.msg_data.state === "OK" && JSON.parse(fs.readFileSync(path.join(cfgDir, "return.json"), "utf8")).cfg.hosts.length === 0, "unticking every activity turns it off");
