@@ -637,12 +637,17 @@ async function fetchAllEntities(c, base) {
 }
 
 function publishControl(attrs) {
-  const e = controlEntities.control;
+  // the same level as a light, so its tile opens the remote's on-screen slider pop-up
+  publishTo("control_level", { state: attrs.volume > 0 ? uc.LightStates.On : uc.LightStates.Off, brightness: Math.round((attrs.volume / 100) * 255) });
+  publishTo("control", attrs);
+}
+function publishTo(id, attrs) {
+  const e = controlEntities[id];
   if (!e) return;
   const changed = {};
   for (const [k, v] of Object.entries(attrs)) if (JSON.stringify(e.attributes?.[k]) !== JSON.stringify(v)) changed[k] = v;
   if (!Object.keys(changed).length) return;
-  if (!api.updateEntityAttributes("control", changed)) Object.assign(e.attributes, changed);
+  if (!api.updateEntityAttributes(id, changed)) Object.assign(e.attributes, changed);
 }
 
 function buildControlEntities() {
@@ -654,6 +659,20 @@ function buildControlEntities() {
     cmdHandler: traced("control", async (entity, rawCmd, params) => {
       if (!core) return uc.StatusCodes.ServiceUnavailable;
       control.command(plainCmd(rawCmd), params || {}).catch((e) => warn("control:", e.message));
+      return uc.StatusCodes.Ok;
+    })
+  });
+  const L = uc.LightFeatures;
+  const a0 = control.attrs();
+  controlEntities.control_level = new uc.Light("control_level", { en: "Control Level" }, {
+    area: AREA_CONTROL,
+    features: [L.OnOff, L.Toggle, L.Dim],
+    attributes: { state: a0.volume > 0 ? uc.LightStates.On : uc.LightStates.Off, brightness: Math.round((a0.volume / 100) * 255) },
+    cmdHandler: traced("control_level", async (entity, rawCmd, rawParams) => {
+      if (!core) return uc.StatusCodes.ServiceUnavailable;
+      const { cmd, params } = normalizeLight(rawCmd, rawParams || {});
+      const v = cmd === "off" ? 0 : params.brightness !== undefined ? (params.brightness / 255) * 100 : cmd === "toggle" && control.value > 0 ? 0 : Math.max(control.value, 50);
+      control.command("volume", { volume: v }).catch((e) => warn("control:", e.message));
       return uc.StatusCodes.Ok;
     })
   });

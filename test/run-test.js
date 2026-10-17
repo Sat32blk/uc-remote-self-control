@@ -48,7 +48,7 @@ const send = (msg, msg_data) => ws.send(JSON.stringify({ kind: "event", msg, msg
 
 // --- before setup
 let r = await req("get_driver_version");
-ok(r.msg === "driver_version" && r.msg_data.version.driver === "0.6.1", "driver_version 0.6.1");
+ok(r.msg === "driver_version" && r.msg_data.version.driver === "0.6.2", "driver_version 0.6.2");
 send("connect");
 await sleep(300);
 r = await req("get_device_state");
@@ -81,9 +81,9 @@ r = await req("get_available_entities");
 const avail = r.msg_data.available_entities;
 const ids = avail.map((e) => e.entity_id).sort();
 console.log("     entities:", ids.join(", "));
-ok(avail.length === 20, "20 entities offered (14 settings + Smart Test Button + result sensor + Previous Activity + 3 Control test)");
+ok(avail.length === 21, "21 entities offered (14 settings + Smart Test Button + result sensor + Previous Activity + 4 Control test)");
 const ctl = avail.find((e) => e.entity_id === "control");
-ok(ctl?.entity_type === "media_player" && ctl.features.includes("volume") && ctl.features.includes("volume_up_down") && avail.filter((e) => e.area === "Remote Control Test").length === 3, "Control test: media player with volume + 2 buttons");
+ok(ctl?.entity_type === "media_player" && ctl.features.includes("volume") && ctl.features.includes("volume_up_down") && avail.filter((e) => e.area === "Remote Control Test").length === 4 && avail.find((e) => e.entity_id === "control_level")?.entity_type === "light", "Control test: media player with volume, Control Level light + 2 buttons");
 ok(avail.find((e) => e.entity_id === "previous_activity")?.area === "Remote Navigation" && avail.find((e) => e.entity_id === "previous_activity")?.entity_type === "sensor", "Previous Activity sensor in Remote Navigation");
 ok(avail.filter((e) => e.area === "Remote Smart Controls").length === 2, "2 entities in area Remote Smart Controls");
 const order = avail.slice(0, 14).map((e) => e.entity_id).join(",");
