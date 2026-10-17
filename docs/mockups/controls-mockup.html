@@ -96,11 +96,7 @@ button.danger { color: var(--danger); }
 .rbtn { background: #20252c; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #c9ced5; border: 2px solid transparent; cursor: pointer; padding: 0; min-height: 0; }
 .rbtn span { font-size: 17px; line-height: 1.1; }
 .rbtn.lit { border-color: #f2a541; background: #3a2a12; color: #fff; }
-.widget { grid-column: 1 / span 4; grid-row: 3 / span 3; background: #20252c; border-radius: 12px; padding: 10px; display: flex; gap: 10px; align-items: center; }
-.widget .art { width: 70px; height: 70px; border-radius: 8px; background: #2f3640; display: grid; place-items: center; font-size: 30px; flex: none; }
-.widget .w-title { font-weight: 600; font-size: 13px; }
-.widget .w-sub { color: #9aa3ad; font-size: 11px; }
-.widget .w-active { color: #f2a541; font-weight: 600; font-size: 11px; }
+.rbtn .lv { font: 700 10px/1 var(--font-ui); color: #f2a541; }
 .countdown { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: #f2a541; color: #111418; border-radius: 99px; padding: 2px 10px; font: 600 11px/1.6 var(--font-ui); white-space: nowrap; }
 .vpop { position: absolute; left: 10px; top: 60px; bottom: 60px; width: 46px; background: rgba(32,37,44,.96); border-radius: 23px; display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 6px; }
 .vpop .val { font-weight: 700; font-size: 13px; }
@@ -148,10 +144,10 @@ button.danger { color: var(--danger); }
 
       <section class="panel" aria-labelledby="normal-h">
         <h2 id="normal-h">Normal controls</h2>
-        <p class="hint">What the controls do when no mode is active. They all go through one device, <b>Control</b>, which passes them on.</p>
+        <p class="hint">What the controls do when no mode is active. The volume rocker keeps the activity's own mapping (smooth hold, the TV's real volume in the pop-up); the integration only takes it over while a mode is on. The touch slider stays on <b>Control Level</b>, which passes it on.</p>
         <div class="fields">
           <label class="f">Volume rocker (Vol + / Vol −)
-            <select id="n-rocker"><option>Living Room TV volume</option><option>Marantz volume</option><option>Screen brightness</option></select></label>
+            <select id="n-rocker"><option>Unchanged: Living Room TV volume</option></select></label>
           <label class="f">Touch slider
             <select id="n-touch"><option>Screen brightness</option><option>Button backlight</option><option>Living Room TV volume</option></select></label>
           <label class="f">Back to normal after
@@ -179,8 +175,8 @@ button.danger { color: var(--danger); }
             <select><option>Livingroom</option><option>Bedroom</option><option>Theater</option><option>Don't add a tile</option></select></label>
         </div>
         <ul class="checklist">
-          <li><span class="st auto">✓</span><div>Include <b>Control</b>, <b>Control Level</b> and the mode triggers in the activity<small>Automatic</small></div></li>
-          <li><span class="st auto">✓</span><div>Map <b>Vol + / Vol −</b> to Control's volume up / down<small>Automatic. The old mapping is saved and comes back if you remove the setup.</small></div></li>
+          <li><span class="st auto">✓</span><div>Include <b>Control</b>, <b>Control Level</b> and the mode triggers in the activity, and put the trigger buttons on the page<small>Automatic. No Control widget is needed on the page.</small></div></li>
+          <li><span class="st auto">✓</span><div><b>Vol + / Vol −</b> stay on the TV<small>Automatic: the integration switches them to Control only while a mode is on, and back right after (also after a restart).</small></div></li>
           <li><span class="st auto">✓</span><div>Add the <b>Control Level</b> tile to the home page (tap it for the slider pop-up)<small>Automatic</small></div></li>
           <li><span class="st you">1</span><div>Set the <b>touch slider</b> to <b>Control Level</b><small>Do this yourself once in the web configurator (activity → touch slider). The integration can't change this setting.</small></div></li>
         </ul>
@@ -198,10 +194,7 @@ button.danger { color: var(--danger); }
               <div class="screen-top"><span>Watch TV</span><span>21:53</span></div>
               <div class="rgrid">
                 <div id="rslots" style="display:contents"></div>
-                <div class="widget" id="widget">
-                  <div class="art" id="w-art">📺</div>
-                  <div><div class="w-title" id="w-title">Normal controls</div><div class="w-sub" id="w-sub">Rocker: TV volume · Slider: screen</div><div class="w-active" id="w-active"></div></div>
-                </div>
+                <div id="rfill" style="display:contents"></div>
               </div>
             </div>
             <div class="countdown" id="countdown" hidden></div>
@@ -225,7 +218,7 @@ button.danger { color: var(--danger); }
           </div>
         </div>
         <div class="log" id="log" aria-live="polite"></div>
-        <p class="legend">The pop-ups are the remote's own. The vertical one shows the value at the top and a speaker icon; the horizontal one shows the device name, so it reads "Control Level".</p>
+        <p class="legend">No Control widget on the page: the remote's own pop-ups show the level, and the trigger button lights up with it. The pop-ups are the remote's own. The vertical one shows the value at the top and a speaker icon; the horizontal one shows the device name, so it reads "Control Level".</p>
       </section>
     </aside>
   </div>
@@ -244,8 +237,8 @@ const SLIDERS = [
 ];
 const ICONS = ["💡", "🎚", "🔊", "☀️", "🌡", "🌀", "🎛", "🪟"];
 let MODES = [
-  { id: "light", name: "Light", icon: "💡", slider: "ceiling", rocker: true, touch: true, tile: true, trigger: { x: 0, y: 0 }, phys: "none", again: true, widget: true, lit: true, graphic: false },
-  { id: "bass", name: "Bass", icon: "🎚", slider: "bass", rocker: true, touch: true, tile: false, trigger: { x: 1, y: 0 }, phys: "Long press RED", again: true, widget: true, lit: true, graphic: false }
+  { id: "light", name: "Light", icon: "💡", slider: "ceiling", rocker: true, touch: true, tile: true, trigger: { x: 0, y: 0 }, phys: "none", again: true, lit: true, graphic: false },
+  { id: "bass", name: "Bass", icon: "🎚", slider: "bass", rocker: true, touch: true, tile: false, trigger: { x: 1, y: 0 }, phys: "Long press RED", again: true, lit: true, graphic: false }
 ];
 let editing = null; // { item, isNew }
 
@@ -293,7 +286,7 @@ function renderEditor() {
   for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
     const k = x + "," + y;
     const other = MODES.find((o) => o !== m && o.trigger && o.trigger.x === x && o.trigger.y === y);
-    if (y >= 2) { if (y === 2 && x === 0) grid.append(el("div", { class: "it off", style: "grid-column: 1 / span 4; grid-row: 3 / span 2" }, "Control widget")); continue; }
+    if (y >= 2) { grid.append(el("div", { class: "it off" }, ["Netflix", "YouTube", "Prime", "Plex", "Guide", "Info", "Apps", "Menu"][(y - 2) * 4 + x])); continue; }
     if (occupied[k] || other) grid.append(el("div", { class: "it off" }, occupied[k] || `${other.icon} ${other.name}`));
     else grid.append(el("button", { type: "button", class: "it" + (m.trigger && m.trigger.x === x && m.trigger.y === y ? " sel" : ""), on: { click: () => { m.trigger = { x, y }; renderEditor(); } } }, m.trigger && m.trigger.x === x && m.trigger.y === y ? `${m.icon} ${m.name || "?"}` : "free"));
   }
@@ -314,8 +307,8 @@ function renderEditor() {
       el("div", { class: "fields" }, el("label", { class: "f", for: "m-phys" }, "Physical button (optional)", phys)),
       check("Pressing it again goes back to normal right away", "", m.again, (v) => (m.again = v))),
     el("div", { class: "step" }, el("h3", {}, "4 · Show that it's active"),
-      check("Text on the Control widget", "Works on any page: \"💡 Light · Control active · 50 %\"", m.widget, (v) => (m.widget = v)),
-      check("Light up the trigger button", "Single-page activities only", m.lit, (v) => (m.lit = v)),
+      el("p", { class: "hint" }, "The remote's own pop-ups always show the level while you use the controls. Extra signs on the page (single-page activities only; on other activities the pop-ups are the only sign):"),
+      check("Light up the trigger button and show the level on it", "e.g. 💡 60 % while active, back to 💡 Light after", m.lit, (v) => (m.lit = v)),
       check("Level graphic from the slider", "Single-page activities only; set it up in the slider (step 5)", m.graphic, (v) => (m.graphic = v))),
     el("div", { class: "editbox-foot" },
       el("button", { type: "button", class: "primary", on: { click: () => { if (!m.name.trim()) { nameIn.focus(); nameIn.style.borderColor = "var(--danger)"; return; } if (editing.isNew) { m.id = m.name.toLowerCase().replace(/[^a-z0-9]+/g, "_"); } closeEdit(true); } } }, editing.isNew ? "Save" : "Save changes"),
@@ -326,7 +319,7 @@ function renderEditor() {
 
 $("#create").addEventListener("click", () => {
   if (editing) closeEdit(false);
-  const item = { id: "", name: "", icon: "🔊", slider: "rvol", rocker: true, touch: true, tile: true, trigger: null, phys: "none", again: true, widget: true, lit: true, graphic: false };
+  const item = { id: "", name: "", icon: "🔊", slider: "rvol", rocker: true, touch: true, tile: true, trigger: null, phys: "none", again: true, lit: true, graphic: false };
   MODES.push(item);
   openEdit(item, true);
 });
@@ -352,16 +345,14 @@ function renderScreen() {
   const slots = [];
   for (let y = 0; y < 2; y++) for (let x = 0; x < 4; x++) {
     const m = MODES.find((o) => o.id && o.trigger && o.trigger.x === x && o.trigger.y === y && !(editing?.isNew && editing.item === o));
-    if (m) slots.push(el("button", { type: "button", class: "rbtn" + (sim.mode === m.id && m.lit ? " lit" : ""), on: { click: () => startMode(m.id) } }, el("span", {}, m.icon), m.name));
+    const on = sim.mode === m?.id && m.lit;
+    if (m) slots.push(el("button", { type: "button", class: "rbtn" + (on ? " lit" : ""), on: { click: () => startMode(m.id) } }, el("span", {}, m.icon), on ? el("b", { class: "lv" }, sim.values[m.slider] + " %") : m.name));
     else if (fixed[x + "," + y]) slots.push(el("button", { type: "button", class: "rbtn" }, el("span", {}, fixed[x + "," + y][0]), fixed[x + "," + y][1]));
     else slots.push(el("div", {}));
   }
   $("#rslots").replaceChildren(...slots);
-  const showW = c && c.m.widget;
-  $("#w-art").textContent = showW ? c.m.icon : "📺";
-  $("#w-title").textContent = showW ? `${c.m.icon} ${c.name}` : "Normal controls";
-  $("#w-sub").textContent = showW ? `Rocker${c.m.touch ? " + touch slider" : ""}${c.m.tile ? " + tile" : ""} change it` : `Rocker: ${$("#n-rocker").value} · Slider: ${$("#n-touch").value.toLowerCase()}`;
-  $("#w-active").textContent = showW ? `Control active · ${c.get()} %` : "";
+  const fill = ["Netflix", "YouTube", "Prime", "Plex", "Guide", "Info", "Apps", "Menu", "Input", "Exit", "Mute", "Settings"];
+  $("#rfill").replaceChildren(...fill.map((t) => el("button", { type: "button", class: "rbtn" }, t)));
   $("#screen-inner").style.filter = `brightness(${0.35 + sim.screen / 100 * 0.65})`;
   renderBars();
 }
@@ -387,8 +378,7 @@ const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
 function rocker(d) {
   const c = current();
   if (c && c.m.rocker) { const v = clamp(c.get() + d * 5); c.set(v); showV(v); arm(); log(`rocker → ${c.name} ${v} %`); }
-  else if ($("#n-rocker").value === "Screen brightness") { sim.screen = clamp(sim.screen + d * 5); showV(sim.screen); log(`rocker → screen ${sim.screen} %`); }
-  else { sim.tv = clamp(sim.tv + d); showV(sim.tv); log(`rocker → ${$("#n-rocker").value} ${sim.tv}`); }
+  else { sim.tv = clamp(sim.tv + d); showV(sim.tv); log(`rocker → TV volume ${sim.tv} (straight to the TV, as today)`); }
   renderScreen();
 }
 function sliderTo(v, from) {
