@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controls Mockup</title>
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --inset: #eef0f3; --line: #d6dae0; --fg: #1c2027; --muted: #5b6370;
+  --accent: #b86a00; --accent-ink: #ffffff; --accent-soft: #fbedd8; --danger: #b4231b; --ok: #1d7a3e;
+  --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #111418; --panel: #181c21; --inset: #20252c; --line: #2f3640; --fg: #e8eaed; --muted: #9aa3ad;
+    --accent: #f2a541; --accent-ink: #111418; --accent-soft: #3a2a12; --danger: #ff7b72; --ok: #5bd28a; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #111418; --panel: #181c21; --inset: #20252c; --line: #2f3640; --fg: #e8eaed; --muted: #9aa3ad;
+  --accent: #f2a541; --accent-ink: #111418; --accent-soft: #3a2a12; --danger: #ff7b72; --ok: #5bd28a; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font-ui); padding: 0 16px 40px; }
+.banner { margin: 0 -16px 20px; background: #f2a541; color: #111418; font: 600 14px/1.4 var(--font-ui); padding: 8px 16px; text-align: center; }
+.wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+h1 { margin: 0; font-size: 24px; font-weight: 600; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 72ch; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-weight: 600; padding: 8px 14px; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.tabs .new { font: 600 10px/1 var(--font-mono); background: var(--accent); color: var(--accent-ink); border-radius: 4px; padding: 2px 4px; margin-left: 6px; vertical-align: 2px; }
+.panes { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.editor { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.side { flex: 1 1 360px; min-width: 0; position: sticky; top: 12px; display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 960px) { .side { position: static; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.panel h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.hint { margin: 0; color: var(--muted); font-size: 13px; }
+.fields { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); letter-spacing: .02em; }
+input, select { font: inherit; color: var(--fg); background: var(--inset); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; min-height: 36px; max-width: 100%; }
+select { max-width: 300px; }
+input.num { width: 90px; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button { font: inherit; font-size: 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 6px 12px; min-height: 36px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+button.danger { color: var(--danger); }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; cursor: pointer; }
+.check input { min-height: 0; margin-top: 4px; accent-color: var(--accent); }
+.check small { display: block; color: var(--muted); font-size: 12px; }
+.subhead { font: 600 12px/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.createbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bars { display: flex; flex-direction: column; gap: 8px; }
+.bar { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.bar.editing { border-color: var(--accent); background: var(--accent-soft); }
+.bar-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bar-top { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.bar-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-sub { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-state { flex: none; font-size: 12px; color: var(--muted); }
+.bar-state.live { color: var(--ok); font-weight: 600; }
+@media (max-width: 560px) { .bar-state { display: none; } }
+.tag { font: 600 11px/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; padding: 4px 6px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); flex: none; }
+.editbox { background: var(--panel); border: 2px solid var(--accent); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.editbox-head { display: flex; align-items: center; gap: 8px; }
+.editbox-head h2 { margin: 0; font-size: 17px; flex: 1; }
+.editbox-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
+.editbox-foot .grow { flex: 1; }
+.step { background: var(--inset); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.step h3 { margin: 0; font-size: 14px; }
+.icons { display: flex; flex-wrap: wrap; gap: 6px; }
+.icons button { width: 44px; height: 44px; padding: 0; font-size: 20px; }
+.icons button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.pagegrid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 40px); gap: 6px; background: #0f1114; padding: 10px; border-radius: 14px; width: min(100%, 300px); }
+.pagegrid .it { background: #20252c; color: #c9ced5; border-radius: 8px; font-size: 11px; display: flex; align-items: center; justify-content: center; border: 2px solid transparent; min-height: 0; padding: 0; }
+.pagegrid button.it:hover { border-color: #9aa3ad; }
+.pagegrid .it.sel { border-color: #f2a541; box-shadow: 0 0 0 2px #f2a541; color: #fff; }
+.pagegrid .it.off { opacity: .45; }
+.checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.checklist li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+.checklist .st { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.checklist .auto { background: var(--ok); color: #fff; }
+.checklist .you { background: var(--line); color: var(--fg); }
+.checklist small { display: block; color: var(--muted); font-size: 12px; }
+.placeholder { padding: 40px 16px; text-align: center; color: var(--muted); }
+
+/* ---- simulated Remote 3 ---- */
+.remote { align-self: center; width: 300px; max-width: 100%; background: #1a1d21; border-radius: 34px; padding: 16px 14px 20px; box-shadow: inset 0 0 0 1px #2c3138, 0 10px 30px rgba(0,0,0,.25); display: flex; flex-direction: column; gap: 14px; }
+.screen { position: relative; background: #000; border-radius: 18px; height: 380px; overflow: hidden; color: #e8eaed; font-size: 12px; }
+.screen-inner { position: absolute; inset: 0; padding: 10px; display: flex; flex-direction: column; gap: 8px; transition: filter .2s; }
+.screen-top { display: flex; justify-content: space-between; color: #9aa3ad; font-size: 11px; }
+.rgrid { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 44px; gap: 6px; }
+.rbtn { background: #20252c; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #c9ced5; border: 2px solid transparent; cursor: pointer; padding: 0; min-height: 0; }
+.rbtn span { font-size: 17px; line-height: 1.1; }
+.rbtn.lit { border-color: #f2a541; background: #3a2a12; color: #fff; }
+.widget { grid-column: 1 / span 4; grid-row: 3 / span 3; background: #20252c; border-radius: 12px; padding: 10px; display: flex; gap: 10px; align-items: center; }
+.widget .art { width: 70px; height: 70px; border-radius: 8px; background: #2f3640; display: grid; place-items: center; font-size: 30px; flex: none; }
+.widget .w-title { font-weight: 600; font-size: 13px; }
+.widget .w-sub { color: #9aa3ad; font-size: 11px; }
+.widget .w-active { color: #f2a541; font-weight: 600; font-size: 11px; }
+.countdown { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: #f2a541; color: #111418; border-radius: 99px; padding: 2px 10px; font: 600 11px/1.6 var(--font-ui); white-space: nowrap; }
+.vpop { position: absolute; left: 10px; top: 60px; bottom: 60px; width: 46px; background: rgba(32,37,44,.96); border-radius: 23px; display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 6px; }
+.vpop .val { font-weight: 700; font-size: 13px; }
+.vpop .track { position: relative; flex: 1; width: 30px; border-radius: 15px; background: #3a4048; overflow: hidden; }
+.vpop .fill { position: absolute; left: 0; right: 0; bottom: 0; background: #e8eaed; }
+.vpop .spk { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 14px; mix-blend-mode: difference; }
+.hpop { position: absolute; left: 12px; right: 12px; bottom: 12px; background: rgba(32,37,44,.96); border-radius: 14px; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+.hpop .lab { display: flex; justify-content: space-between; font-size: 12px; }
+.hpop .track { height: 10px; border-radius: 5px; background: #3a4048; overflow: hidden; }
+.hpop .fill { height: 100%; background: #e8eaed; }
+.tilepop { position: absolute; inset: 0; background: rgba(0,0,0,.7); display: grid; place-items: center; }
+.tilepop .card2 { background: #20252c; border-radius: 16px; padding: 14px; width: 180px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.tilepop input[type=range] { writing-mode: vertical-lr; direction: rtl; height: 170px; width: 40px; accent-color: #f2a541; background: transparent; border: 0; }
+.hw { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.hw .col { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.hw .lbl { font-size: 11px; color: #9aa3ad; }
+.rocker { display: flex; flex-direction: column; background: #2a2f36; border-radius: 22px; overflow: hidden; }
+.rocker button { background: transparent; border: 0; color: #e8eaed; width: 56px; min-height: 40px; font-size: 18px; border-radius: 0; }
+.rocker button:hover { background: #3a4048; }
+.touch { width: 100%; accent-color: #9aa3ad; border: 0; background: transparent; padding: 0; }
+.tilebtn { background: #2a2f36; color: #e8eaed; border: 0; border-radius: 12px; font-size: 12px; }
+.legend { font-size: 12px; color: var(--muted); }
+.log { font: 12px/1.5 var(--font-mono); background: var(--inset); border-radius: 8px; padding: 8px 10px; min-height: 3.2em; max-height: 120px; overflow: auto; }
+</style>
+</head>
+<body>
+<div class="banner">MOCKUP of a new <b>Controls</b> tab in the Self-Control Builder · example devices · nothing is saved or sent to a remote</div>
+<div class="wrap">
+  <header>
+    <h1>Remote Self-Control Builder</h1>
+    <p>Controls: press a button, and the volume rocker, touch slider and a home-tile slider change something else for a few seconds.</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button type="button" role="tab" aria-selected="false" data-tab="other">Smart Controls</button>
+    <button type="button" role="tab" aria-selected="false" data-tab="other">Icons &amp; Sliders</button>
+    <button type="button" role="tab" aria-selected="false" data-tab="other">Return ↩</button>
+    <button type="button" role="tab" aria-selected="true" data-tab="controls">Controls ⇅<span class="new">NEW</span></button>
+  </nav>
+
+  <section id="pane-other" class="panel placeholder" hidden>This tab isn't part of this mockup. Open <b>Controls ⇅</b>.</section>
+
+  <div class="panes" id="pane-controls">
+    <div class="editor">
+
+      <section class="panel" aria-labelledby="normal-h">
+        <h2 id="normal-h">Normal controls</h2>
+        <p class="hint">What the controls do when no mode is active. They all go through one device, <b>Control</b>, which passes them on.</p>
+        <div class="fields">
+          <label class="f">Volume rocker (Vol + / Vol −)
+            <select id="n-rocker"><option>Living Room TV volume</option><option>Marantz volume</option><option>Screen brightness</option></select></label>
+          <label class="f">Touch slider
+            <select id="n-touch"><option>Screen brightness</option><option>Button backlight</option><option>Living Room TV volume</option></select></label>
+          <label class="f">Back to normal after
+            <select id="n-idle"><option value="5">5 s</option><option value="8" selected>8 s</option><option value="15">15 s</option><option value="30">30 s</option></select></label>
+          <label class="f">Rocker step
+            <select><option>2 %</option><option selected>5 %</option><option>10 %</option></select></label>
+        </div>
+      </section>
+
+      <div class="createbar">
+        <button class="primary" type="button" id="create">+ Create control mode</button>
+        <span class="hint">A mode points the controls at one of your sliders until it times out.</span>
+      </div>
+
+      <div id="editor-slot"></div>
+      <div class="bars" id="bars"></div>
+
+      <section class="panel" aria-labelledby="setup-h">
+        <h2 id="setup-h">Set up an activity</h2>
+        <p class="hint">Do this once per activity. The integration does the green steps itself.</p>
+        <div class="fields">
+          <label class="f">Activity
+            <select id="setup-act"><option>Watch TV</option><option>Marantz</option><option>Play Music</option></select></label>
+          <label class="f">Home page for the slider tile
+            <select><option>Livingroom</option><option>Bedroom</option><option>Theater</option><option>Don't add a tile</option></select></label>
+        </div>
+        <ul class="checklist">
+          <li><span class="st auto">✓</span><div>Include <b>Control</b>, <b>Control Level</b> and the mode triggers in the activity<small>Automatic</small></div></li>
+          <li><span class="st auto">✓</span><div>Map <b>Vol + / Vol −</b> to Control's volume up / down<small>Automatic. The old mapping is saved and comes back if you remove the setup.</small></div></li>
+          <li><span class="st auto">✓</span><div>Add the <b>Control Level</b> tile to the home page (tap it for the slider pop-up)<small>Automatic</small></div></li>
+          <li><span class="st you">1</span><div>Set the <b>touch slider</b> to <b>Control Level</b><small>Do this yourself once in the web configurator (activity → touch slider). The integration can't change this setting.</small></div></li>
+        </ul>
+        <div class="row createbar"><button class="primary" type="button" id="setup-go">Set up Watch TV</button><span class="hint" id="setup-msg"></span></div>
+      </section>
+    </div>
+
+    <aside class="side">
+      <section class="panel" aria-labelledby="prev-h">
+        <h2 id="prev-h">Try it</h2>
+        <p class="hint">Tap <b>💡 Light</b> or <b>🎚 Bass</b> on the screen, then use the rocker, the touch slider or the home tile. Leave it alone and it goes back to normal.</p>
+        <div class="remote">
+          <div class="screen" id="screen">
+            <div class="screen-inner" id="screen-inner">
+              <div class="screen-top"><span>Watch TV</span><span>21:53</span></div>
+              <div class="rgrid">
+                <div id="rslots" style="display:contents"></div>
+                <div class="widget" id="widget">
+                  <div class="art" id="w-art">📺</div>
+                  <div><div class="w-title" id="w-title">Normal controls</div><div class="w-sub" id="w-sub">Rocker: TV volume · Slider: screen</div><div class="w-active" id="w-active"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="countdown" id="countdown" hidden></div>
+            <div class="vpop" id="vpop" hidden aria-hidden="true"><div class="val" id="vpop-val">0</div><div class="track"><div class="fill" id="vpop-fill"></div><span class="spk">🔊</span></div></div>
+            <div class="hpop" id="hpop" hidden aria-hidden="true"><div class="lab"><span>Control Level</span><span id="hpop-val">0 %</span></div><div class="track"><div class="fill" id="hpop-fill"></div></div></div>
+            <div class="tilepop" id="tilepop" hidden>
+              <div class="card2">
+                <div style="font-weight:600">Control Level</div>
+                <input type="range" min="0" max="100" id="tile-range" aria-label="Control Level">
+                <div id="tile-val">0 %</div>
+                <button class="tilebtn" type="button" id="tile-close">Close</button>
+              </div>
+            </div>
+          </div>
+          <div class="hw">
+            <div class="col"><span class="lbl">Volume rocker</span>
+              <div class="rocker"><button type="button" id="vol-up" aria-label="Volume up">＋</button><button type="button" id="vol-down" aria-label="Volume down">－</button></div></div>
+            <div class="col" style="justify-content:space-between"><span class="lbl">Touch slider</span>
+              <input class="touch" type="range" min="0" max="100" id="touch" aria-label="Touch slider">
+              <button class="tilebtn" type="button" id="tile-open">Home tile: Control Level</button></div>
+          </div>
+        </div>
+        <div class="log" id="log" aria-live="polite"></div>
+        <p class="legend">The pop-ups are the remote's own. The vertical one shows the value at the top and a speaker icon; the horizontal one shows the device name, so it reads "Control Level".</p>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === "on") for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn); else if (v !== false && v != null) e.setAttribute(k, v); } e.append(...kids.flat()); return e; };
+
+// ---------------- builder: modes ----------------
+const SLIDERS = [
+  { id: "ceiling", name: "Ceiling Light", how: "Home Assistant light · real level" },
+  { id: "bass", name: "Marantz Bass", how: "IR up/down · counted level" },
+  { id: "treble", name: "Marantz Treble", how: "IR up/down · counted level" },
+  { id: "rvol", name: "Receiver Volume", how: "Marantz volume · real level" }
+];
+const ICONS = ["💡", "🎚", "🔊", "☀️", "🌡", "🌀", "🎛", "🪟"];
+let MODES = [
+  { id: "light", name: "Light", icon: "💡", slider: "ceiling", rocker: true, touch: true, tile: true, trigger: { x: 0, y: 0 }, phys: "none", again: true, widget: true, lit: true, graphic: false },
+  { id: "bass", name: "Bass", icon: "🎚", slider: "bass", rocker: true, touch: true, tile: false, trigger: { x: 1, y: 0 }, phys: "Long press RED", again: true, widget: true, lit: true, graphic: false }
+];
+let editing = null; // { item, isNew }
+
+const sliderOf = (m) => SLIDERS.find((s) => s.id === m.slider);
+const takes = (m) => [m.rocker && "rocker", m.touch && "touch slider", m.tile && "home tile"].filter(Boolean).join(" + ") || "nothing";
+
+function renderBars() {
+  const box = $("#bars");
+  box.replaceChildren(...MODES.filter((m) => !(editing?.isNew && editing.item === m)).map((m) => el("div", { class: "bar" + (editing?.item === m ? " editing" : "") },
+    el("span", { class: "tag" }, "Mode"),
+    el("div", { class: "bar-main" },
+      el("div", { class: "bar-top" }, el("span", { class: "bar-name" }, `${m.icon} ${m.name}`)),
+      el("div", { class: "bar-sub" }, `${sliderOf(m)?.name} (${sliderOf(m)?.how}) · takes over the ${takes(m)}`)),
+    el("span", { class: "bar-state" + (sim.mode === m.id ? " live" : "") }, sim.mode === m.id ? "active now" : (m.phys !== "none" ? m.phys + " · " : "") + "button on Watch TV"),
+    el("button", { type: "button", on: { click: () => openEdit(m, false) } }, "Edit"))));
+}
+
+function openEdit(item, isNew) {
+  editing = { item: isNew ? item : item, isNew, snap: JSON.stringify(item) };
+  renderEditor(); renderBars();
+  $("#editor-slot").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function closeEdit(save) {
+  if (!editing) return;
+  if (!save && !editing.isNew) Object.assign(editing.item, JSON.parse(editing.snap));
+  if (!save && editing.isNew) MODES = MODES.filter((m) => m !== editing.item);
+  editing = null; renderEditor(); renderBars(); renderScreen();
+}
+
+function check(label, sub, val, set) {
+  const id = "c" + Math.random().toString(36).slice(2, 8);
+  return el("label", { class: "check", for: id }, el("input", { type: "checkbox", id, checked: val ? "" : false, on: { change: (e) => set(e.target.checked) } }), el("span", {}, label, sub ? el("small", {}, sub) : ""));
+}
+
+function renderEditor() {
+  const slot = $("#editor-slot");
+  if (!editing) { slot.replaceChildren(); return; }
+  const m = editing.item;
+  const nameIn = el("input", { id: "m-name", value: m.name, placeholder: "e.g. Light", on: { input: (e) => { m.name = e.target.value; } } });
+  const sl = el("select", { id: "m-slider", on: { change: (e) => { m.slider = e.target.value; } } }, SLIDERS.map((s) => el("option", { value: s.id, selected: s.id === m.slider ? "" : false }, `${s.name} — ${s.how}`)));
+  const icons = el("div", { class: "icons", role: "group", "aria-label": "Icon" }, ICONS.map((i) => el("button", { type: "button", "aria-pressed": String(m.icon === i), on: { click: () => { m.icon = i; renderEditor(); } } }, i)));
+  // page drawing to place the on-screen trigger
+  const grid = el("div", { class: "pagegrid", role: "group", "aria-label": "Watch TV page" });
+  const occupied = { "2,0": "⏯ Play", "3,0": "⌂ Home" };
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+    const k = x + "," + y;
+    const other = MODES.find((o) => o !== m && o.trigger && o.trigger.x === x && o.trigger.y === y);
+    if (y >= 2) { if (y === 2 && x === 0) grid.append(el("div", { class: "it off", style: "grid-column: 1 / span 4; grid-row: 3 / span 2" }, "Control widget")); continue; }
+    if (occupied[k] || other) grid.append(el("div", { class: "it off" }, occupied[k] || `${other.icon} ${other.name}`));
+    else grid.append(el("button", { type: "button", class: "it" + (m.trigger && m.trigger.x === x && m.trigger.y === y ? " sel" : ""), on: { click: () => { m.trigger = { x, y }; renderEditor(); } } }, m.trigger && m.trigger.x === x && m.trigger.y === y ? `${m.icon} ${m.name || "?"}` : "free"));
+  }
+  const phys = el("select", { id: "m-phys", on: { change: (e) => { m.phys = e.target.value; } } }, ["none", "Long press RED", "Long press MUTE", "Long press MENU"].map((p) => el("option", { value: p, selected: p === m.phys ? "" : false }, p === "none" ? "No physical button" : p)));
+  slot.replaceChildren(el("section", { class: "editbox", "aria-label": "Control mode" },
+    el("div", { class: "editbox-head" }, el("h2", {}, editing.isNew ? "New control mode" : "Edit: " + JSON.parse(editing.snap).name), el("button", { type: "button", class: "ghost", "aria-label": "Close without saving", on: { click: () => closeEdit(false) } }, "✕")),
+    el("div", { class: "fields" }, el("label", { class: "f", for: "m-name" }, "Name (shown on the trigger button) *", nameIn)),
+    el("div", { class: "step" }, el("h3", {}, "1 · What it changes"),
+      el("div", { class: "fields" }, el("label", { class: "f", for: "m-slider" }, "Slider", sl)),
+      el("p", { class: "hint" }, "Modes use your sliders (Icons & Sliders tab), so anything a slider can drive works. Lights and devices that report their level start from the real value; IR up/down sliders count presses."),
+      el("div", { class: "subhead" }, "Icon"), icons),
+    el("div", { class: "step" }, el("h3", {}, "2 · Which controls it takes over"),
+      check("Volume rocker", "Vol + / Vol − step the value; the remote's vertical pop-up shows it", m.rocker, (v) => (m.rocker = v)),
+      check("Touch slider", "Its pop-up reads \"Control Level\"", m.touch, (v) => (m.touch = v)),
+      check("Home tile slider", "Tap the Control Level tile on the home page", m.tile, (v) => (m.tile = v))),
+    el("div", { class: "step" }, el("h3", {}, "3 · How to start it"),
+      el("p", { class: "hint" }, "Click a free spot on the page for its on-screen button (Watch TV, first page)."), grid,
+      el("div", { class: "fields" }, el("label", { class: "f", for: "m-phys" }, "Physical button (optional)", phys)),
+      check("Pressing it again goes back to normal right away", "", m.again, (v) => (m.again = v))),
+    el("div", { class: "step" }, el("h3", {}, "4 · Show that it's active"),
+      check("Text on the Control widget", "Works on any page: \"💡 Light · Control active · 50 %\"", m.widget, (v) => (m.widget = v)),
+      check("Light up the trigger button", "Single-page activities only", m.lit, (v) => (m.lit = v)),
+      check("Level graphic from the slider", "Single-page activities only; set it up in the slider (step 5)", m.graphic, (v) => (m.graphic = v))),
+    el("div", { class: "editbox-foot" },
+      el("button", { type: "button", class: "primary", on: { click: () => { if (!m.name.trim()) { nameIn.focus(); nameIn.style.borderColor = "var(--danger)"; return; } if (editing.isNew) { m.id = m.name.toLowerCase().replace(/[^a-z0-9]+/g, "_"); } closeEdit(true); } } }, editing.isNew ? "Save" : "Save changes"),
+      el("button", { type: "button", on: { click: () => closeEdit(false) } }, "Cancel"),
+      el("span", { class: "grow" }),
+      editing.isNew ? "" : el("button", { type: "button", class: "ghost danger", on: { click: () => { MODES = MODES.filter((x) => x !== m); editing = null; renderEditor(); renderBars(); renderScreen(); } } }, "Delete"))));
+}
+
+$("#create").addEventListener("click", () => {
+  if (editing) closeEdit(false);
+  const item = { id: "", name: "", icon: "🔊", slider: "rvol", rocker: true, touch: true, tile: true, trigger: null, phys: "none", again: true, widget: true, lit: true, graphic: false };
+  MODES.push(item);
+  openEdit(item, true);
+});
+$("#setup-go").addEventListener("click", () => { $("#setup-msg").textContent = "Mockup: on the remote this would do the 3 green steps."; });
+document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+  $("#pane-other").hidden = b.dataset.tab !== "other"; $("#pane-controls").hidden = b.dataset.tab === "other";
+}));
+
+// ---------------- simulated remote ----------------
+const sim = { mode: null, tv: 24, screen: 70, values: { ceiling: 50, bass: 50, treble: 50, rvol: 35 }, until: 0, timer: null };
+const idleMs = () => Number($("#n-idle").value) * 1000;
+const modeOf = (id) => MODES.find((m) => m.id === id);
+const log = (t) => { const l = $("#log"); l.prepend(el("div", {}, t)); };
+
+function current() {
+  const m = sim.mode && modeOf(sim.mode);
+  return m ? { m, get: () => sim.values[m.slider], set: (v) => { sim.values[m.slider] = v; }, name: sliderOf(m).name } : null;
+}
+function renderScreen() {
+  const c = current();
+  const fixed = { "2,0": ["⏯", "Play"], "3,0": ["⌂", "Home"] };
+  const slots = [];
+  for (let y = 0; y < 2; y++) for (let x = 0; x < 4; x++) {
+    const m = MODES.find((o) => o.id && o.trigger && o.trigger.x === x && o.trigger.y === y && !(editing?.isNew && editing.item === o));
+    if (m) slots.push(el("button", { type: "button", class: "rbtn" + (sim.mode === m.id && m.lit ? " lit" : ""), on: { click: () => startMode(m.id) } }, el("span", {}, m.icon), m.name));
+    else if (fixed[x + "," + y]) slots.push(el("button", { type: "button", class: "rbtn" }, el("span", {}, fixed[x + "," + y][0]), fixed[x + "," + y][1]));
+    else slots.push(el("div", {}));
+  }
+  $("#rslots").replaceChildren(...slots);
+  const showW = c && c.m.widget;
+  $("#w-art").textContent = showW ? c.m.icon : "📺";
+  $("#w-title").textContent = showW ? `${c.m.icon} ${c.name}` : "Normal controls";
+  $("#w-sub").textContent = showW ? `Rocker${c.m.touch ? " + touch slider" : ""}${c.m.tile ? " + tile" : ""} change it` : `Rocker: ${$("#n-rocker").value} · Slider: ${$("#n-touch").value.toLowerCase()}`;
+  $("#w-active").textContent = showW ? `Control active · ${c.get()} %` : "";
+  $("#screen-inner").style.filter = `brightness(${0.35 + sim.screen / 100 * 0.65})`;
+  renderBars();
+}
+function arm() {
+  clearTimeout(sim.timer); clearInterval(sim.tick);
+  if (!sim.mode) { $("#countdown").hidden = true; return; }
+  sim.until = Date.now() + idleMs();
+  const tick = () => { const s = Math.ceil((sim.until - Date.now()) / 1000); $("#countdown").hidden = false; $("#countdown").textContent = `Back to normal in ${s} s`; };
+  tick(); sim.tick = setInterval(tick, 250);
+  sim.timer = setTimeout(() => { log(`${idleMs() / 1000} s without use → back to normal`); sim.mode = null; clearInterval(sim.tick); $("#countdown").hidden = true; renderScreen(); }, idleMs());
+}
+function startMode(id) {
+  const m = modeOf(id);
+  if (sim.mode === id && m.again) { sim.mode = null; log(`${m.icon} ${m.name} pressed again → back to normal`); arm(); renderScreen(); return; }
+  sim.mode = id; log(`${m.icon} ${m.name}: controls now change ${sliderOf(m).name} (starts at ${sim.values[m.slider]} %)`);
+  arm(); renderScreen();
+}
+let vT = null, hT = null;
+function showV(v) { $("#vpop").hidden = false; $("#vpop-val").textContent = v; $("#vpop-fill").style.height = v + "%"; clearTimeout(vT); vT = setTimeout(() => ($("#vpop").hidden = true), 1500); }
+function showH(v) { $("#hpop").hidden = false; $("#hpop-val").textContent = v + " %"; $("#hpop-fill").style.width = v + "%"; clearTimeout(hT); hT = setTimeout(() => ($("#hpop").hidden = true), 1500); }
+const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
+
+function rocker(d) {
+  const c = current();
+  if (c && c.m.rocker) { const v = clamp(c.get() + d * 5); c.set(v); showV(v); arm(); log(`rocker → ${c.name} ${v} %`); }
+  else if ($("#n-rocker").value === "Screen brightness") { sim.screen = clamp(sim.screen + d * 5); showV(sim.screen); log(`rocker → screen ${sim.screen} %`); }
+  else { sim.tv = clamp(sim.tv + d); showV(sim.tv); log(`rocker → ${$("#n-rocker").value} ${sim.tv}`); }
+  renderScreen();
+}
+function sliderTo(v, from) {
+  const c = current();
+  const takes = c && (from === "touch" ? c.m.touch : c.m.tile);
+  if (takes) { c.set(v); arm(); log(`${from === "touch" ? "touch slider" : "home tile"} → ${c.name} ${v} %`); }
+  else { sim.screen = v; log(`${from === "touch" ? "touch slider" : "home tile"} → screen brightness ${v} %`); }
+  if (from === "touch") showH(v);
+  renderScreen();
+}
+const levelNow = (from) => { const c = current(); return c && (from === "touch" ? c.m.touch : c.m.tile) ? c.get() : sim.screen; };
+
+$("#vol-up").addEventListener("click", () => rocker(1));
+$("#vol-down").addEventListener("click", () => rocker(-1));
+$("#touch").addEventListener("pointerdown", () => { $("#touch").value = levelNow("touch"); });
+$("#touch").addEventListener("input", (e) => sliderTo(Number(e.target.value), "touch"));
+$("#tile-open").addEventListener("click", () => { const v = levelNow("tile"); $("#tile-range").value = v; $("#tile-val").textContent = v + " %"; $("#tilepop").hidden = false; });
+$("#tile-range").addEventListener("input", (e) => { $("#tile-val").textContent = e.target.value + " %"; sliderTo(Number(e.target.value), "tile"); });
+$("#tile-close").addEventListener("click", () => ($("#tilepop").hidden = true));
+$("#n-rocker").addEventListener("change", renderScreen);
+$("#n-touch").addEventListener("change", renderScreen);
+$("#touch").value = sim.screen;
+renderBars(); renderScreen();
+log("Tap 💡 Light on the screen, then use the rocker or sliders.");
+</script>
+</body>
+</html>
