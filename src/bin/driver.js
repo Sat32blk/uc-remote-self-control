@@ -15,6 +15,7 @@ import { listActivities, addTile, PAGE_NAME } from "./tile.js";
 import { ReturnTracker, RETURN_MARK, activityGroups } from "./returnbtn.js";
 import { StateIcons, validateIcons } from "./stateicons.js";
 import { Extras, validateExtras } from "./extras.js";
+import { ControlProxy } from "./control.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -613,6 +614,59 @@ function registerEntities() {
   api.addAvailableEntity(previousSensor);
   for (const e of Object.values(smartEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(extraEntities)) api.addAvailableEntity(e);
+  for (const e of Object.values(controlEntities)) api.addAvailableEntity(e);
+}
+
+// ---------------------------------------------------------------------------
+// "Control" test: a media player the rocker / touch slider / on-screen slider can point at
+// ---------------------------------------------------------------------------
+
+const AREA_CONTROL = "Remote Control Test";
+const controlEntities = {};
+let control = null;
+
+async function fetchAllEntities(c, base) {
+  const out = [];
+  for (let page = 1; page <= 20; page++) {
+    const part = await c.get(`${base}?limit=100&page=${page}`);
+    if (!Array.isArray(part) || !part.length) break;
+    out.push(...part);
+    if (part.length < 100) break;
+  }
+  return out;
+}
+
+function publishControl(attrs) {
+  const e = controlEntities.control;
+  if (!e) return;
+  const changed = {};
+  for (const [k, v] of Object.entries(attrs)) if (JSON.stringify(e.attributes?.[k]) !== JSON.stringify(v)) changed[k] = v;
+  if (!Object.keys(changed).length) return;
+  if (!api.updateEntityAttributes("control", changed)) Object.assign(e.attributes, changed);
+}
+
+function buildControlEntities() {
+  const F = uc.MediaPlayerFeatures;
+  controlEntities.control = new uc.MediaPlayer("control", { en: "Control" }, {
+    area: AREA_CONTROL,
+    features: [F.OnOff, F.Volume, F.VolumeUpDown, F.MuteToggle, F.SelectSource, F.MediaTitle, F.MediaArtist, F.MediaAlbum],
+    attributes: control.attrs(),
+    cmdHandler: traced("control", async (entity, rawCmd, params) => {
+      if (!core) return uc.StatusCodes.ServiceUnavailable;
+      control.command(plainCmd(rawCmd), params || {}).catch((e) => warn("control:", e.message));
+      return uc.StatusCodes.Ok;
+    })
+  });
+  const btn = (id, name, mode) => new uc.Button(id, { en: name }, {
+    area: AREA_CONTROL,
+    cmdHandler: traced(id, async () => {
+      if (!core) return uc.StatusCodes.ServiceUnavailable;
+      control.activate(mode).catch((e) => warn("control:", e.message));
+      return uc.StatusCodes.Ok;
+    })
+  });
+  controlEntities.control_light = btn("control_light", "Control: Light", "light");
+  controlEntities.control_normal = btn("control_normal", "Control: Normal", "display");
 }
 
 // ---------------------------------------------------------------------------
@@ -834,6 +888,7 @@ async function refresh() {
   try {
     cache = await core.get("/cfg");
     publishStates();
+    if (control && control.mode === "display" && !control.sending) { control.value = cache?.display?.brightness ?? control.value; control.show(); }
     await api.setDeviceState(uc.DeviceStates.Connected);
     return true;
   } catch (e) {
@@ -1173,6 +1228,7 @@ async function pinSetup(v) {
     saveConfig(config);
     core = client;
     publishStates();
+    control.findLight(fetchAllEntities);
     log("setup complete, API key stored");
     return new uc.SetupComplete();
   }
@@ -1224,6 +1280,16 @@ returnTracker = new ReturnTracker({ getCore: () => core, file: path.join(api.get
 updatePreviousSensor();
 extras = new Extras({ getCore: () => core, engine: () => smart, file: path.join(api.getConfigDirPath(), "sliders_menus.json"), publish: publishExtra, log, warn });
 buildExtraEntities();
+control = new ControlProxy({
+  getCore: () => core,
+  publish: publishControl,
+  getDisplay: () => cache?.display?.brightness ?? 50,
+  setDisplay: async (v) => { await patchSection("display", { brightness: v, auto_brightness: false }); },
+  idleMs: Number(process.env.UC_SELF_CONTROL_IDLE_MS) || 8000,
+  log,
+  warn
+});
+buildControlEntities();
 initSmart();
 
 const CONTROL_NAMES = Object.fromEntries(LAYOUT.map(([, id, name]) => [id, name]));
@@ -1330,7 +1396,7 @@ config = loadConfig();
 if (config?.apiKey) {
   core = new CoreClient(config.address, { apiKey: config.apiKey });
   log("loaded configuration for", config.address);
-  refresh();
+  refresh().then(() => control.findLight(fetchAllEntities));
 } else {
   log("not configured yet: run the integration setup");
 }
