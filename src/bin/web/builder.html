@@ -105,6 +105,14 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .pane { display: flex; flex-direction: column; gap: 14px; max-width: 980px; width: 100%; }
 .createbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .createbar select { max-width: 320px; }
+.deftable { display: flex; flex-direction: column; gap: 6px; }
+.drow { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr) auto 36px; gap: 8px; align-items: center; }
+.drow select { max-width: 100%; width: 100%; font-size: 13px; }
+.drow.dhead { font-size: 12px; color: var(--muted); }
+.drow .dact { font-weight: 600; overflow-wrap: anywhere; }
+.drow .check { font-size: 13px; white-space: nowrap; }
+@media (max-width: 720px) { .drow { grid-template-columns: 1fr 1fr; } .drow .dact { grid-column: 1 / -1; } .drow.dhead { display: none; } }
+.subhead2 { margin: 6px 0 0; font-size: 14px; }
 .list-title { margin: 8px 0 0; font-size: 15px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
 .bars { display: flex; flex-direction: column; gap: 8px; }
 .bar { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; }
@@ -160,6 +168,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <button type="button" role="tab" id="tab-smart" aria-selected="true" aria-controls="app">Smart Controls</button>
     <button type="button" role="tab" id="tab-icons" aria-selected="false" aria-controls="icons-app">Icons &amp; Sliders</button>
     <button type="button" role="tab" id="tab-ret" aria-selected="false" aria-controls="ret-app">Return ↩</button>
+    <button type="button" role="tab" id="tab-ctl" aria-selected="false" aria-controls="ctl-app">Controls ⇅</button>
   </nav>
 
   <section class="pane" id="app" hidden aria-label="Smart controls">
@@ -221,6 +230,32 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
       <summary>How the ↩ button works</summary>
       <p class="note">The integration watches which activity you start (whether or not the old one turns off). In every activity listed here it keeps a ↩ button pointed at the activity you used before; pressing it opens that activity. The ↩ button can be on screen (text, back arrow or your own picture), on a physical button, or both.</p>
       <p class="note"><b>Turn off when leaving</b> uses one of the remote's <b>activity groups</b>: the activities you mark are put in that group, and when you switch between them the remote turns off the one you leave but keeps devices the new one uses (like a shared receiver). This applies to every switch between them, not only ↩. How the group powers devices off is the group's own setting in the web configurator.</p>
+    </details>
+  </section>
+
+  <section class="pane" id="ctl-app" hidden aria-label="Controls">
+    <section class="panel" aria-labelledby="ctl-set-h">
+      <h2 id="ctl-set-h">Settings</h2>
+      <div class="fields" id="ctl-timeout-row"></div>
+      <h3 class="subhead2">Defaults per activity</h3>
+      <p class="hint">What the volume rocker and the touch slider do in each activity when no control is on. <b>Nothing</b> = they do nothing until a control is turned on. With <b>borrow</b> on, the rocker stays mapped to its device and is pointed at Control only while a control is on.</p>
+      <div id="ctl-defs" class="deftable"></div>
+      <div class="createbar" id="ctl-def-add"></div>
+      <div class="createbar"><button class="primary" type="button" id="ctl-save-set">Save settings</button><span class="status" id="ctl-set-status" role="status"></span></div>
+    </section>
+    <div class="createbar">
+      <button class="primary" id="ctl-add" type="button">+ Create control</button>
+      <span class="hint">Each control becomes a switch named <b>Control: &lt;name&gt;</b>.</span>
+    </div>
+    <div id="ctl-editor"></div>
+    <h2 class="list-title">Controls</h2>
+    <div id="ctl-list" class="bars"></div>
+    <p class="status" id="ctl-status" role="status"></p>
+    <details class="panel">
+      <summary>How Controls work and what to set up on the remote</summary>
+      <p class="note">This adds devices in the <b>Remote Controls</b> group: <b>Control</b> (a media player), <b>Control Level</b> (the same level as a light), <b>Control Active</b> (a sensor showing e.g. "Light · 60 %") and one <b>Control: &lt;name&gt;</b> switch per control. Add them to the integration and to your activities.</p>
+      <p class="note"><b>Touch slider (Remote 3):</b> set it once in the web configurator to <b>Control</b> (or Control Level). <b>Volume rocker:</b> with <i>borrow</i> on, nothing to set up; otherwise map Vol + / Vol − to Control's volume up / down yourself. The remote's own pop-ups show the level: the vertical one for the rocker, the horizontal one for the touch slider. Other buttons work too but get no pop-up.</p>
+      <p class="note">Turn a control on with its switch (put it on a page or map it to a button). Turning on another control switches straight to it. It turns off after the time set above without use, or stays on until you turn it off.</p>
     </details>
   </section>
 </div>
@@ -519,10 +554,10 @@ function stepsBlock(list) {
 // ---------------------------------------------------------------------------
 // Create / edit pattern: one editor box at the top of a tab, saved items as bars below.
 // ---------------------------------------------------------------------------
-const ED = { smart: null, icons: null, extras: null, ret: null }; // { item, snap, isNew, kind, msg: { cls, text, errors } }
-const RERENDER = { smart: () => render(), icons: () => renderIcons(), extras: () => renderExtras(), ret: () => renderRet() };
+const ED = { smart: null, icons: null, extras: null, ret: null, ctl: null }; // { item, snap, isNew, kind, msg: { cls, text, errors } }
+const RERENDER = { smart: () => render(), icons: () => renderIcons(), extras: () => renderExtras(), ret: () => renderRet(), ctl: () => renderCtl() };
 // Quick menus are edited in the Smart Controls tab, sliders in the Icons & Sliders tab.
-const paneOf = (tab, kind) => (tab === "ret" ? "ret" : tab === "smart" || (tab === "extras" && kind === "menu") ? "smart" : "icons");
+const paneOf = (tab, kind) => (tab === "ret" ? "ret" : tab === "ctl" ? "ctl" : tab === "smart" || (tab === "extras" && kind === "menu") ? "smart" : "icons");
 const slotSel = (tab) => `#${paneOf(tab, ED[tab]?.kind)}-editor`;
 const edDirty = (tab) => { const e = ED[tab]; return !!e && (e.isNew || JSON.stringify(e.item) !== e.snap); };
 
@@ -564,7 +599,7 @@ function openEdit(tab, item, { isNew = false, kind } = {}) {
   // one editor per tab: close the other kind's editor in the same tab
   for (const t of Object.keys(ED)) if (t !== tab && ED[t] && paneOf(t, ED[t].kind) === paneOf(tab, kind)) cancelEdit(t, false);
   ED[tab] = { item, snap: JSON.stringify(item), isNew, kind, msg: null };
-  render(); if (iconsLoaded) renderIcons(); if (RET) renderRet();
+  render(); if (iconsLoaded) renderIcons(); if (RET) renderRet(); if (CTL) renderCtl();
   setTimeout(() => { const box = document.querySelector(`${slotSel(tab)} .editbox`); box?.scrollIntoView({ behavior: "smooth", block: "start" }); if (isNew) box?.querySelector("input")?.focus(); }, 0);
 }
 /** The list an item of a tab lives in. */
@@ -573,6 +608,7 @@ function cancelEdit(tab, rerender = true) {
   const e = ED[tab];
   if (!e) return;
   if (tab === "ret") { ED.ret = null; if (rerender) renderRet(); return; }
+  if (tab === "ctl") { const l = CTL.controls; const i = l.indexOf(e.item); if (i >= 0) { if (e.isNew) l.splice(i, 1); else l[i] = JSON.parse(e.snap); } ED.ctl = null; if (rerender) renderCtl(); return; }
   const list = listOf(tab, e.kind);
   const i = list.indexOf(e.item);
   if (i >= 0) { if (e.isNew) list.splice(i, 1); else list[i] = JSON.parse(e.snap); }
@@ -825,6 +861,141 @@ $("#ret-add").addEventListener("click", () => {
   if (!RET) return;
   const free = RET.activities.find((a) => !RET.cfg.hosts.includes(a.id));
   openEdit("ret", { activity: free?.id || "", screen: "text", icon: null, button: "NONE", press: "short_press", buttonScope: "all", close: false, group: RET.cfg.group || "" }, { isNew: true });
+});
+
+// ---------------------------------------------------------------------------
+// Controls tab
+// ---------------------------------------------------------------------------
+let CTL = null; // { timeout, activities: [{activity, name, buttons, slider, borrow}], controls: [{id, name, target, start, step}], status }
+const tKey = (t) => (!t ? "" : t.type === "display" || t.type === "backlight" ? t.type : t.type === "slider" ? "slider:" + t.id : t.type + ":" + t.entity);
+function ctlTargets() {
+  const out = [{ key: "display", t: { type: "display", name: "Screen brightness" }, label: "Remote: screen brightness" }, { key: "backlight", t: { type: "backlight", name: "Button backlight" }, label: "Remote: button backlight" }];
+  for (const d of CAT.devices.filter((x) => x.type === "light")) out.push({ key: "light:" + d.id, t: { type: "light", entity: d.id, name: d.name }, label: d.name + " (brightness)" });
+  for (const d of CAT.devices.filter((x) => x.type === "media_player")) out.push({ key: "volume:" + d.id, t: { type: "volume", entity: d.id, name: d.name + " volume" }, label: d.name + " volume" });
+  for (const s of SLIDERS.filter((x) => x.id)) out.push({ key: "slider:" + s.id, t: { type: "slider", id: s.id, name: s.name }, label: "Slider: " + s.name });
+  return out;
+}
+const ctlTargetName = (t) => (!t ? "Nothing" : ctlTargets().find((x) => x.key === tKey(t))?.label || t.name || tKey(t));
+function ctlTargetSelect(id, t, onPick, { none = false, label } = {}) {
+  const opts = ctlTargets();
+  const groups = [
+    ...(none ? [["", "Nothing"]] : [["", "Pick what it changes…"]]),
+    { group: "This remote", items: opts.filter((o) => o.key === "display" || o.key === "backlight").map((o) => [o.key, o.label]) },
+    { group: "Lights", items: opts.filter((o) => o.key.startsWith("light:")).map((o) => [o.key, o.label]) },
+    { group: "Volume", items: opts.filter((o) => o.key.startsWith("volume:")).map((o) => [o.key, o.label]) },
+    { group: "Your sliders (IR up/down, any number)", items: opts.filter((o) => o.key.startsWith("slider:")).map((o) => [o.key, o.label]) }
+  ].filter((g) => !g.group || g.items.length);
+  return select(id, groups, tKey(t), (k) => onPick(k ? opts.find((o) => o.key === k)?.t || null : null), label);
+}
+const ctlActName = (id) => CAT.activities.find((a) => a.id === id)?.name || id;
+function renderCtlSettings() {
+  $("#ctl-timeout-row").replaceChildren(field("ctl-timeout", "A control stays on after the last press or slide for",
+    select("ctl-timeout", [["5", "5 seconds"], ["8", "8 seconds"], ["15", "15 seconds"], ["30", "30 seconds"], ["60", "1 minute"], ["0", "Stay on until changed"]], String(CTL.timeout), (v) => { CTL.timeout = Number(v); ctlSetDirty(); }, "Timeout")));
+  const rows = [el("div", { class: "drow dhead" }, el("span", {}, "Activity"), el("span", {}, "Volume rocker"), el("span", {}, "Touch slider"), el("span", {}, "Rocker"), el("span", {}))];
+  CTL.activities.forEach((a, i) => {
+    const bid = "ctl-b" + i;
+    rows.push(el("div", { class: "drow" },
+      el("span", { class: "dact" }, ctlActName(a.activity)),
+      ctlTargetSelect("ctl-db" + i, a.buttons, (t) => { a.buttons = t; ctlSetDirty(); }, { none: true, label: ctlActName(a.activity) + ": volume rocker" }),
+      ctlTargetSelect("ctl-ds" + i, a.slider, (t) => { a.slider = t; ctlSetDirty(); }, { none: true, label: ctlActName(a.activity) + ": touch slider" }),
+      el("label", { class: "check", for: bid, title: "Map the rocker to Control only while a control is on" }, el("input", { type: "checkbox", id: bid, checked: a.borrow !== false, on: { change: (e) => { a.borrow = e.target.checked; ctlSetDirty(); } } }), " borrow"),
+      el("button", { type: "button", class: "ghost", "aria-label": "Remove " + ctlActName(a.activity), on: { click: () => { CTL.activities.splice(i, 1); ctlSetDirty(true); } } }, "✕")));
+  });
+  if (!CTL.activities.length) rows.push(el("p", { class: "empty" }, "No activity yet. Add the activities you use Control in."));
+  $("#ctl-defs").replaceChildren(...rows);
+  const free = CAT.activities.filter((a) => !CTL.activities.some((x) => x.activity === a.id));
+  const sel = select("ctl-def-act", free.map((a) => [a.id, a.name]), free[0]?.id || "", () => {}, "Activity to add");
+  $("#ctl-def-add").replaceChildren(sel, el("button", { type: "button", disabled: !free.length, on: { click: () => { const id = sel.value; if (!id) return; CTL.activities.push({ activity: id, name: ctlActName(id), buttons: null, slider: null, borrow: true }); ctlSetDirty(true); } } }, "+ Add activity"));
+}
+let ctlSetChanged = false;
+function ctlSetDirty(rerender) { ctlSetChanged = true; $("#ctl-set-status").className = "status"; $("#ctl-set-status").textContent = "Not saved yet."; if (rerender) renderCtlSettings(); }
+async function postCtl(body) {
+  const r = await api("POST", "/api/controls", body);
+  if (r.ok) { const keep = CTL; CTL = r.data; if (ED.ctl && !ED.ctl.isNew) { const it = CTL.controls.find((c) => c.id === ED.ctl.item.id); if (it) ED.ctl.item = it; } void keep; }
+  return r;
+}
+const ctlBody = (controls) => ({ timeout: CTL.timeout, activities: CTL.activities, controls: (controls || CTL.controls).map(({ id, name, target, start, step }) => ({ id, name, target, start, step })) });
+$("#ctl-save-set").addEventListener("click", async () => {
+  const st = $("#ctl-set-status");
+  st.className = "status"; st.textContent = "Saving…";
+  const saved = CTL.controls.filter((c) => !(ED.ctl?.isNew && ED.ctl.item === c));
+  const r = await postCtl(ctlBody(saved));
+  if (!r.ok) { st.className = "status err"; st.textContent = (r.data.errors || [r.data.error]).join(" · "); return; }
+  ctlSetChanged = false; st.className = "status ok"; st.textContent = "Saved.";
+  renderCtl();
+});
+function ctlCard(c) {
+  const id = nid("ctl");
+  const card = el("article", { class: "card", "aria-label": c.name || "Control" });
+  const prev = el("span", { class: "hint" }, "On the remote: ", el("b", {}, "Control: " + (c.name || "…")));
+  const nameIn = input(id + "-n", c.name, (v) => { c.name = v; nameIn.classList.remove("missing"); nameTyped("ctl"); prev.replaceChildren("On the remote: ", el("b", {}, "Control: " + (v || "…"))); }, { label: "Name", placeholder: "Light" });
+  card.append(el("div", { class: "card-head" }, el("label", { class: "f grow", for: id + "-n" }, "Name *", nameIn), prev));
+  card.append(el("div", { class: "subhead" }, "1 · What it changes"),
+    el("div", { class: "fields" }, field(id + "-t", "Device and setting", ctlTargetSelect(id + "-t", c.target, (t) => { c.target = t; renderCtl(); }, { label: "What it changes" }))));
+  const t = c.target;
+  card.append(el("p", { class: "hint" }, !t ? "Lights and the remote's own settings report their level; volumes do if the device reports it. For anything else (like IR bass up/down), create a slider in Icons & Sliders first and pick it here."
+    : t.type === "slider" ? "Uses the slider's own settings (one command, or up/down presses counted by the integration)."
+    : t.type === "volume" ? "Sets the volume with one command. If the device reports its volume, the control starts from it."
+    : "Reports its level, so the control starts from the real value."));
+  card.append(el("div", { class: "subhead" }, "2 · Value"),
+    el("div", { class: "fields" },
+      field(id + "-s", "Starting value (%)", input(id + "-s", String(c.start), (v) => { c.start = Number(v); }, { label: "Starting value", type: "number", cls: "num" })),
+      field(id + "-p", "Change per rocker press", select(id + "-p", [1, 2, 5, 10, 20].map((n) => [String(n), n + " %"]), String(c.step), (v) => { c.step = Number(v); }, "Change per press"))),
+    el("p", { class: "hint" }, "The starting value is used when the device doesn't report a level and it hasn't been changed yet; after that the last value is remembered."));
+  return card;
+}
+function renderCtl() {
+  if (!CTL) { $("#ctl-list").replaceChildren(el("p", { class: "hint" }, "Loading…")); return; }
+  if (!ctlSetChanged) renderCtlSettings();
+  const e = ED.ctl;
+  $("#ctl-editor").replaceChildren(...(e ? [editorBox("ctl", {
+    title: e.isNew ? "New control" : "Edit: Control: " + (JSON.parse(e.snap).name || ""),
+    card: ctlCard(e.item),
+    onSave: saveCtl,
+    onDelete: deleteCtl,
+    extra: e.isNew ? [] : [el("button", { type: "button", on: { click: () => testCtl(CTL.status?.active === e.item.id ? null : e.item.id) } }, CTL.status?.active === e.item.id ? "Turn off" : "Turn on now")]
+  })] : []));
+  const st = CTL.status || {};
+  const rows = CTL.controls.filter((c) => !(e?.isNew && e.item === c)).map((c) => bar({ kind: "Control", name: "Control: " + c.name, sub: `${ctlTargetName(c.target)} · ${c.step} % per press · starts at ${c.start} % if unknown`, state: st.active === c.id ? "ON · " + st.value + " %" : "off", editing: e && e.item === c, flash: flashOnce(c.id), onEdit: () => openEdit("ctl", c) }));
+  $("#ctl-list").replaceChildren(...rows);
+  if (!rows.length) $("#ctl-list").append(el("p", { class: "empty" }, "No controls yet. Create one, e.g. Light → your ceiling light."));
+  $("#ctl-status").textContent = st.active ? `Now: ${st.text}` + (st.borrowed?.length ? ` · rocker borrowed in ${st.borrowed.map(ctlActName).join(", ")}` : "") : "";
+}
+async function saveCtl() {
+  const e = ED.ctl;
+  if (!e || !needName("ctl")) return;
+  if (!e.item.target) { edMsg("ctl", "err", "Pick what it changes."); return; }
+  edMsg("ctl", "", "Saving…");
+  const name = e.item.name;
+  const r = await postCtl(ctlBody());
+  if (!r.ok) { edMsg("ctl", "err", r.data.error || "Not saved. Fix these and save again:", r.data.errors); return; }
+  const it = CTL.controls.find((c) => c.name === name.trim());
+  flashId = it?.id || null;
+  ED.ctl = null;
+  renderCtl();
+}
+async function deleteCtl() {
+  const e = ED.ctl;
+  const r = await postCtl(ctlBody(CTL.controls.filter((c) => c !== e.item)));
+  if (!r.ok) { edMsg("ctl", "err", "Couldn't delete: " + (r.data.error || ""), r.data.errors); return; }
+  ED.ctl = null;
+  renderCtl();
+}
+async function testCtl(id) {
+  const r = await api("POST", "/api/controls/test", id ? { id } : {});
+  if (!r.ok) { edMsg("ctl", "err", r.data.error || "Couldn't switch it."); return; }
+  CTL.status = r.data.status;
+  renderCtl();
+}
+async function loadControls() {
+  const r = await api("GET", "/api/controls");
+  if (r.ok) CTL = r.data;
+}
+$("#ctl-add").addEventListener("click", () => {
+  if (!CTL) return;
+  const item = { id: "", name: "", target: null, start: 50, step: 5 };
+  CTL.controls.push(item);
+  openEdit("ctl", item, { isNew: true });
 });
 
 function render() {
@@ -2017,6 +2188,7 @@ async function loadExtras() {
 const TABS = {
   smart: { pane: "#app", intro: "Buttons and pop-up menus for the Remote Self-Control integration. A smart control checks your devices or the remote, then runs the first branch that matches; a quick menu runs the steps of the choice you pick." },
   ret: { pane: "#ret-app", intro: "A ↩ button in your activities that always opens the activity you used before, on screen (text, back arrow or your own picture) and/or on a physical button, with settings per activity." },
+  ctl: { pane: "#ctl-app", intro: "Point the volume rocker and the touch slider at something else for a while: turn on a Control: <name> switch, and they change a light, a volume or one of your sliders, with the remote's own level pop-ups. Then they go back to the activity's defaults." },
   icons: { pane: "#icons-app", intro: "Show and control your devices: state icons make a button on a page follow a device's state (like a green power icon); sliders control a number like the receiver's volume with the remote's slider pop-up." }
 };
 function showTab(which) {
@@ -2031,6 +2203,7 @@ function showTab(which) {
   if (which === "icons") { if (!iconsLoaded) loadIcons(); else renderIcons(); }
   if (which === "smart") render();
   if (which === "ret") renderRet();
+  if (which === "ctl") renderCtl();
 }
 for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () => showTab(k));
 
@@ -2038,7 +2211,7 @@ for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () =
 // Session
 // ---------------------------------------------------------------------------
 function showLogin(msg) {
-  $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = ED.ret = null; RET = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
+  $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = ED.ret = ED.ctl = null; RET = null; CTL = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
   $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
   $("#pin").focus();
 }
@@ -2054,7 +2227,7 @@ async function loadAll() {
   saved = JSON.stringify(toRules(buttons), null, 2);
   $("#json").textContent = saved;
   $("#login").hidden = true; $("#tabs").hidden = false; $("#session-bar").hidden = false;
-  await Promise.all([loadExtras(), loadReturn()]);
+  await Promise.all([loadExtras(), loadReturn(), loadControls()]);
   changed(true);
   let tab = "smart";
   try { tab = localStorage.getItem("scb_tab") || "smart"; } catch {}

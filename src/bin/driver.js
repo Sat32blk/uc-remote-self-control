@@ -15,7 +15,7 @@ import { listActivities, addTile, PAGE_NAME } from "./tile.js";
 import { ReturnTracker, RETURN_MARK, activityGroups } from "./returnbtn.js";
 import { StateIcons, validateIcons } from "./stateicons.js";
 import { Extras, validateExtras } from "./extras.js";
-import { ControlProxy } from "./control.js";
+import { Controls, validateControls } from "./controls.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -618,30 +618,15 @@ function registerEntities() {
 }
 
 // ---------------------------------------------------------------------------
-// "Control" test: a media player the rocker / touch slider / on-screen slider can point at
+// Controls: "Control" media player (volume rocker + touch slider), "Control: <name>" switches,
+// "Control Active" sensor. See controls.js.
 // ---------------------------------------------------------------------------
 
-const AREA_CONTROL = "Remote Control Test";
+const AREA_CONTROL = "Remote Controls";
 const controlEntities = {};
-let control = null;
+let controls = null;
 
-async function fetchAllEntities(c, base) {
-  const out = [];
-  for (let page = 1; page <= 20; page++) {
-    const part = await c.get(`${base}?limit=100&page=${page}`);
-    if (!Array.isArray(part) || !part.length) break;
-    out.push(...part);
-    if (part.length < 100) break;
-  }
-  return out;
-}
-
-function publishControl(attrs) {
-  // the same level as a light, so its tile opens the remote's on-screen slider pop-up
-  publishTo("control_level", { state: attrs.volume > 0 ? uc.LightStates.On : uc.LightStates.Off, brightness: Math.round((attrs.volume / 100) * 255) });
-  publishTo("control", attrs);
-}
-function publishTo(id, attrs) {
+function publishControl(id, attrs) {
   const e = controlEntities[id];
   if (!e) return;
   const changed = {};
@@ -651,41 +636,49 @@ function publishTo(id, attrs) {
 }
 
 function buildControlEntities() {
+  for (const k of Object.keys(controlEntities)) delete controlEntities[k];
   const F = uc.MediaPlayerFeatures;
+  const v = controls.value;
   controlEntities.control = new uc.MediaPlayer("control", { en: "Control" }, {
     area: AREA_CONTROL,
-    features: [F.OnOff, F.Volume, F.VolumeUpDown, F.MuteToggle, F.SelectSource, F.MediaTitle, F.MediaArtist, F.MediaAlbum],
-    attributes: control.attrs(),
+    features: [F.OnOff, F.Volume, F.VolumeUpDown, F.MuteToggle, F.MediaTitle, F.MediaArtist],
+    attributes: { state: "ON", volume: v, muted: false, media_title: "", media_artist: controls.activeText() },
     cmdHandler: traced("control", async (entity, rawCmd, params) => {
       if (!core) return uc.StatusCodes.ServiceUnavailable;
-      control.command(plainCmd(rawCmd), params || {}).catch((e) => warn("control:", e.message));
+      controls.controlCommand(plainCmd(rawCmd), params || {}).catch((e) => warn("control:", e.message));
       return uc.StatusCodes.Ok;
     })
   });
+  // the same level as a light: for a touch slider set to a light, or a home tile with the slider pop-up
   const L = uc.LightFeatures;
-  const a0 = control.attrs();
   controlEntities.control_level = new uc.Light("control_level", { en: "Control Level" }, {
     area: AREA_CONTROL,
     features: [L.OnOff, L.Toggle, L.Dim],
-    attributes: { state: a0.volume > 0 ? uc.LightStates.On : uc.LightStates.Off, brightness: Math.round((a0.volume / 100) * 255) },
+    attributes: { state: v > 0 ? uc.LightStates.On : uc.LightStates.Off, brightness: Math.round((v / 100) * 255) },
     cmdHandler: traced("control_level", async (entity, rawCmd, rawParams) => {
       if (!core) return uc.StatusCodes.ServiceUnavailable;
       const { cmd, params } = normalizeLight(rawCmd, rawParams || {});
-      const v = cmd === "off" ? 0 : params.brightness !== undefined ? (params.brightness / 255) * 100 : cmd === "toggle" && control.value > 0 ? 0 : Math.max(control.value, 50);
-      control.command("volume", { volume: v }).catch((e) => warn("control:", e.message));
+      const to = cmd === "off" ? 0 : params.brightness !== undefined ? (params.brightness / 255) * 100 : cmd === "toggle" && controls.value > 0 ? 0 : Math.max(controls.value, 50);
+      controls.controlCommand("volume", { volume: to }).catch((e) => warn("control:", e.message));
       return uc.StatusCodes.Ok;
     })
   });
-  const btn = (id, name, mode) => new uc.Button(id, { en: name }, {
+  controlEntities.control_active = new uc.Sensor("control_active", { en: "Control Active" }, {
     area: AREA_CONTROL,
-    cmdHandler: traced(id, async () => {
-      if (!core) return uc.StatusCodes.ServiceUnavailable;
-      control.activate(mode).catch((e) => warn("control:", e.message));
-      return uc.StatusCodes.Ok;
-    })
+    attributes: { state: uc.SensorStates.On, value: controls.activeText() }
   });
-  controlEntities.control_light = btn("control_light", "Control: Light", "light");
-  controlEntities.control_normal = btn("control_normal", "Control: Normal", "display");
+  for (const c of controls.controls) {
+    controlEntities[c.id] = new uc.Switch(c.id, { en: "Control: " + c.name }, {
+      area: AREA_CONTROL,
+      features: [uc.SwitchFeatures.OnOff, uc.SwitchFeatures.Toggle],
+      attributes: { state: controls.active === c.id ? uc.SwitchStates.On : uc.SwitchStates.Off },
+      cmdHandler: traced(c.id, async (entity, rawCmd) => {
+        if (!core) return uc.StatusCodes.ServiceUnavailable;
+        controls.switchCommand(c.id, plainCmd(rawCmd)).catch((e) => warn("control:", e.message));
+        return uc.StatusCodes.Ok;
+      })
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -907,7 +900,7 @@ async function refresh() {
   try {
     cache = await core.get("/cfg");
     publishStates();
-    if (control && control.mode === "display" && !control.sending) { control.value = cache?.display?.brightness ?? control.value; control.show(); }
+    controls?.refresh().catch(() => {});
     await api.setDeviceState(uc.DeviceStates.Connected);
     return true;
   } catch (e) {
@@ -1247,7 +1240,7 @@ async function pinSetup(v) {
     saveConfig(config);
     core = client;
     publishStates();
-    control.findLight(fetchAllEntities);
+    controls.recover().catch((e) => warn("control:", e.message));
     log("setup complete, API key stored");
     return new uc.SetupComplete();
   }
@@ -1299,12 +1292,13 @@ returnTracker = new ReturnTracker({ getCore: () => core, file: path.join(api.get
 updatePreviousSensor();
 extras = new Extras({ getCore: () => core, engine: () => smart, file: path.join(api.getConfigDirPath(), "sliders_menus.json"), publish: publishExtra, log, warn });
 buildExtraEntities();
-control = new ControlProxy({
+controls = new Controls({
   getCore: () => core,
+  extras: () => extras,
+  cache: () => cache,
+  patchSection,
   publish: publishControl,
-  getDisplay: () => cache?.display?.brightness ?? 50,
-  setDisplay: async (v) => { await patchSection("display", { brightness: v, auto_brightness: false }); },
-  idleMs: Number(process.env.UC_SELF_CONTROL_IDLE_MS) || 8000,
+  file: path.join(api.getConfigDirPath(), "controls.json"),
   log,
   warn
 });
@@ -1384,6 +1378,18 @@ startWebServer({
   },
   extras: () => extras,
   validateExtras: (body) => validateExtras(body, selfApi.keys, reservedIds()),
+  controlsApi: {
+    get: () => ({ ...controls.config, status: controls.status() }),
+    validate: validateControls,
+    save: async (config) => {
+      await controls.replace(config);
+      buildControlEntities();
+      registerEntities();
+      controls.publishAll();
+      log(`controls saved: ${controls.controls.map((c) => c.name).join(", ") || "none"}`);
+    },
+    test: async (id) => (id ? controls.activate(id) : controls.deactivate("off (builder)"))
+  },
   onExtrasChanged: async () => {
     buildExtraEntities();
     registerEntities();
@@ -1415,7 +1421,7 @@ config = loadConfig();
 if (config?.apiKey) {
   core = new CoreClient(config.address, { apiKey: config.apiKey });
   log("loaded configuration for", config.address);
-  refresh().then(() => control.findLight(fetchAllEntities));
+  refresh().then(() => controls.recover()).catch((e) => warn("control:", e.message));
 } else {
   log("not configured yet: run the integration setup");
 }

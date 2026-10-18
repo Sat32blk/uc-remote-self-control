@@ -10,6 +10,9 @@
 //   POST /api/validate     { rules } -> { errors }                                          (login)
 //   POST /api/rules        { rules } -> { ok, errors, buttons }                             (login)
 //   POST /api/test         { id }    -> { summary }                                         (login)
+//   GET  /api/controls     { timeout, activities, controls, status }                       (login)
+//   POST /api/controls     { timeout, activities, controls } -> { ok, errors }              (login)
+//   POST /api/controls/test { id } turns a control on ({} = off)                           (login)
 //   GET  /api/extras       { sliders, menus, status }                                       (login)
 //   POST /api/extras       { sliders, menus } -> { ok, errors }                              (login)
 //   POST /api/extras/test  { id, value } (slider) | { id, option } (menu) -> { summary }     (login)
@@ -120,7 +123,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, validateExtras, onExtrasChanged, returnSettings, saveReturn, log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, validateExtras, onExtrasChanged, returnSettings, saveReturn, log, warn }) {
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -295,6 +298,23 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
         send(res, 200, { ok: true, ...(await returnSettings()) });
       } catch (e) {
         send(res, 502, { ok: false, error: e.message });
+      }
+    },
+    "GET /api/controls": async (req, res) => send(res, 200, controlsApi.get()),
+    "POST /api/controls": async (req, res) => {
+      const body = await readJson(req);
+      const v = controlsApi.validate(body);
+      if (v.errors.length) return send(res, 422, { ok: false, errors: v.errors });
+      await controlsApi.save(v.config);
+      send(res, 200, { ok: true, errors: [], ...controlsApi.get() });
+    },
+    "POST /api/controls/test": async (req, res) => {
+      const body = await readJson(req);
+      try {
+        await controlsApi.test(body.id || null);
+        send(res, 200, { ok: true, ...controlsApi.get() });
+      } catch (e) {
+        send(res, 400, { ok: false, error: e.message });
       }
     },
     "GET /api/extras": async (req, res) => send(res, 200, { ...extras().config, status: extras().status() }),
