@@ -3,14 +3,15 @@
 // values like an audio format that only shows up now and then. Devices can be watched in the background.
 import fs from "node:fs";
 
+export const REMOTE_ID = "self:remote";
 const MAX_VALUES = 60; // per device and attribute
 const MAX_WATCH = 20;
 const SKIP = new Set(["media_image_url", "media_position", "media_position_updated_at", "media_duration"]);
 const nameOf = (n) => (typeof n === "string" ? n : n?.en || Object.values(n || {})[0] || "");
 
 export class DeviceStates {
-  constructor({ getCore, file, log = () => {}, warn = () => {} }) {
-    Object.assign(this, { getCore, file, log, warn });
+  constructor({ getCore, file, remote = null, log = () => {}, warn = () => {} }) {
+    Object.assign(this, { getCore, file, remote, log, warn });
     this.seen = {}; // entity -> attr -> [values]  (numbers: { min, max })
     this.watched = [];
     this.dirty = false;
@@ -57,6 +58,13 @@ export class DeviceStates {
 
   /** Reads a device now. */
   async read(entity) {
+    if (entity === REMOTE_ID && this.remote) {
+      // the remote itself: its settings (screen brightness, …) and this integration's controls (backlight color, …)
+      const { attributes, labels } = this.remote();
+      this.record(entity, attributes);
+      this.save();
+      return { id: entity, name: "This remote", type: "remote_self", attributes, labels, lists: {}, seen: this.seen[entity] || {}, watched: this.watched.includes(entity) };
+    }
     const core = this.getCore();
     if (!core) throw new Error("The integration isn't connected to the remote.");
     const e = await core.get(`/entities/${encodeURI(entity)}`);
@@ -90,6 +98,7 @@ export class DeviceStates {
     const core = this.getCore();
     if (!core || !this.watched.length) return;
     for (const id of this.watched) {
+      if (id === REMOTE_ID) { if (this.remote) this.record(id, this.remote().attributes); continue; }
       try {
         const e = await core.get(`/entities/${encodeURI(id)}`);
         if (e) this.record(id, e.attributes || {});

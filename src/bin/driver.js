@@ -917,7 +917,36 @@ function scheduleRefresh() {
   refreshTimer = setTimeout(refresh, 400);
 }
 
+const CONTROL_NAMES_ALL = {};
 let deviceStates = null;
+const SETTING_LABELS = {
+  "display.brightness": "Display brightness (0–100)",
+  "display.auto_brightness": "Display auto brightness",
+  "button.brightness": "Button backlight level (0–100)",
+  "button.auto_brightness": "Button backlight auto",
+  "sound.enabled": "Sound effects on",
+  "sound.volume": "Sound effects volume (0–100)",
+  "haptic.enabled": "Haptic feedback on",
+  "power_saving.display_off_sec": "Display timeout (seconds)",
+  "power_saving.standby_sec": "Sleep timeout (seconds, 0 = never)",
+  "power_saving.wakeup_sensitivity": "Wake sensitivity (0–3)"
+};
+/** The remote's own state for the builder's device states panel: settings + this integration's controls. */
+function remoteState() {
+  const attributes = {}, labels = {};
+  for (const [k, label] of Object.entries(SETTING_LABELS)) {
+    const [sec, key] = k.split(".");
+    const v = cache?.[sec]?.[key];
+    if (v !== undefined) { attributes[k] = v; labels[k] = label; }
+  }
+  for (const id of [...Object.keys(SELECTS), ...Object.keys(SWITCHES)]) {
+    try {
+      const v = selfApi.control(id);
+      if (v !== undefined && v !== null) { attributes["control:" + id] = v; labels["control:" + id] = CONTROL_NAMES_ALL[id] || id; }
+    } catch {}
+  }
+  return { attributes, labels };
+}
 let statesPolledAt = 0;
 function startPolling() {
   stopPolling();
@@ -1307,10 +1336,11 @@ controls = new Controls({
   warn
 });
 buildControlEntities();
-deviceStates = new DeviceStates({ getCore: () => core, file: path.join(api.getConfigDirPath(), "states_seen.json"), log, warn });
+deviceStates = new DeviceStates({ getCore: () => core, file: path.join(api.getConfigDirPath(), "states_seen.json"), remote: remoteState, log, warn });
 initSmart();
 
 const CONTROL_NAMES = Object.fromEntries(LAYOUT.map(([, id, name]) => [id, name]));
+Object.assign(CONTROL_NAMES_ALL, CONTROL_NAMES);
 startWebServer({
   port: BUILDER_PORT,
   pagePath: path.join(HERE, "web", "builder.html"),
@@ -1323,15 +1353,8 @@ startWebServer({
     for (const [id, def] of Object.entries(SWITCHES)) out[id] = { name: CONTROL_NAMES[id] || def.name, switch: true, current: selfApi.control(id) };
     return out;
   },
-  settings: {
-    "button.brightness": "Button backlight level (0–100)",
-    "display.brightness": "Display brightness (0–100)",
-    "display.auto_brightness": "Display auto brightness (true/false)",
-    "sound.enabled": "Sound effects on (true/false)",
-    "sound.volume": "Sound effects volume (0–100)",
-    "haptic.enabled": "Haptic feedback on (true/false)",
-    "power_saving.standby_sec": "Sleep timeout (seconds, 0 = never)"
-  },
+  settings: SETTING_LABELS,
+
   stateIcons: () => stateIcons,
   // ↩ Return to previous activity, also editable in the builder
   returnSettings: async () => ({

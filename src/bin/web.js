@@ -222,9 +222,11 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
     "GET /api/catalog": async (req, res) => {
       const core = getCore();
       if (!core) return send(res, 503, { error: "The integration isn't set up yet. Run its setup in the web configurator first." });
-      const [entities, commands] = await Promise.all([fetchAll(core, "/entities"), core.get("/cfg/entity/commands")]);
+      const [entities, commands, instances] = await Promise.all([fetchAll(core, "/entities"), core.get("/cfg/entity/commands"), fetchAll(core, "/intg/instances").catch(() => [])]);
       const cat = buildCatalog(entities, commands, "self_control");
-      send(res, 200, { ...cat, controls: controls(), settings });
+      const integrations = {};
+      for (const i of instances || []) if (i?.integration_id) integrations[i.integration_id] = (typeof i.name === "string" ? i.name : i.name?.en || Object.values(i.name || {})[0]) || i.integration_id;
+      send(res, 200, { ...cat, controls: controls(), settings, integrations });
     },
     "GET /api/rules": async (req, res) => {
       const r = loadRulesText();

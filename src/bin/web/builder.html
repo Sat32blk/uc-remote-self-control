@@ -463,6 +463,14 @@ function valueInput(id, dev, attr, val, onInput, retarget) {
   return [inp, datalist(lid, list)];
 }
 
+/** A value clicked in the device states panel sets a condition: a device's value, this remote's setting or control. */
+function retargetCond(cond, ent, attr, v, notify) {
+  if (ent === "self:remote") {
+    if (attr.startsWith("control:")) { cond.t = "control"; cond.key = attr.slice(8); cond.op = cond.op || "is"; cond.val = v; }
+    else { cond.t = "setting"; cond.path = attr; cond.op = cond.op || "is"; cond.val = v; }
+  } else { cond.t = "device"; cond.ent = ent; cond.attr = attr; cond.val = v; }
+  notify(true);
+}
 function condRow(cond, list, idx) {
   const id = nid("c");
   const kinds = [["device", "Device"], ["activity", "Activity"], ["time", "Time of day"], ["control", "This remote's control"], ["setting", "This remote's setting"], ["var", "Memory"], ["raw", "Advanced (JSON)"]];
@@ -474,7 +482,7 @@ function condRow(cond, list, idx) {
     const attrs = dev ? Object.keys(dev.values) : [cond.attr];
     row.append(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), cond.attr, (v) => { cond.attr = v; cond.val = ""; notify(true); }, "What to check"));
     row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; notify(false); }, "Comparison"));
-    row.append(...valueInput(id + "-v", dev, cond.attr, cond.val, (v) => { cond.val = v; notify(false); }, (ent, attr, v) => { cond.ent = ent; cond.attr = attr; cond.val = v; notify(true); }));
+    row.append(...valueInput(id + "-v", dev, cond.attr, cond.val, (v) => { cond.val = v; notify(false); }, (ent, attr, v) => retargetCond(cond, ent, attr, v, notify)));
   } else if (cond.t === "activity") {
     row.append(select(id + "-n", [["on", "is running"], ["off", "is not running"]], cond.neg ? "off" : "on", (v) => { cond.neg = v === "off"; notify(false); }, "Running or not"));
     row.append(select(id + "-a", CAT.activities.map((a) => [a.id, a.name]), cond.act, (v) => { cond.act = v; notify(false); }, "Activity"));
@@ -486,11 +494,15 @@ function condRow(cond, list, idx) {
     row.append(select(id + "-c", Object.entries(CAT.controls).map(([k, d]) => [k, d.name]), cond.key, (v) => { cond.key = v; cond.val = ""; notify(true); }, "Control"));
     row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; notify(false); }, "Comparison"));
     const lid = id + "-l";
-    row.append(input(id + "-v", cond.val, (v) => { cond.val = v; notify(false); }, { label: "Value", list: lid }), datalist(lid, c ? (c.switch ? ["on", "off"] : c.options) : []));
+    const cv = input(id + "-v", cond.val, (v) => { cond.val = v; notify(false); }, { label: "Value", list: lid });
+    cv._retarget = (ent, attr, v) => retargetCond(cond, ent, attr, v, notify);
+    row.append(cv, datalist(lid, c ? (c.switch ? ["on", "off"] : c.options) : []));
   } else if (cond.t === "setting") {
     row.append(select(id + "-s", Object.entries(CAT.settings), cond.path, (v) => { cond.path = v; notify(false); }, "Setting"));
     row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; notify(false); }, "Comparison"));
-    row.append(input(id + "-v", cond.val, (v) => { cond.val = v; notify(false); }, { label: "Value", cls: "num" }));
+    const sv = input(id + "-v", cond.val, (v) => { cond.val = v; notify(false); }, { label: "Value", cls: "num" });
+    sv._retarget = (ent, attr, v) => retargetCond(cond, ent, attr, v, notify);
+    row.append(sv);
   } else if (cond.t === "var") {
     row.append(input(id + "-n", cond.name, (v) => { cond.name = v; notify(false); }, { label: "Memory name", cls: "mono", placeholder: "night_mode" }));
     row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; notify(false); }, "Comparison"));
@@ -1053,7 +1065,7 @@ function statesPanel(where) {
   if (!box) return;
   const st = (SP[where] = SP[where] || { dev: "", data: null, prev: null, timer: null, msg: null });
   const id = "sp-" + where;
-  const sel = select(id + "-d", [["", "Pick a device…"], ...deviceOptions((d) => d.type !== "macro" && d.type !== "activity")], st.dev, (v) => { st.dev = v; st.data = null; st.prev = null; st.msg = null; statesPanel(where); readStates(where); }, "Device");
+  const sel = select(id + "-d", [["", "Pick a device…"], ...statesDeviceOptions()], st.dev, (v) => { st.dev = v; st.data = null; st.prev = null; st.msg = null; statesPanel(where); readStates(where); }, "Device");
   const top = el("div", { class: "fields" }, field(id + "-d", "Device", sel));
   if (st.dev && st.data) {
     const wid = id + "-w";
@@ -1066,6 +1078,18 @@ function statesPanel(where) {
     el("p", { class: "hint" }, "Pick a device to see every value its integration reports, updated every 2 seconds while this is open. Values seen are collected (also in the background if you tick it), so things that only show up sometimes, like an audio format, can be picked later. To use a value: click a value field in the editor (a condition's value, for example), then click the value here: it's filled in, and a condition also gets this device and what to check. In a state icon it's added as a state; for a slider, \"use\" points it at the number. Otherwise it's copied."),
     top, el("div", { class: "states-out" }));
   renderStatesBody(where);
+}
+const REMOTE_ID = "self:remote";
+/** Devices for the states panel: this remote first, then grouped by integration (Home Assistant, Denon, …). */
+function statesDeviceOptions() {
+  const groups = {};
+  for (const d of CAT.devices) {
+    if (d.type === "macro" || d.type === "activity") continue;
+    const g = CAT.integrations?.[d.integration] || String(d.integration || "Other").replace(/\.main$/, "");
+    (groups[g] = groups[g] || []).push([d.id, d.name + (TYPE_NAMES[d.type] ? " · " + TYPE_NAMES[d.type].replace(/s$/, "").toLowerCase() : "")]);
+  }
+  return [{ group: "This remote", items: [[REMOTE_ID, "This remote: settings and controls"]] },
+    ...Object.keys(groups).sort((a, b) => a.localeCompare(b)).map((g) => ({ group: g, items: groups[g].sort((x, y) => x[1].localeCompare(y[1])) }))];
 }
 function renderStatesBody(where) {
   const st = SP[where];
@@ -1081,13 +1105,16 @@ function renderStatesBody(where) {
     const now = d.attributes[k];
     const seen = d.seen?.[k];
     const isNum = typeof now === "number";
-    const known = [...new Set([...(dev?.values?.[k] || []), ...(d.lists[LIST_OF[k]] || []), ...(Array.isArray(seen) ? seen : [])].map(String))];
+    const ctl = d.id === REMOTE_ID && k.startsWith("control:") ? CAT.controls?.[k.slice(8)] : null;
+    const own = ctl ? (ctl.switch ? ["on", "off"] : ctl.options || []) : typeof now === "boolean" ? ["true", "false"] : [];
+    const known = [...new Set([...own, ...(dev?.values?.[k] || []), ...(d.lists[LIST_OF[k]] || []), ...(Array.isArray(seen) ? seen : [])].map(String))];
     const seenSet = new Set(Array.isArray(seen) ? seen.map(String) : []);
     const chips = el("div", { class: "chips" });
     if (isNum) chips.append(el("span", { class: "hint" }, seen && !Array.isArray(seen) ? `seen ${seen.min} … ${seen.max}` : "a number"), el("button", { type: "button", class: "chip", title: "Use this number for a slider or level graphic", on: { click: () => useValue(where, d.id, k, now) } }, "use"));
     else for (const v of known.slice(0, 80)) chips.append(el("button", { type: "button", class: "chip" + (String(now) === v ? " now" : seenSet.has(v) ? " seen" : ""), title: seenSet.has(v) ? "Seen on this device" : "Listed by the device", on: { click: () => useValue(where, d.id, k, v) } }, v));
     const changed = st.prev && JSON.stringify(st.prev[k]) !== JSON.stringify(now);
-    return el("tr", { class: changed ? "changed" : "" }, el("td", { class: "k" }, k), el("td", { class: "now" }, el("b", {}, now === "" ? "(empty)" : String(now))), el("td", {}, chips));
+    const label = d.labels?.[k];
+    return el("tr", { class: changed ? "changed" : "" }, el("td", { class: "k", title: k }, label || k), el("td", { class: "now" }, el("b", {}, now === "" ? "(empty)" : String(now))), el("td", {}, chips));
   });
   out.replaceChildren(
     el("table", { class: "stable" }, el("thead", {}, el("tr", {}, el("th", {}, "Value"), el("th", {}, "Now"), el("th", {}, "Possible / seen"))), el("tbody", {}, rows)),
@@ -1126,9 +1153,9 @@ function copyText(text) {
 }
 function useValue(where, ent, attr, value) {
   const st = SP[where];
-  const name = devName(ent);
+  const name = ent === REMOTE_ID ? "This remote" : devName(ent);
   const e = where === "icons" ? (ED.icons || (ED.extras?.kind === "slider" ? ED.extras : null)) : null;
-  if (e && e === ED.icons && e.item.kind !== "level") {
+  if (e && e === ED.icons && e.item.kind !== "level" && ent !== REMOTE_ID) {
     const b = e.item;
     if (b.entity !== ent || (b.attr || "state") !== attr) {
       // a different device or value: states without a picture or label belonged to the old one
@@ -1152,7 +1179,7 @@ function useValue(where, ent, attr, value) {
     if (lastValueInput._retarget) {
       lastValueInput._retarget(ent, attr, text); // condition / wait step: device, what to check and value
       lastValueInput = null;
-      st.msg = { text: `Set the condition to ${name} · ${attr} is "${text}".` };
+      st.msg = { text: `Set the condition to ${name} · ${st.data?.labels?.[attr] || attr} is "${text}".` };
     } else {
       lastValueInput.value = text;
       lastValueInput.dispatchEvent(new Event("input", { bubbles: true }));
