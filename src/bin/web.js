@@ -15,6 +15,8 @@
 //   GET  /api/controls     { timeout, activities, controls, status }                       (login)
 //   POST /api/controls     { timeout, activities, controls } -> { ok, errors }              (login)
 //   POST /api/controls/test { id } turns a control on ({} = off)                           (login)
+//   GET  /api/backup  download a backup of everything set up here (+ pictures)           (login)
+//   POST /api/restore { backup, parts? } restore it                                      (login)
 //   POST /api/controls/reset { id, value? } sets a control's value (default: its start)  (login)
 //   GET  /api/extras       { sliders, menus, status }                                       (login)
 //   POST /api/extras       { sliders, menus } -> { ok, errors }                              (login)
@@ -31,6 +33,8 @@ import path from "node:path";
 
 const SESSION_MS = 12 * 60 * 60 * 1000;
 import { MAX_ICONS, MAX_DEVICES } from "./stateicons.js";
+import { makeBackup, restoreBackup, checkBackup } from "./backup.js";
+const MAX_RESTORE_BODY = 24 * 1024 * 1024; // a backup carries its pictures
 const MAX_BODY = 512 * 1024;
 
 // media_player feature -> commands it enables (Integration API entity docs)
@@ -127,7 +131,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, version = "", log, warn }) {
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -147,7 +151,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
     res.end(JSON.stringify(obj));
   };
 
-  const readJson = (req) =>
+  const readJson = (req, maxBody = MAX_BODY) =>
     new Promise((resolve, reject) => {
       if (!/^application\/json/.test(req.headers["content-type"] || "")) return reject(Object.assign(new Error("JSON body expected"), { code: 415 }));
       let size = 0;
@@ -155,11 +159,11 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       // Oversized bodies are drained and dropped (not kept in memory), then refused with 413.
       req.on("data", (c) => {
         size += c.length;
-        if (size <= MAX_BODY) chunks.push(c);
+        if (size <= maxBody) chunks.push(c);
         else chunks.length = 0;
       });
       req.on("end", () => {
-        if (size > MAX_BODY) return reject(Object.assign(new Error("request too large"), { code: 413 }));
+        if (size > maxBody) return reject(Object.assign(new Error("request too large"), { code: 413 }));
         try {
           resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {});
         } catch {
@@ -354,6 +358,48 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       } catch (e) {
         send(res, 400, { ok: false, error: e.message });
       }
+    },
+    "GET /api/backup": async (req, res) => {
+      const core = getCore();
+      if (!core) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      const ret = await returnSettings();
+      const ctl = controlsApi.get();
+      const b = await makeBackup({
+        version,
+        rulesText: loadRulesText().text,
+        extras: extras().config,
+        icons: stateIcons().icons,
+        controls: { timeout: ctl.timeout, activities: ctl.activities, controls: ctl.controls },
+        returnCfg: ret.cfg,
+        downloadIcon: async (id) => (await core.download(`/resources/Icon/${encodeURIComponent(id)}`)).body
+      });
+      const day = b.created.slice(0, 10);
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Content-Disposition": `attachment; filename="self-control-backup-${day}.json"` });
+      res.end(JSON.stringify(b, null, 1));
+      log(`backup made: ${Object.keys(b.pictures).length} pictures${b.missingIcons.length ? `, ${b.missingIcons.length} missing` : ""}`);
+    },
+    "POST /api/restore": async (req, res) => {
+      const body = await readJson(req, MAX_RESTORE_BODY);
+      const core = getCore();
+      if (!core) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      const b = body.backup;
+      const bad = checkBackup(b);
+      if (bad) return send(res, 422, { ok: false, errors: [bad] });
+      const which = Array.isArray(body.parts) ? body.parts.map(String) : null;
+      const r = await restoreBackup(b, {
+        uploadIcon: (name, png) => core.uploadIcon(name, png),
+        validateRules: (rules) => validate(rules),
+        saveRules: (rules) => saveRules(rules),
+        validateExtras: (x) => validateExtras(x),
+        applyExtras: async (x) => { extras().replace(x); onExtrasChanged && (await onExtrasChanged()); },
+        validateIcons: (x) => validateIcons(x),
+        applyIcons: async (icons, defaults) => { const r = await stateIcons().replace(icons, defaults); if (!r.errors.length) onIconsChanged && onIconsChanged(); return r; },
+        validateControls: (x) => controlsApi.validate(x),
+        applyControls: (cfg) => controlsApi.save(cfg),
+        applyReturn: (cfg) => saveReturn(cfg)
+      }, which);
+      log(`backup restored: ${r.done.join(", ") || "nothing"}${r.errors.length ? "; problems: " + r.errors.join(" | ") : ""}`);
+      send(res, r.errors.length && !r.done.length ? 422 : 200, { ok: !r.errors.length, ...r });
     },
     "GET /api/extras": async (req, res) => send(res, 200, { ...extras().config, status: extras().status() }),
     "POST /api/extras": async (req, res) => {

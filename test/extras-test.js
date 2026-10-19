@@ -4,7 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
-import { start, devices, commands, selfEntities, entityIcons, activities, TV, MARANTZ } from "./mock-core.js";
+import { start, devices, commands, selfEntities, entityIcons, activities, icons as mockIcons, TV, MARANTZ } from "./mock-core.js";
+const KEY_HINT = "Bearer ";
 import { snap, toBrightness, fromBrightness, validateExtras, Extras } from "../src/bin/extras.js";
 
 const CORE_PORT = 18084;
@@ -251,6 +252,29 @@ h = await http("GET", "/api/states?id=self:remote");
 ok(h.status === 200 && h.data.attributes["battery.level"] === 55 && h.data.attributes["battery.charging"] === true && h.data.labels["battery.level"] === "Battery level (%)", "This remote shows the battery: 55 %, charging");
 h = await http("GET", "/api/catalog");
 ok(h.status === 200 && h.data.settings?.["battery.level"] === "Battery level (%)", "battery level offered for setting conditions");
+
+// ---- backup and restore -----------------------------------------------------------------------
+{
+  const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR42mPU2tDwn4GBgYEJxmBkZAQAI48DP5/3hu8AAAAASUVORK5CYII=";
+  await http("POST", "/api/icons/upload", { name: "ti_volume.png", data: PNG });
+  const res = await fetch(WEB + "/api/backup", { headers: { Cookie: cookie } });
+  const bk = await res.json();
+  ok(res.status === 200 && /attachment; filename="self-control-backup-/.test(res.headers.get("content-disposition") || ""), "backup downloads as a file");
+  ok(bk.kind === "uc-self-control-backup" && bk.parts.extras.sliders.length === 2 && bk.parts.extras.menus.length === 1 && bk.parts.smart?.buttons, "backup holds sliders, menus and smart controls");
+  ok(bk.pictures["ti_volume.png"] && !JSON.stringify(bk).includes("apiKey") && !JSON.stringify(bk).includes(KEY_HINT), "backup holds the pictures, not the login");
+  await http("POST", "/api/extras", { sliders: [], menus: [] });
+  delete mockIcons["ti_volume.png"];
+  h = await http("POST", "/api/restore", { backup: { ...bk, kind: "nope" } });
+  ok(h.status === 422, "a file that isn't a backup is refused");
+  h = await http("POST", "/api/restore", { backup: bk, parts: ["extras"] });
+  ok(h.status === 200 && h.data.done.join() === "extras", "restore of sliders and menus: " + JSON.stringify(h.data.errors));
+  h = await http("GET", "/api/extras");
+  ok(h.data.sliders.length === 2 && h.data.menus.length === 1, "sliders and menus are back");
+  ok(!!mockIcons["ti_volume.png"], "their picture was uploaded again");
+  const bad = JSON.parse(JSON.stringify(bk)); bad.parts.extras.sliders[0].max = -5;
+  h = await http("POST", "/api/restore", { backup: bad, parts: ["extras", "smart"] });
+  ok(h.status === 422 && !h.data.done.length, "an invalid part: nothing is changed");
+}
 
 // ---- removing ----------------------------------------------------------------------------------
 h = await http("POST", "/api/extras", { sliders: [], menus: [] });

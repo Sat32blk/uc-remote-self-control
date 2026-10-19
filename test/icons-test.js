@@ -158,6 +158,19 @@ ok(item(1, 0).icon === FR[9], "volume 72 → 90 % image");
 h = await http("GET", "/api/icons");
 ok(h.data.icons.find((b) => b.id === "rcv_level")?.status?.look === "90 %", "builder shows which step is on the remote");
 ok(h.data.check && h.data.check.devices >= 1 && h.data.check.ms >= 0 && h.data.limits.icons === 60 && h.data.limits.devices === 25, `builder gets the last check time: ${h.data.check?.ms} ms for ${h.data.check?.devices} devices`);
+{
+  // backup → remove the state icons → restore: the icons and their buttons come back
+  const bk = await (await fetch(WEB + "/api/backup", { headers: { Cookie: cookie } })).json();
+  const before = JSON.stringify(item(1, 0));
+  ok(bk.parts.icons.length === h.data.icons.length && bk.parts.icons.some((b) => b.id === "rcv_level"), "backup holds the state icons");
+  let r2 = await http("POST", "/api/icons", { icons: [] });
+  await sleep(500);
+  ok(r2.status === 200 && JSON.stringify(item(1, 0)) !== before, "icons removed: the button shows its own look again");
+  r2 = await http("POST", "/api/restore", { backup: bk, parts: ["icons"] });
+  await sleep(900);
+  ok(r2.status === 200 && r2.data.done.join() === "icons", "restore of state icons: " + JSON.stringify(r2.data.errors));
+  ok(JSON.stringify(item(1, 0)) === before, "after the restore the level picture is back on the button");
+}
 
 // ---- level graphic over several tiles, shown only for a while after a change -----------------
 activities["uc.main.act5"] = { name: { en: "Skin" }, state: "OFF", entity_ids: [], buttons: {}, pages: [

@@ -60,6 +60,10 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 button.ghost { border-color: transparent; background: transparent; color: var(--muted); padding: 6px 8px; }
 button.ghost:hover { color: var(--danger); }
 button.small { min-height: 30px; padding: 3px 10px; font-size: 13px; }
+.btn { display: inline-flex; align-items: center; font-size: 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 6px 12px; min-height: 36px; cursor: pointer; text-decoration: none; box-sizing: border-box; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+#backup-panel h3 { font-size: 15px; margin: 16px 0 6px; }
 .branch { border-radius: 10px; background: var(--inset); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .branch-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .tag { font: 600 12px/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; padding: 5px 8px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); }
@@ -179,6 +183,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <div class="row" id="session-bar" hidden>
       <span class="badge" id="device-count"></span>
       <button class="small" id="reload" type="button">Reload devices</button>
+      <button class="small" id="backup-open" type="button" aria-expanded="false" aria-controls="backup-panel">Backup</button>
       <button class="small" id="logout" type="button">Log out</button>
     </div>
   </header>
@@ -189,6 +194,16 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <label class="f" for="pin">PIN<input id="pin" type="password" inputmode="numeric" autocomplete="current-password" required></label>
     <div class="row"><button class="primary" type="submit">Log in</button><span id="login-status" class="status" role="status"></span></div>
   </form>
+
+  <section class="panel" id="backup-panel" hidden aria-label="Backup and restore">
+    <h2>Backup and restore</h2>
+    <p class="note">A backup holds everything you set up here: smart controls, quick menus and sliders, state icons and level pictures, ↩ buttons and Controls, plus the custom pictures they use. It doesn't hold the integration's login to the remote. Keep a copy before updating the integration or the remote.</p>
+    <div class="row"><a class="btn primary" id="backup-dl" href="/api/backup" download>Download backup</a><span class="hint">Saves a .json file.</span></div>
+    <h3>Restore</h3>
+    <div class="row"><label class="btn" for="backup-file">Choose a backup file…</label><input type="file" id="backup-file" accept=".json,application/json" hidden><span class="hint" id="backup-name"></span></div>
+    <div id="backup-parts" class="lines"></div>
+    <div class="row"><button class="primary" id="backup-restore" type="button" hidden>Restore</button><span class="status" id="backup-status" role="status"></span></div>
+  </section>
 
   <nav class="tabs" id="tabs" role="tablist" hidden>
     <button type="button" role="tab" id="tab-smart" aria-selected="true" aria-controls="app">Smart Controls</button>
@@ -269,12 +284,6 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <h2 class="list-title">Activities with a ↩ button</h2>
     <div id="ret-list" class="bars"></div>
     <p class="status" id="ret-status" role="status"></p>
-    <details class="panel" id="ret-events">
-      <summary>What the remote reports when you switch activities</summary>
-      <p class="note">The integration listens to the remote's own events to see which activity you open, also one that is already on (like going back with ↩). These are the latest activity events; press <b>Refresh</b> to update.</p>
-      <div class="row"><button class="small" type="button" id="ret-events-refresh">Refresh</button> <span class="hint" id="ret-events-state"></span></div>
-      <pre class="json" id="ret-events-list"></pre>
-    </details>
     <details class="panel">
       <summary>How the ↩ button works</summary>
       <p class="note">The integration watches which activity you start (whether or not the old one turns off). In every activity listed here it keeps a ↩ button pointed at the activity you used before; pressing it opens that activity. The ↩ button can be on screen (text, back arrow or your own picture), on a physical button, or both.</p>
@@ -924,14 +933,8 @@ async function deleteRet() {
 async function loadReturn() {
   const r = await api("GET", "/api/return");
   if (r.ok) RET = r.data;
-  showRetEvents();
 }
-function showRetEvents() {
-  const ce = RET?.coreEvents;
-  $("#ret-events-state").textContent = !ce ? "Not listening (no activity has a ↩ button)." : `Listening: ${ce.state}${ce.error ? " · " + ce.error : ""}`;
-  $("#ret-events-list").textContent = ce?.events?.length ? ce.events.map((e) => `${e.at.slice(11, 19)}  ${e.cat || ""} ${e.msg || ""}  ${e.data}`).join("\n") : "(nothing yet)";
-}
-$("#ret-events-refresh").addEventListener("click", async () => { await loadReturn(); renderRet(); });
+
 $("#ret-add").addEventListener("click", () => {
   if (!RET) return;
   const free = RET.activities.find((a) => !RET.cfg.hosts.includes(a.id));
@@ -2520,6 +2523,55 @@ $("#login").addEventListener("submit", async (e) => {
   await loadAll();
 });
 $("#logout").addEventListener("click", async () => { await api("POST", "/api/logout"); showLogin(); });
+
+// ---- backup and restore ----------------------------------------------------------------------------
+let BACKUP = null;
+$("#backup-open").addEventListener("click", () => {
+  const p = $("#backup-panel"); p.hidden = !p.hidden;
+  $("#backup-open").setAttribute("aria-expanded", String(!p.hidden));
+  if (!p.hidden) p.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+const BACKUP_PARTS = [
+  ["smart", "Smart controls", (x) => `${(x?.buttons || []).length} smart control(s)`],
+  ["extras", "Sliders and quick menus", (x) => `${(x?.sliders || []).length} slider(s), ${(x?.menus || []).length} quick menu(s)`],
+  ["icons", "State icons and level pictures", (x) => `${(x || []).length} item(s)`],
+  ["return", "↩ buttons", (x) => `${(x?.hosts || []).length} activity(ies)`],
+  ["controls", "Controls", (x) => `${(x?.controls || []).length} control(s)`]
+];
+$("#backup-file").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  const st = $("#backup-status"), box = $("#backup-parts");
+  box.replaceChildren(); $("#backup-restore").hidden = true; BACKUP = null;
+  if (!f) return;
+  $("#backup-name").textContent = f.name;
+  try { BACKUP = JSON.parse(await f.text()); } catch { st.className = "status err"; st.textContent = "That file isn't a backup (not JSON)."; return; }
+  if (BACKUP?.kind !== "uc-self-control-backup") { st.className = "status err"; st.textContent = "That file isn't a Remote Self-Control backup."; BACKUP = null; return; }
+  st.className = "status"; st.textContent = `Made ${BACKUP.created ? new Date(BACKUP.created).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "?"}${BACKUP.driverVersion ? " with " + BACKUP.driverVersion : ""} · ${Object.keys(BACKUP.pictures || {}).length} picture(s).`;
+  box.append(el("p", { class: "hint" }, "Pick what to restore. Each part you pick replaces what's set up now."));
+  for (const [k, label, count] of BACKUP_PARTS) {
+    const has = BACKUP.parts?.[k] !== null && BACKUP.parts?.[k] !== undefined;
+    box.append(el("label", { class: "check", for: "bk-" + k }, el("input", { type: "checkbox", id: "bk-" + k, checked: has, disabled: !has }), ` ${label}`, el("span", { class: "hint" }, has ? " · " + count(BACKUP.parts[k]) : " · not in this backup")));
+  }
+  $("#backup-restore").hidden = false;
+});
+$("#backup-restore").addEventListener("click", async () => {
+  if (!BACKUP) return;
+  const parts = BACKUP_PARTS.map(([k]) => k).filter((k) => $("#bk-" + k)?.checked);
+  const st = $("#backup-status");
+  if (!parts.length) { st.className = "status err"; st.textContent = "Pick at least one part."; return; }
+  st.className = "status"; st.textContent = "Restoring… (uploading pictures can take a minute)";
+  $("#backup-restore").disabled = true;
+  const r = await api("POST", "/api/restore", { backup: BACKUP, parts });
+  $("#backup-restore").disabled = false;
+  const names = (ks) => ks.map((k) => BACKUP_PARTS.find((p) => p[0] === k)?.[1] || k).join(", ");
+  if (r.data.done?.length) {
+    st.className = "status" + (r.data.errors?.length ? " err" : " ok");
+    st.textContent = `Restored: ${names(r.data.done)}.` + (r.data.errors?.length ? " Problems: " + r.data.errors.join(" · ") : "") + (r.data.warnings?.length ? " Note: " + r.data.warnings.join(" · ") : "") + " Reloading…";
+    setTimeout(() => location.reload(), r.data.errors?.length ? 6000 : 1500);
+  } else {
+    st.className = "status err"; st.textContent = "Nothing restored: " + (r.data.errors || [r.data.error]).join(" · ");
+  }
+});
 $("#reload").addEventListener("click", async () => {
   const cat = await api("GET", "/api/catalog");
   if (cat.ok) { CAT = cat.data; DEV = Object.fromEntries(CAT.devices.map((d) => [d.id, d])); $("#device-count").textContent = countText(); render(); if (iconsLoaded) renderIcons(); if (extrasLoaded) { fillMenuSelect(); renderExtras(); } }

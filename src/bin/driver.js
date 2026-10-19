@@ -1502,6 +1502,7 @@ startWebServer({
     initSmart();
     log("smart controls saved from the builder");
   },
+  version: JSON.parse(fs.readFileSync(driverJson, "utf8")).version || "",
   log,
   warn
 });

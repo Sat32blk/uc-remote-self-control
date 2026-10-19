@@ -208,7 +208,8 @@ export class StateIcons {
    * existing ones (same id, activity and spot) keep their stored default. Bindings that were removed
    * get their default look back.
    */
-  async replace(icons) {
+  /** hints: optional Map "activity|x,y" -> default look (from a backup), used when no old binding knows it. */
+  async replace(icons, hints = null) {
     const core = this.getCore();
     const old = new Map(this.icons.map((b) => [b.id, b]));
     // default look per spot of the old bindings (a spot another state icon controlled shows that one's look now)
@@ -234,7 +235,7 @@ export class StateIcons {
       const defs = [];
       let bad = false;
       for (const sp of spots) {
-        const kept = oldDefaults.get(spotKey(b.activity, sp.location));
+        const kept = oldDefaults.get(spotKey(b.activity, sp.location)) || hints?.get(`${b.activity}|${sp.location.x},${sp.location.y}`);
         if (kept) { defs.push({ ...kept }); continue; }
         const item = (pages[0].items || []).find((it) => sameSpot(it.location, sp.location));
         if (!item || !["icon", "text"].includes(item.type)) { bad = true; break; }
