@@ -13,8 +13,9 @@
 
 import fs from "node:fs";
 
-export const MAX_ICONS = 40;
-export const MAX_STATES = 12;
+export const MAX_ICONS = 60;
+export const MAX_DEVICES = 25; // different devices the state icons watch (each is read every 2 s)
+export const MAX_STATES = 24;
 export const LEVEL_FRAMES = 11;
 export const MAX_CELLS = 24;
 
@@ -142,6 +143,8 @@ export function validateIcons(input) {
       ...levelOut
     };
   });
+  const devices = new Set(icons.map((b) => b.entity).filter(Boolean));
+  if (devices.size > MAX_DEVICES) errors.push(`state icons can watch at most ${MAX_DEVICES} different devices (now ${devices.size}); several icons on the same device count once`);
   return { errors, icons };
 }
 
@@ -271,6 +274,7 @@ export class StateIcons {
   async _refresh(force) {
     const core = this.getCore();
     if (!core || !this.icons.length) return;
+    const t0 = Date.now();
     const values = new Map();
     for (const id of new Set(this.icons.map((b) => b.entity))) {
       try {
@@ -280,6 +284,7 @@ export class StateIcons {
         values.set(id, null);
       }
     }
+    const readDone = Date.now();
     const byActivity = new Map();
     const now = Date.now();
     for (const b of this.icons) {
@@ -337,6 +342,8 @@ export class StateIcons {
         if (isNew) this.warn(`state icons: updating ${activity} failed:`, e.message);
       }
     }
+    // how long one check took, shown in the builder so the load on the remote can be seen
+    this.lastCheck = { ms: Date.now() - t0, readMs: readDone - t0, devices: values.size, pagesWritten: byActivity.size, at: new Date().toISOString() };
   }
 
   /** Writes looks to the single page of an activity. Returns the spots that had no button. */

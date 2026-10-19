@@ -29,7 +29,8 @@ import os from "node:os";
 import path from "node:path";
 
 const SESSION_MS = 12 * 60 * 60 * 1000;
-const MAX_BODY = 256 * 1024;
+import { MAX_ICONS, MAX_DEVICES } from "./stateicons.js";
+const MAX_BODY = 512 * 1024;
 
 // media_player feature -> commands it enables (Integration API entity docs)
 const MP_FEATURES = {
@@ -246,7 +247,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
     },
     "GET /api/icons": async (req, res) => {
       if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
-      send(res, 200, { icons: stateIcons().list(), activities: await stateIcons().activities() });
+      send(res, 200, { icons: stateIcons().list(), activities: await stateIcons().activities(), check: stateIcons().lastCheck || null, limits: { icons: MAX_ICONS, devices: MAX_DEVICES } });
     },
     "POST /api/icons": async (req, res) => {
       const body = await readJson(req);

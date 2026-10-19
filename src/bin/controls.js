@@ -5,7 +5,7 @@
 // mapped to Control only while a control is on.
 import fs from "node:fs";
 
-export const LIMITS = { controls: 20, activities: 40 };
+export const LIMITS = { controls: 30, activities: 40 };
 const TARGET_TYPES = ["display", "backlight", "light", "volume", "slider"];
 const BUTTONS = ["VOLUME_UP", "VOLUME_DOWN"];
 const ENTITY = "self_control.main.control";

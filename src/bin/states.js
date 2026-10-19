@@ -5,7 +5,7 @@ import fs from "node:fs";
 
 export const REMOTE_ID = "self:remote";
 const MAX_VALUES = 60; // per device and attribute
-const MAX_WATCH = 20;
+const MAX_WATCH = 30;
 const SKIP = new Set(["media_image_url", "media_position", "media_position_updated_at", "media_duration"]);
 const nameOf = (n) => (typeof n === "string" ? n : n?.en || Object.values(n || {})[0] || "");
 

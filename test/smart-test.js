@@ -211,7 +211,7 @@ h = await http("POST", "/api/validate", { rules: { buttons: [{ id: "Bad id", nam
 ok(h.status === 200 && h.data.errors.length > 0, "validate reports errors: " + h.data.errors[0]);
 h = await http("POST", "/api/rules", { rules: { buttons: [{ id: "Bad id", name: "x", do: [] }] } });
 ok(h.status === 422 && h.data.errors.length > 0, "invalid rules not saved (422)");
-const big = { buttons: [{ id: "x", name: "x", do: [{ set_var: "a", to: "b".repeat(300 * 1024) }] }] };
+const big = { buttons: [{ id: "x", name: "x", do: [{ set_var: "a", to: "b".repeat(600 * 1024) }] }] };
 h = await http("POST", "/api/rules", { rules: big });
 ok(h.status === 413, "oversized body refused (413)");
 

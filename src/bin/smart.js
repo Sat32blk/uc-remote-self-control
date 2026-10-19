@@ -34,7 +34,7 @@
 
 import fs from "node:fs";
 
-export const LIMITS = { buttons: 30, cases: 8, actions: 12, delayMs: 30000, waitMs: 30000 };
+export const LIMITS = { buttons: 60, cases: 12, actions: 24, delayMs: 60000, waitMs: 60000 };
 
 const COMPARE_OPS = ["is", "is_not", "in", "not_in", ">", "<", ">=", "<=", "contains"];
 const ID_RE = /^[a-z][a-z0-9_]{1,40}$/;

@@ -25,7 +25,7 @@
 import fs from "node:fs";
 import { vActions, vCond } from "./smart.js";
 
-export const LIMITS = { sliders: 20, menus: 20, options: 20, presses: 60, delayMs: 2000 };
+export const LIMITS = { sliders: 30, menus: 30, options: 30, presses: 60, delayMs: 2000 };
 const SLIDER_ID = /^slider_[a-z0-9_]{1,36}$/;
 const MENU_ID = /^menu_[a-z0-9_]{1,36}$/;
 const ICON_RE = /^(custom|uc):[A-Za-z0-9_.\-]{1,120}$/;

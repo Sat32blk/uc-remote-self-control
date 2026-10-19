@@ -239,6 +239,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <div id="icons-editor"></div>
     <h2 class="list-title">Your state icons and sliders</h2>
     <div id="icons-list" class="bars"></div>
+    <p id="icons-check" class="hint"></p>
     <details class="panel">
       <summary>How state icons and sliders work</summary>
       <p class="note"><b>Sliders</b> are light entities for a number on one of your devices, like the receiver's volume. Put one on a home page: tapping the tile opens the remote's slider pop-up. On a Remote 3 you can also assign it to an activity's touch slider. New sliders are in the <b>Remote Sliders &amp; Menus</b> group when you add them to the integration.</p>
@@ -1824,12 +1825,22 @@ function renderIcons() {
 
 const iconsFromServer = (list, keepPreview = []) => list.map((b) => ({ ...b, savedActivity: b.activity, savedLocation: b.location,
   states: b.states.map((s) => ({ ...s, preview: keepPreview.find((x) => x.id === b.id)?.states.find((y) => y.value === s.value)?.preview })) }));
+/** Load on the remote: how long the last state-icon check took (it runs every 2 s). */
+function showIconCheck(d) {
+  const c = d.check, lim = d.limits || {};
+  const devs = new Set(ICONS.map((b) => b.entity).filter(Boolean)).size;
+  const used = `${ICONS.length} of ${lim.icons || "?"} state icons, watching ${devs} of ${lim.devices || "?"} devices.`;
+  $("#icons-check").textContent = c
+    ? `${used} Last check on the remote took ${c.ms} ms (reading ${c.devices} device${c.devices === 1 ? "" : "s"}: ${c.readMs} ms${c.pagesWritten ? `, ${c.pagesWritten} page${c.pagesWritten === 1 ? "" : "s"} updated` : ""}); it runs every 2 s.`
+    : used;
+}
 async function loadIcons() {
   $("#icons-list").replaceChildren(el("p", { class: "hint" }, "Loading your activities…"));
   const r = await api("GET", "/api/icons");
   if (!r.ok) { $("#icons-list").replaceChildren(el("p", { class: "status err" }, r.data.error || "Couldn't read the activities.")); return; }
   ICON_ACTS = r.data.activities;
   ICONS = iconsFromServer(r.data.icons);
+  showIconCheck(r.data);
   iconsLoaded = true;
   attachLevels();
   renderIcons();
@@ -2338,7 +2349,7 @@ $("#menu-fill").addEventListener("change", (e) => {
   const name = `${f.dev.name} ${f.p.label}`.slice(0, 40);
   let id = xslug("menu", name), n = 2;
   while (MENUS.some((m) => m.id === id)) id = xslug("menu", name) + "_" + n++;
-  const item = { id, name, icon: "", options: f.p.list.slice(0, 20).map((v) => ({ label: String(v).slice(0, 40), steps: [{ t: "cmd", ent: f.dev.id, cmd: f.cmd.id, params: { [f.p.key]: v } }],
+  const item = { id, name, icon: "", options: f.p.list.slice(0, 30).map((v) => ({ label: String(v).slice(0, 40), steps: [{ t: "cmd", ent: f.dev.id, cmd: f.cmd.id, params: { [f.p.key]: v } }],
     conds: attr && f.dev.values[attr] ? [{ t: "device", ent: f.dev.id, attr, op: "is", val: String(v) }] : [] })) };
   MENUS.push(item);
   openEdit("extras", item, { isNew: true, kind: "menu" });

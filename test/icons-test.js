@@ -38,6 +38,10 @@ ok(levelIndex(lv, 0) === 0 && levelIndex(lv, 40) === 5 && levelIndex(lv, 80) ===
 ok(lookFor(lv, 24).icon === FR[3] && lookFor(lv, 24).state === "30 %" && lookFor(lv, "n/a").type === "text", "level look: frame for numbers, default look otherwise");
 ok(validateIcons({ icons: [{ id: "l1", activity: "a", location: { x: 0, y: 0 }, entity: "e.x", attr: "volume", kind: "level", min: 0, max: 80, frames: FR.slice(0, 5) }] }).errors.some((e) => /level design/.test(e)), "level without its 11 images refused");
 ok(validateIcons({ icons: [{ id: "l1", activity: "a", location: { x: 0, y: 0 }, entity: "e.x", attr: "volume", kind: "level", min: 0, max: 80, frames: FR }] }).errors.length === 0, "level binding with 11 frames and no states is valid");
+const many = (n, devs) => ({ icons: Array.from({ length: n }, (_, i) => ({ id: "i" + i, activity: "a", location: { x: i % 4, y: Math.floor(i / 4) }, entity: "e.d" + (i % devs), states: [{ value: "ON", text: "on" }] })) });
+ok(validateIcons(many(60, 25)).errors.length === 0, "60 state icons on 25 devices allowed");
+ok(validateIcons(many(61, 5)).errors.some((e) => /at most 60 state icons/.test(e)), "61 state icons refused");
+ok(validateIcons(many(30, 26)).errors.some((e) => /at most 25 different devices/.test(e)), "26 different devices refused; icons on the same device count once");
 ok(validateIcons({ icons: [{ id: "l1", activity: "a", location: { x: 0, y: 0 }, entity: "e.x", attr: "volume", kind: "level", min: 0, max: 80, frames: FR, slider: "slider_rv", bg: "custom:tile.png", scale: 0.6 }] }).icons[0].bg === "custom:tile.png", "a level graphic keeps its slider, background picture and size");
 
 // ---- driver -----------------------------------------------------------------------
@@ -153,6 +157,7 @@ await sleep(900);
 ok(item(1, 0).icon === FR[9], "volume 72 → 90 % image");
 h = await http("GET", "/api/icons");
 ok(h.data.icons.find((b) => b.id === "rcv_level")?.status?.look === "90 %", "builder shows which step is on the remote");
+ok(h.data.check && h.data.check.devices >= 1 && h.data.check.ms >= 0 && h.data.limits.icons === 60 && h.data.limits.devices === 25, `builder gets the last check time: ${h.data.check?.ms} ms for ${h.data.check?.devices} devices`);
 
 // ---- level graphic over several tiles, shown only for a while after a change -----------------
 activities["uc.main.act5"] = { name: { en: "Skin" }, state: "OFF", entity_ids: [], buttons: {}, pages: [
