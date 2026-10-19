@@ -1063,7 +1063,7 @@ function statesPanel(where) {
       el("button", { type: "button", class: "small", on: { click: async () => { await api("POST", "/api/states/forget", { id: st.dev }); delete SEEN[st.dev]; st.data.seen = {}; renderStatesBody(where); } } }, "Forget values seen"));
   }
   box.replaceChildren(
-    el("p", { class: "hint" }, "Pick a device to see every value its integration reports, updated every 2 seconds while this is open. Values seen are collected (also in the background if you tick it), so things that only show up sometimes, like an audio format, can be picked later. To use a value: click a value field in the editor (a condition's value, for example), then click the value here: it's filled in, and a condition also gets this device and what to check. In a state icon it's added as a state; for a slider, "use" points it at the number. Otherwise it's copied."),
+    el("p", { class: "hint" }, "Pick a device to see every value its integration reports, updated every 2 seconds while this is open. Values seen are collected (also in the background if you tick it), so things that only show up sometimes, like an audio format, can be picked later. To use a value: click a value field in the editor (a condition's value, for example), then click the value here: it's filled in, and a condition also gets this device and what to check. In a state icon it's added as a state; for a slider, \"use\" points it at the number. Otherwise it's copied."),
     top, el("div", { class: "states-out" }));
   renderStatesBody(where);
 }
