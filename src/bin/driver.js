@@ -607,6 +607,7 @@ const previousSensor = new uc.Sensor("previous_activity", { en: "Previous Activi
 function updatePreviousSensor() {
   if (!returnTracker) return;
   const attrs = { state: uc.SensorStates.On, value: (returnTracker.nameOf(returnTracker.previous) || "-").slice(0, 250) };
+  if (previousSensor.attributes?.value === attrs.value) return;
   if (!api.updateEntityAttributes(previousSensor.id, attrs)) Object.assign(previousSensor.attributes, attrs);
 }
 
@@ -998,19 +999,20 @@ function startPolling() {
   syncCoreEvents();
   pollTimer = setInterval(refresh, POLL_MS);
   returnTimer = setInterval(() => {
-    if (returnTracker?.enabled) returnTracker.poll().catch((e) => warn("return: reading activities failed:", e.message));
+    if (returnTracker?.enabled) returnTracker.poll().then(updatePreviousSensor).catch((e) => warn("return: reading activities failed:", e.message));
     if (stateIcons?.enabled) stateIcons.refresh(false);
     if (extras?.enabled) extras.refresh();
     if (deviceStates?.watched.length && Date.now() - statesPolledAt > 5000) { statesPolledAt = Date.now(); deviceStates.poll().catch(() => {}); }
   }, RETURN_POLL_MS);
 }
 
-// Diagnostic listener for the remote's own events, on while an activity is set to turn off when left.
+// The remote's own events: tell the return tracker which activity was opened (also one already on).
 let coreEvents = null;
 function syncCoreEvents() {
-  const want = !!(core && connected && !standby && config?.apiKey && returnTracker?.cfg.hosts.some((h) => returnTracker.optsFor(h).close));
+  const want = !!(core && connected && !standby && config?.apiKey && returnTracker?.enabled);
   if (want) {
-    if (!coreEvents) coreEvents = new CoreEvents({ address: config.address, apiKey: config.apiKey, log, warn });
+    if (!coreEvents) coreEvents = new CoreEvents({ address: config.address, apiKey: config.apiKey, log, warn,
+      onActivity: (id) => { returnTracker.opened(id).catch((e) => warn("return:", e.message)); } });
     coreEvents.start();
   } else coreEvents?.stop();
 }

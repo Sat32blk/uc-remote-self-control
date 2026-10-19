@@ -1,6 +1,6 @@
 {
   "driver_id": "self_control",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "icon": "uc:integration",
   "min_core_api": "0.20.0",
   "name": {

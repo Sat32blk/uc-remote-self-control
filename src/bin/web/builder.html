@@ -270,8 +270,8 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <div id="ret-list" class="bars"></div>
     <p class="status" id="ret-status" role="status"></p>
     <details class="panel" id="ret-events">
-      <summary>What the remote reports when you switch activities (test)</summary>
-      <p class="note">While an activity is set to turn off when you leave it, the integration listens to the remote's own events. Open the activity, press ↩ to go back to one that is still on, then press <b>Refresh</b>: if anything shows up for that switch, it can be used to turn the activity off.</p>
+      <summary>What the remote reports when you switch activities</summary>
+      <p class="note">The integration listens to the remote's own events to see which activity you open, also one that is already on (like going back with ↩). These are the latest activity events; press <b>Refresh</b> to update.</p>
       <div class="row"><button class="small" type="button" id="ret-events-refresh">Refresh</button> <span class="hint" id="ret-events-state"></span></div>
       <pre class="json" id="ret-events-list"></pre>
     </details>
@@ -873,7 +873,7 @@ function retCard(r) {
 
   card.append(el("div", { class: "subhead" }, "4 · Leaving this activity"));
   card.append(el("label", { class: "check", for: id + "-c" }, el("input", { type: "checkbox", id: id + "-c", checked: !!r.close, on: { change: (ev) => { r.close = ev.target.checked; renderRet(); } } }), " Turn this activity off when I switch to another one"));
-  card.append(el("p", { class: "hint" }, "When you switch to another activity (with ↩ or any other way), this one gets a plain \"turn off\". Meant for a single device's control page: its own on/off sequences don't matter here. The remote only reports a switch when the next activity starts: going back with ↩ to one that is still on isn't reported yet (see the test panel below the list)."));
+  card.append(el("p", { class: "hint" }, "When you switch to another activity (with ↩ or any other way), this one gets a plain \"turn off\". Meant for a single device's control page: its own on/off sequences don't matter here. This also works when ↩ goes back to an activity that is still on."));
   return card;
 }
 function renderRet() {
@@ -928,7 +928,7 @@ async function loadReturn() {
 }
 function showRetEvents() {
   const ce = RET?.coreEvents;
-  $("#ret-events-state").textContent = !ce ? "Not listening (no activity is set to turn off when left)." : `Listening: ${ce.state}${ce.error ? " · " + ce.error : ""}`;
+  $("#ret-events-state").textContent = !ce ? "Not listening (no activity has a ↩ button)." : `Listening: ${ce.state}${ce.error ? " · " + ce.error : ""}`;
   $("#ret-events-list").textContent = ce?.events?.length ? ce.events.map((e) => `${e.at.slice(11, 19)}  ${e.cat || ""} ${e.msg || ""}  ${e.data}`).join("\n") : "(nothing yet)";
 }
 $("#ret-events-refresh").addEventListener("click", async () => { await loadReturn(); renderRet(); });

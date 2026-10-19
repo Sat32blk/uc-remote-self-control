@@ -181,6 +181,23 @@ export class ReturnTracker {
   }
 
   /**
+   * An activity was opened (from the remote's events): also one that was already on, e.g. reopened with ↩,
+   * which polling can't see. It becomes current; the one left is turned off if it's marked for that.
+   */
+  async opened(id) {
+    const core = this.getCore();
+    if (!core || !id || id === this.current) return;
+    const left = this.current;
+    this.history = [id, ...this.history.filter((x) => x !== id)].slice(0, HISTORY_MAX);
+    if (this.states) this.states[id] = "ON";
+    this.log(`return: opened ${this.nameOf(id)} (from the remote's events), previous ${this.nameOf(this.previous) || "-"}`);
+    this.save();
+    this.onChange();
+    if (left) await this.closeLeft(core, left, this.states || {});
+    await this.refresh(false);
+  }
+
+  /**
    * "Turn off when leaving": a host marked `close` that is still on after another activity started gets a
    * plain activity.off. Meant for single-device control pages, whose on/off sequences don't matter.
    */

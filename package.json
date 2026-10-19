@@ -1,11 +1,11 @@
 {
   "name": "uc-remote-self-control",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "description": "Unfolded Circle Remote integration that controls the remote's own settings, with conditional Smart Controls and a built-in builder page.",
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "node test/builder-syntax-test.js && node test/run-test.js && node test/smart-test.js && node test/return-test.js && node test/icons-test.js && node test/extras-test.js && node test/controls-test.js && node test/states-test.js"
+    "test": "node test/builder-syntax-test.js && node test/run-test.js && node test/smart-test.js && node test/return-test.js && node test/icons-test.js && node test/extras-test.js && node test/controls-test.js && node test/states-test.js && node test/events-test.js"
   },
   "dependencies": {
     "@unfoldedcircle/integration-api": "0.5.0"
