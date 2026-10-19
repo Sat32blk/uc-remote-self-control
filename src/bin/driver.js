@@ -16,6 +16,7 @@ import { ReturnTracker, RETURN_MARK, activityGroups } from "./returnbtn.js";
 import { StateIcons, validateIcons } from "./stateicons.js";
 import { Extras, validateExtras } from "./extras.js";
 import { Controls, validateControls } from "./controls.js";
+import { DeviceStates } from "./states.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -916,6 +917,8 @@ function scheduleRefresh() {
   refreshTimer = setTimeout(refresh, 400);
 }
 
+let deviceStates = null;
+let statesPolledAt = 0;
 function startPolling() {
   stopPolling();
   if (!core || !connected || standby) return;
@@ -925,6 +928,7 @@ function startPolling() {
     if (returnTracker?.enabled) returnTracker.poll().catch((e) => warn("return: reading activities failed:", e.message));
     if (stateIcons?.enabled) stateIcons.refresh(false);
     if (extras?.enabled) extras.refresh();
+    if (deviceStates?.watched.length && Date.now() - statesPolledAt > 5000) { statesPolledAt = Date.now(); deviceStates.poll().catch(() => {}); }
   }, RETURN_POLL_MS);
 }
 
@@ -1303,6 +1307,7 @@ controls = new Controls({
   warn
 });
 buildControlEntities();
+deviceStates = new DeviceStates({ getCore: () => core, file: path.join(api.getConfigDirPath(), "states_seen.json"), log, warn });
 initSmart();
 
 const CONTROL_NAMES = Object.fromEntries(LAYOUT.map(([, id, name]) => [id, name]));
@@ -1378,6 +1383,7 @@ startWebServer({
   },
   extras: () => extras,
   validateExtras: (body) => validateExtras(body, selfApi.keys, reservedIds()),
+  deviceStates: () => deviceStates,
   controlsApi: {
     get: () => ({ ...controls.config, status: controls.status() }),
     validate: validateControls,

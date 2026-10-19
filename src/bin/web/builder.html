@@ -113,6 +113,19 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .drow .check { font-size: 13px; white-space: nowrap; }
 @media (max-width: 720px) { .drow { grid-template-columns: 1fr 1fr; } .drow .dact { grid-column: 1 / -1; } .drow.dhead { display: none; } }
 .subhead2 { margin: 6px 0 0; font-size: 14px; }
+.states-panel summary { font-weight: 600; cursor: pointer; }
+.states-body { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.stable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.stable th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.stable td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+.stable td.k { font-family: var(--font-mono); white-space: nowrap; }
+.stable td.now b { color: var(--accent); }
+.stable tr.changed td.now b { background: var(--accent-soft); border-radius: 4px; padding: 0 3px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 12px; min-height: 26px; padding: 2px 8px; border-radius: 13px; background: var(--inset); }
+.chip.seen { border-color: var(--accent); }
+.chip.now { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+@media (max-width: 640px) { .stable td.k { white-space: normal; } }
 .list-title { margin: 8px 0 0; font-size: 15px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
 .bars { display: flex; flex-direction: column; gap: 8px; }
 .bar { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; }
@@ -187,6 +200,10 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <div id="smart-editor"></div>
     <h2 class="list-title">Your smart controls and quick menus</h2>
     <div id="buttons" class="bars"></div>
+    <details class="panel states-panel" id="states-smart" data-where="smart">
+      <summary>Device states (live): what your devices report</summary>
+      <div class="states-body"></div>
+    </details>
     <p class="note">After saving a new control or menu, add it to the integration (Integrations → Remote Self-Control → add entities) and to the activities that use it. <b>Smart controls</b> are buttons; <b>quick menus</b> are lists that open a pop-up on a home tile or an activity page, and each choice runs its steps. Both run in the background, so they can't switch the remote's screen to another activity.</p>
     <details class="panel">
       <summary>Rules text (backup / import)</summary>
@@ -210,6 +227,10 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <div id="icons-editor"></div>
     <h2 class="list-title">Your state icons and sliders</h2>
     <div id="icons-list" class="bars"></div>
+    <details class="panel states-panel" id="states-icons" data-where="icons">
+      <summary>Device states (live): what your devices report</summary>
+      <div class="states-body"></div>
+    </details>
     <details class="panel">
       <summary>How state icons and sliders work</summary>
       <p class="note"><b>Sliders</b> are light entities for a number on one of your devices, like the receiver's volume. Put one on a home page: tapping the tile opens the remote's slider pop-up. On a Remote 3 you can also assign it to an activity's touch slider. New sliders are in the <b>Remote Sliders &amp; Menus</b> group when you add them to the integration.</p>
@@ -421,7 +442,7 @@ function changed(rerender) {
 
 function valueInput(id, dev, attr, val, onInput) {
   const lid = id + "-l";
-  const list = dev && dev.values ? dev.values[attr] : [];
+  const list = valuesOf(dev, attr);
   return [input(id, val, onInput, { label: "Value", list: lid }), datalist(lid, list)];
 }
 
@@ -998,6 +1019,117 @@ $("#ctl-add").addEventListener("click", () => {
   openEdit("ctl", item, { isNew: true });
 });
 
+// ---------------------------------------------------------------------------
+// Device states panel (Smart Controls and Icons & Sliders tabs): live attributes + values seen
+// ---------------------------------------------------------------------------
+let SEEN = {}; // entity -> attr -> [values] | { min, max }
+const seenValues = (ent, attr) => { const v = SEEN[ent]?.[attr]; return Array.isArray(v) ? v : []; };
+/** Values to offer for a device attribute: the device's own lists plus every value seen so far. */
+const valuesOf = (dev, attr) => [...new Set([...(dev?.values?.[attr] || []), ...seenValues(dev?.id, attr)].map(String))];
+async function loadSeen() {
+  const r = await api("GET", "/api/states/seen");
+  if (r.ok) SEEN = r.data.seen || {};
+}
+const SP = {}; // where -> { dev, data, prev, timer, msg }
+function statesPanel(where) {
+  const box = $(`#states-${where} .states-body`);
+  if (!box) return;
+  const st = (SP[where] = SP[where] || { dev: "", data: null, prev: null, timer: null, msg: null });
+  const id = "sp-" + where;
+  const sel = select(id + "-d", [["", "Pick a device…"], ...deviceOptions((d) => d.type !== "macro" && d.type !== "activity")], st.dev, (v) => { st.dev = v; st.data = null; st.prev = null; st.msg = null; statesPanel(where); readStates(where); }, "Device");
+  const top = el("div", { class: "fields" }, field(id + "-d", "Device", sel));
+  if (st.dev && st.data) {
+    const wid = id + "-w";
+    top.append(el("label", { class: "check", for: wid, title: "Keeps reading this device every few seconds while the builder is closed, so values that show up now and then are collected" },
+      el("input", { type: "checkbox", id: wid, checked: !!st.data.watched, on: { change: async (e) => { const r = await api("POST", "/api/states/watch", { id: st.dev, on: e.target.checked }); if (!r.ok) { st.msg = { err: true, text: r.data.error }; } else st.data.watched = e.target.checked; renderStatesBody(where); } } }),
+      " Keep collecting in the background"),
+      el("button", { type: "button", class: "small", on: { click: async () => { await api("POST", "/api/states/forget", { id: st.dev }); delete SEEN[st.dev]; st.data.seen = {}; renderStatesBody(where); } } }, "Forget values seen"));
+  }
+  box.replaceChildren(
+    el("p", { class: "hint" }, "Pick a device to see every value its integration reports, updated every 2 seconds while this is open. Values seen are collected (also in the background if you tick it), so things that only show up sometimes, like an audio format, can be picked later. Click a value to use it: it's added to the state icon or slider you're editing, or copied to paste into a smart control's condition."),
+    top, el("div", { class: "states-out" }));
+  renderStatesBody(where);
+}
+function renderStatesBody(where) {
+  const st = SP[where];
+  const out = $(`#states-${where} .states-out`);
+  if (!out || !st) return;
+  if (!st.dev) { out.replaceChildren(); return; }
+  if (!st.data) { out.replaceChildren(el("p", { class: "hint" }, st.msg?.text || "Reading…")); return; }
+  const d = st.data;
+  const LIST_OF = { source: "source_list", sound_mode: "sound_mode_list", current_option: "options" };
+  const keys = Object.keys(d.attributes).sort((a, b) => (a === "state" ? -1 : b === "state" ? 1 : a.localeCompare(b)));
+  const dev = DEV[d.id];
+  const rows = keys.map((k) => {
+    const now = d.attributes[k];
+    const seen = d.seen?.[k];
+    const isNum = typeof now === "number";
+    const known = [...new Set([...(dev?.values?.[k] || []), ...(d.lists[LIST_OF[k]] || []), ...(Array.isArray(seen) ? seen : [])].map(String))];
+    const seenSet = new Set(Array.isArray(seen) ? seen.map(String) : []);
+    const chips = el("div", { class: "chips" });
+    if (isNum) chips.append(el("span", { class: "hint" }, seen && !Array.isArray(seen) ? `seen ${seen.min} … ${seen.max}` : "a number"), el("button", { type: "button", class: "chip", title: "Use this number for a slider or level graphic", on: { click: () => useValue(where, d.id, k, now) } }, "use"));
+    else for (const v of known.slice(0, 80)) chips.append(el("button", { type: "button", class: "chip" + (String(now) === v ? " now" : seenSet.has(v) ? " seen" : ""), title: seenSet.has(v) ? "Seen on this device" : "Listed by the device", on: { click: () => useValue(where, d.id, k, v) } }, v));
+    const changed = st.prev && JSON.stringify(st.prev[k]) !== JSON.stringify(now);
+    return el("tr", { class: changed ? "changed" : "" }, el("td", { class: "k" }, k), el("td", { class: "now" }, el("b", {}, now === "" ? "(empty)" : String(now))), el("td", {}, chips));
+  });
+  out.replaceChildren(
+    el("table", { class: "stable" }, el("thead", {}, el("tr", {}, el("th", {}, "Value"), el("th", {}, "Now"), el("th", {}, "Possible / seen"))), el("tbody", {}, rows)),
+    el("p", { class: "status" + (st.msg?.err ? " err" : st.msg ? " ok" : ""), role: "status" }, st.msg?.text || ""));
+}
+async function readStates(where) {
+  const st = SP[where];
+  if (!st?.dev) return;
+  const dev = st.dev;
+  const r = await api("GET", "/api/states?id=" + encodeURIComponent(dev));
+  if (st.dev !== dev) return;
+  if (!r.ok) { st.msg = { err: true, text: r.data.error || "Couldn't read the device." }; if (!st.data) renderStatesBody(where); return; }
+  st.prev = st.data ? st.data.attributes : null;
+  st.data = r.data;
+  SEEN[dev] = r.data.seen || {};
+  if (!$(`#states-${where} input[type=checkbox]`)) statesPanel(where); // first read: add the "keep collecting" controls
+  else renderStatesBody(where);
+}
+function useValue(where, ent, attr, value) {
+  const st = SP[where];
+  const name = devName(ent);
+  const e = where === "icons" ? (ED.icons || (ED.extras?.kind === "slider" ? ED.extras : null)) : null;
+  if (e && e === ED.icons && e.item.kind !== "level") {
+    const b = e.item;
+    if (b.entity !== ent || (b.attr || "state") !== attr) {
+      // a different device or value: states without a picture or label belonged to the old one
+      b.entity = ent; b.attr = attr;
+      b.states = b.states.filter((x) => x.icon || String(x.text || "").trim());
+    }
+    const v = String(value);
+    if (!b.states.some((x) => String(x.value).toLowerCase() === v.toLowerCase())) {
+      const empty = b.states.find((x) => !String(x.value).trim());
+      if (empty) empty.value = v; else b.states.push({ value: v, icon: null, text: "" });
+    }
+    iconsChanged(true);
+    st.msg = { text: `Added "${v}" (${name} ${attr}) to the state icon you're editing: drop a picture for it.` };
+  } else if (e && e === ED.extras && typeof value === "number") {
+    e.item.entity = ent; e.item.attr = attr;
+    extrasChanged(true);
+    st.msg = { text: `The slider now reads ${name} ${attr}.` };
+  } else {
+    const text = String(value);
+    try { navigator.clipboard.writeText(text); } catch {}
+    st.msg = { text: `Copied "${text}" (${name} · ${attr}). Paste it as the value of a condition (Device → ${attr} → is).` };
+  }
+  renderStatesBody(where);
+}
+for (const where of ["smart", "icons"]) {
+  const det = $(`#states-${where}`);
+  det.addEventListener("toggle", () => {
+    const st = (SP[where] = SP[where] || { dev: "", data: null, prev: null, timer: null, msg: null });
+    clearInterval(st.timer);
+    if (!det.open) return;
+    statesPanel(where);
+    readStates(where);
+    st.timer = setInterval(() => { if (det.open && !det.closest(".pane").hidden && !document.hidden) readStates(where); }, 2000);
+  });
+}
+
 function render() {
   const e = ED.smart;
   const xm = ED.extras?.kind === "menu" ? ED.extras : null;
@@ -1560,7 +1692,7 @@ function iconCard(b) {
   const def = b.default && b.activity === b.savedActivity && b.location && b.savedLocation && b.location.x === b.savedLocation.x && b.location.y === b.savedLocation.y
     ? b.default : act ? itemAt(act, b.location) : null;
   const lines = el("div", { class: "lines" });
-  const valuesList = dev && dev.values[b.attr || "state"] ? dev.values[b.attr || "state"] : [];
+  const valuesList = valuesOf(dev, b.attr || "state");
   b.states.forEach((st, si) => {
     const lid = id + "-v" + si + "-l";
     lines.append(el("div", { class: "line statebox" },
@@ -2227,7 +2359,7 @@ async function loadAll() {
   saved = JSON.stringify(toRules(buttons), null, 2);
   $("#json").textContent = saved;
   $("#login").hidden = true; $("#tabs").hidden = false; $("#session-bar").hidden = false;
-  await Promise.all([loadExtras(), loadReturn(), loadControls()]);
+  await Promise.all([loadExtras(), loadReturn(), loadControls(), loadSeen()]);
   changed(true);
   let tab = "smart";
   try { tab = localStorage.getItem("scb_tab") || "smart"; } catch {}

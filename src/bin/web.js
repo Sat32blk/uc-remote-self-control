@@ -10,6 +10,8 @@
 //   POST /api/validate     { rules } -> { errors }                                          (login)
 //   POST /api/rules        { rules } -> { ok, errors, buttons }                             (login)
 //   POST /api/test         { id }    -> { summary }                                         (login)
+//   GET  /api/states?id=   live attributes of a device + values seen                       (login)
+//   GET  /api/states/seen  values seen for all devices; POST /api/states/watch {id,on}, /forget {id}
 //   GET  /api/controls     { timeout, activities, controls, status }                       (login)
 //   POST /api/controls     { timeout, activities, controls } -> { ok, errors }              (login)
 //   POST /api/controls/test { id } turns a control on ({} = off)                           (login)
@@ -123,7 +125,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, validateExtras, onExtrasChanged, returnSettings, saveReturn, log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, log, warn }) {
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -299,6 +301,29 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       } catch (e) {
         send(res, 502, { ok: false, error: e.message });
       }
+    },
+    "GET /api/states": async (req, res) => {
+      const id = new URL(req.url, "http://x").searchParams.get("id") || "";
+      if (!id || id.length > 200) return send(res, 400, { error: "pick a device" });
+      try {
+        send(res, 200, await deviceStates().read(id));
+      } catch (e) {
+        send(res, e.status === 404 ? 404 : 502, { error: e.message });
+      }
+    },
+    "GET /api/states/seen": async (req, res) => send(res, 200, { seen: deviceStates().seen, watched: deviceStates().watched }),
+    "POST /api/states/watch": async (req, res) => {
+      const body = await readJson(req);
+      try {
+        send(res, 200, { watched: deviceStates().watch(String(body.id || ""), !!body.on) });
+      } catch (e) {
+        send(res, 400, { error: e.message });
+      }
+    },
+    "POST /api/states/forget": async (req, res) => {
+      const body = await readJson(req);
+      deviceStates().forget(String(body.id || ""));
+      send(res, 200, { ok: true });
     },
     "GET /api/controls": async (req, res) => send(res, 200, controlsApi.get()),
     "POST /api/controls": async (req, res) => {
