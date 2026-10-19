@@ -17,6 +17,7 @@ import { StateIcons, validateIcons } from "./stateicons.js";
 import { Extras, validateExtras } from "./extras.js";
 import { Controls, validateControls } from "./controls.js";
 import { DeviceStates } from "./states.js";
+import { CoreEvents } from "./coreevents.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -616,6 +617,31 @@ function registerEntities() {
   for (const e of Object.values(smartEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(extraEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(controlEntities)) api.addAvailableEntity(e);
+  syncConfiguredEntities();
+}
+
+/**
+ * The remote subscribes to entities once (when they're added to it); the library then keeps its own
+ * copy of each. After a save from the builder those copies are the old objects, so swap in the new
+ * ones and push their attributes (name of a choice list, options, state), and mark entities that no
+ * longer exist as unavailable instead of leaving the remote talking to a stale copy.
+ */
+function syncConfiguredEntities() {
+  const conf = api.getConfiguredEntities?.();
+  const avail = api.getAvailableEntities?.();
+  if (!conf || !avail) return;
+  for (const { entity_id: id } of conf.getStates()) {
+    const fresh = avail.getEntity(id);
+    if (fresh) {
+      if (conf.getEntity(id) !== fresh) {
+        conf.removeEntity(id);
+        conf.addAvailableEntity(fresh);
+        if (fresh.attributes && Object.keys(fresh.attributes).length) conf.updateEntityAttributes(id, { ...fresh.attributes });
+      }
+    } else {
+      conf.updateEntityAttributes(id, { state: "UNAVAILABLE" });
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -899,9 +925,10 @@ let refreshTimer = null;
 async function refresh() {
   if (!core) return false;
   try {
-    cache = await core.get("/cfg");
-    try { battery = readBattery(await core.get("/system/power/battery")) || battery; } catch {}
-    if (battery) cache.battery = battery;
+    const next = await core.get("/cfg");
+    try { battery = readBattery(await core.get("/system/power/battery")) || battery; } catch (e) { if (!battery) warn("battery: couldn't read it:", e.message); }
+    if (battery) next.battery = battery;
+    cache = next; // swapped in whole, so readers never see the settings without the battery
     publishStates();
     controls?.refresh().catch(() => {});
     await api.setDeviceState(uc.DeviceStates.Connected);
@@ -968,6 +995,7 @@ function startPolling() {
   stopPolling();
   if (!core || !connected || standby) return;
   refresh();
+  syncCoreEvents();
   pollTimer = setInterval(refresh, POLL_MS);
   returnTimer = setInterval(() => {
     if (returnTracker?.enabled) returnTracker.poll().catch((e) => warn("return: reading activities failed:", e.message));
@@ -977,7 +1005,18 @@ function startPolling() {
   }, RETURN_POLL_MS);
 }
 
+// Diagnostic listener for the remote's own events, on while an activity is set to turn off when left.
+let coreEvents = null;
+function syncCoreEvents() {
+  const want = !!(core && connected && !standby && config?.apiKey && returnTracker?.cfg.hosts.some((h) => returnTracker.optsFor(h).close));
+  if (want) {
+    if (!coreEvents) coreEvents = new CoreEvents({ address: config.address, apiKey: config.apiKey, log, warn });
+    coreEvents.start();
+  } else coreEvents?.stop();
+}
+
 function stopPolling() {
+  coreEvents?.stop();
   if (pollTimer) clearInterval(pollTimer);
   if (returnTimer) clearInterval(returnTimer);
   pollTimer = null;
@@ -1281,6 +1320,7 @@ async function pinSetup(v) {
     const client = new CoreClient(address, { apiKey });
     try {
       cache = await client.get("/cfg");
+      if (battery) cache.battery = battery;
     } catch (e) {
       warn("setup: the new API key does not work:", e.message);
       return new uc.SetupError(uc.IntegrationSetupError.AuthorizationError);
@@ -1381,7 +1421,8 @@ startWebServer({
     noRoom: returnTracker.cfg.hosts.filter((h) => { const hs = returnTracker.hostState[h]; return hs?.placed && !hs.onScreen && returnTracker.optsFor(h).screen !== "none"; }),
     current: returnTracker.nameOf(returnTracker.current) || null,
     previous: returnTracker.nameOf(returnTracker.previous) || null,
-    groupError: returnTracker.groupError || null
+    groupError: returnTracker.groupError || null,
+    coreEvents: coreEvents ? coreEvents.status() : null
   }),
   saveReturn: async (body) => {
     const acts = await listActivities(core).catch(() => []);
@@ -1433,7 +1474,8 @@ startWebServer({
       controls.publishAll();
       log(`controls saved: ${controls.controls.map((c) => c.name).join(", ") || "none"}`);
     },
-    test: async (id) => (id ? controls.activate(id) : controls.deactivate("off (builder)"))
+    test: async (id) => (id ? controls.activate(id) : controls.deactivate("off (builder)")),
+    reset: (id, value) => controls.reset(id, value)
   },
   onExtrasChanged: async () => {
     buildExtraEntities();

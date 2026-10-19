@@ -229,6 +229,23 @@ ok(h.status === 404, "test of an unsaved slider refused");
 h = await http("GET", "/api/extras");
 ok(h.data.status.slider_receiver_volume.value === 33 && h.data.status.menu_receiver_input.current === "Shield", "status shows current values");
 
+// ---- editing a menu that's already on the remote -----------------------------------------------
+events.length = 0;
+h = await http("POST", "/api/extras", { ...config, menus: [{ ...config.menus[0], name: "Receiver Inputs", options: [...config.menus[0].options, { label: "Radio", do: [{ cmd: "media_player.select_source", entity: MARANTZ, params: { source: "TUNER" } }] }] }] });
+await sleep(300);
+s = await states();
+ok(h.status === 200 && s.menu_receiver_input.options.includes("Radio"), "edited menu: the remote's copy has the new choice");
+ok(events.some((e) => e.msg === "entity_change" && e.msg_data.entity_id === "menu_receiver_input" && e.msg_data.attributes.options?.includes("Radio")), "edited menu: new choices pushed to the remote");
+commands.length = 0;
+ok((await cmd("menu_receiver_input", "select", "select_option", { option: "Radio" })) === 200, "edited menu: the new choice runs");
+await sleep(300);
+ok(commands.some((c) => c.params?.source === "TUNER"), "edited menu: Radio sent to the receiver");
+events.length = 0;
+h = await http("POST", "/api/extras", { ...config, sliders: [config.sliders[0]] });
+await sleep(200);
+ok(events.some((e) => e.msg === "entity_change" && e.msg_data.entity_id === "slider_tv_volume" && e.msg_data.attributes.state === "UNAVAILABLE"), "removed slider shows as unavailable on the remote instead of failing");
+h = await http("POST", "/api/extras", config);
+
 // ---- battery in the device states panel ------------------------------------------------------
 h = await http("GET", "/api/states?id=self:remote");
 ok(h.status === 200 && h.data.attributes["battery.level"] === 55 && h.data.attributes["battery.charging"] === true && h.data.labels["battery.level"] === "Battery level (%)", "This remote shows the battery: 55 %, charging");

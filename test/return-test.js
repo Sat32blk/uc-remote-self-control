@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
-import { start, activities, groups } from "./mock-core.js";
+import { start, activities, groups, commands } from "./mock-core.js";
 import { freeSpot, isReturnItem } from "../src/bin/returnbtn.js";
 
 const CORE_PORT = 18082;
@@ -194,14 +194,29 @@ ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.command?.entity_id === 
   ok(h.status === 200 && tvRet?.type === "icon" && tvRet.icon === "custom:ret_back.png", "Watch TV: the ↩ button now shows the custom picture (same spot): " + JSON.stringify(tvRet?.location));
   ok(activities[TV_ACT].buttons.BACK?.long_press?.cmd_id === "activity.start" && activities[TV_ACT].buttons.BACK.short_press?.cmd_id === "media_player.back", "Watch TV: its own button (BACK long press); BACK short press untouched");
   ok(activities[MUSIC].buttons.STOP?.short_press?.cmd_id === "activity.start", "Play Music: its own button (STOP short press)");
-  const av = groups.find((g) => g.group_id === "g_av");
-  ok(av.activity_ids.includes(TV_ACT) && av.activity_ids.includes(MUSIC), "turn off when leaving: both activities put in the chosen activity group");
+  ok(groups.find((g) => g.group_id === "g_av").activity_ids.join() === groups.find((g) => g.group_id === "g_av").activity_ids.join() && !groups.some((g) => g.activity_ids.includes(TV_ACT)), "turn off when leaving no longer touches activity groups");
   ok(groups.find((g) => g.group_id === "g_other").activity_ids.join() === "uc.main.ro", "other groups left alone");
-  h = await http("POST", "/api/return", { hosts: [TV_ACT, MUSIC], group: "g_av", hostCfg: {
+  // leave Watch TV for Play Music: Watch TV gets a plain activity.off
+  activities[TV_ACT].state = "OFF"; activities[MUSIC].state = "OFF";
+  await sleep(500);
+  activities[TV_ACT].state = "ON";
+  await sleep(500);
+  commands.length = 0;
+  activities[MUSIC].state = "ON";
+  await sleep(600);
+  ok(commands.some((c) => c.entity === TV_ACT && c.cmd_id === "activity.off") && activities[TV_ACT].state === "OFF", "leaving Watch TV (turn off when leaving): Watch TV gets activity.off");
+  h = await http("POST", "/api/return", { hosts: [TV_ACT, MUSIC], hostCfg: {
     [TV_ACT]: { screen: "text", button: "NONE", close: false },
     [MUSIC]: { screen: "none", button: "STOP", close: true } } });
+  await sleep(300);
+  activities[MUSIC].state = "OFF";
   await sleep(500);
-  ok(!av.activity_ids.includes(TV_ACT) && av.activity_ids.includes(MUSIC), "unticking 'turn off' takes Watch TV out of the group again");
+  activities[TV_ACT].state = "ON";
+  await sleep(500);
+  commands.length = 0;
+  activities[MUSIC].state = "ON";
+  await sleep(600);
+  ok(!commands.some((c) => c.cmd_id === "activity.off"), "not marked: Watch TV stays on when left");
   ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.type === "text", "Watch TV: back to a text ↩ button");
 }
 

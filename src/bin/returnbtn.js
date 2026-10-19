@@ -169,13 +169,30 @@ export class ReturnTracker {
     }
     this.states = now;
     if (started.length) {
+      const left = this.current;
       for (const id of started) this.history = [id, ...this.history.filter((x) => x !== id)].slice(0, HISTORY_MAX);
       this.log(`return: current ${this.nameOf(this.current)}, previous ${this.nameOf(this.previous) || "-"}`);
       this.save();
       this.onChange();
+      if (left && left !== this.current) await this.closeLeft(core, left, now);
       await this.refresh(false);
     }
     return started;
+  }
+
+  /**
+   * "Turn off when leaving": a host marked `close` that is still on after another activity started gets a
+   * plain activity.off. Meant for single-device control pages, whose on/off sequences don't matter.
+   */
+  async closeLeft(core, left, now) {
+    if (!this.cfg.hosts.includes(left) || !this.optsFor(left).close || !isOn(now[left])) return;
+    try {
+      await core.request("PUT", `/entities/${encodeURI(left)}/command`, { cmd_id: "activity.off" });
+      this.states[left] = "OFF";
+      this.log(`return: turned off ${this.nameOf(left)} (left for ${this.nameOf(this.current)})`);
+    } catch (e) {
+      this.warn(`return: turning off ${this.nameOf(left)} failed:`, e.message);
+    }
   }
 
   /** Points every host's ↩ button at its target. force = rewrite even if unchanged. */
@@ -305,8 +322,11 @@ export class ReturnTracker {
   async syncGroup() {
     const core = this.getCore();
     if (!core) return null;
-    const want = this.cfg.hosts.filter((h) => this.cfg.hostCfg?.[h]?.close);
+    // Turning off is now a plain activity.off (closeLeft). Activity groups are no longer used: this only
+    // takes back out the members an earlier version put in a group.
+    const want = [];
     const managed = this.cfg.groupManaged || [];
+    if (!managed.length) return null;
     const groups = await activityGroups(core);
     const out = [];
     for (const g of groups) {
@@ -315,9 +335,9 @@ export class ReturnTracker {
       if (isTarget) for (const h of want) if (!members.includes(h)) members.push(h);
       if (members.join() !== g.members.join()) out.push([g, members]);
     }
-    if (want.length && !groups.some((g) => g.id === this.cfg.group)) throw new Error("pick the activity group to use for turning activities off");
     for (const [g, members] of out) await core.patch(`/activity_groups/${encodeURIComponent(g.id)}`, { activity_ids: members });
-    this.cfg.groupManaged = this.cfg.group ? want : [];
+    this.cfg.groupManaged = [];
+    this.cfg.group = null;
     this.save();
     if (out.length) this.log(`return: activity group ${groups.find((g) => g.id === this.cfg.group)?.name || "-"} now holds ${want.map((h) => this.nameOf(h)).join(", ") || "none of the ↩ activities"}`);
     return null;

@@ -105,6 +105,12 @@ export function validateIcons(input) {
       if (!cells && !okFrames(frames)) errors.push(`${at}: pick a level design (its ${LEVEL_FRAMES} images are missing)`);
       levelOut = { kind: "level", min, max, frames, design: String(b.design || "").slice(0, 30), color: String(b.color || "").slice(0, 20) };
       if (cells) levelOut.cells = cells;
+      // colors by value: [{ from: 0–100 %, color: "#rrggbb" }] (baked into the frames by the builder; kept for editing)
+      if (Array.isArray(b.colors) && b.colors.length) {
+        const cs = b.colors.slice(0, 6).map((c) => ({ from: Number(c?.from), color: String(c?.color || "") }));
+        if (!cs.every((c) => Number.isFinite(c.from) && c.from >= 0 && c.from <= 100 && /^#[0-9a-f]{6}$/i.test(c.color))) errors.push(`${at}: color by value needs a % (0–100) and a color for each step`);
+        else levelOut.colors = cs.sort((x, y) => x.from - y.from);
+      }
       if (b.show === "change") {
         const ms = Number(b.showMs ?? 4000);
         if (!(ms >= 1000 && ms <= 60000)) errors.push(`${at}: show the level for 1–60 seconds`);

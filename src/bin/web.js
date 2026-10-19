@@ -15,6 +15,7 @@
 //   GET  /api/controls     { timeout, activities, controls, status }                       (login)
 //   POST /api/controls     { timeout, activities, controls } -> { ok, errors }              (login)
 //   POST /api/controls/test { id } turns a control on ({} = off)                           (login)
+//   POST /api/controls/reset { id, value? } sets a control's value (default: its start)  (login)
 //   GET  /api/extras       { sliders, menus, status }                                       (login)
 //   POST /api/extras       { sliders, menus } -> { ok, errors }                              (login)
 //   POST /api/extras/test  { id, value } (slider) | { id, option } (menu) -> { summary }     (login)
@@ -341,6 +342,15 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       try {
         await controlsApi.test(body.id || null);
         send(res, 200, { ok: true, ...controlsApi.get() });
+      } catch (e) {
+        send(res, 400, { ok: false, error: e.message });
+      }
+    },
+    "POST /api/controls/reset": async (req, res) => {
+      const body = await readJson(req);
+      try {
+        const value = controlsApi.reset(String(body.id || ""), body.value);
+        send(res, 200, { ok: true, value, ...controlsApi.get() });
       } catch (e) {
         send(res, 400, { ok: false, error: e.message });
       }

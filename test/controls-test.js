@@ -116,6 +116,24 @@ ok(c.value === 50, "Bass remembers its last value (50 %)");
 await c.switchCommand("control_bass", "toggle");
 ok(c.active === null, "toggle again: off");
 
+// ---- reset (devices that don't report) ----
+ok(c.reset("control_bass") === 40 && c.remembered.control_bass === 40, "reset: Bass back to its starting value (40 %)");
+ok(c.reset("control_bass", 65) === 65, "reset: Bass set to a known value (65 %)");
+await c.switchCommand("control_bass", "on");
+ok(c.value === 65 && published.control.volume === 65, "turned on after the reset: starts from 65 %");
+c.reset("control_bass", 30);
+ok(c.value === 30 && published.control.volume === 30, "reset while on: Control shows 30 % right away");
+await c.switchCommand("control_bass", "off");
+let threw = false; try { c.reset("control_bass", 150); } catch { threw = true; }
+ok(threw, "reset refuses values over 100 %");
+v = validateControls({ ...good, controls: [good.controls[0], { ...good.controls[1], startFrom: "start" }] });
+ok(v.config.controls[1].startFrom === "start" && v.config.controls[0].startFrom === "last", "start from: 'start' kept, default 'last'");
+await c.replace({ ...c.config, controls: v.config.controls });
+await c.switchCommand("control_bass", "on");
+ok(c.value === 40, "start from the starting value: Bass starts at 40 % although 30 % was remembered");
+await c.switchCommand("control_bass", "off");
+await c.replace({ ...c.config, controls: validateControls(good).config.controls });
+
 // ---- stay on until changed ----
 await c.replace({ ...v.config, timeout: 0 });
 await c.switchCommand("control_light", "on");

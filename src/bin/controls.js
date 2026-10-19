@@ -66,7 +66,8 @@ export function validateControls(input) {
     if (!(start >= 0 && start <= 100)) errors.push(`${at}: starting value 0–100 %`);
     const step = Number(x?.step ?? 5);
     if (!(Number.isInteger(step) && step >= 1 && step <= 25)) errors.push(`${at}: change per press 1–25 %`);
-    return { id, name, target: vTarget(x?.target, at, errors, { allowNull: false }), start: pct(start), step };
+    // startFrom: "last" = the value it was left at; "start" = back to the starting value each time it's turned on
+    return { id, name, target: vTarget(x?.target, at, errors, { allowNull: false }), start: pct(start), step, startFrom: x?.startFrom === "start" ? "start" : "last" };
   });
   return { errors, config: { timeout, activities, controls } };
 }
@@ -284,7 +285,7 @@ export class Controls {
     const prev = this.active;
     this.active = id;
     const v = await this.read(c.target);
-    this.value = isNum(v) ? v : isNum(this.remembered[id]) ? this.remembered[id] : c.start;
+    this.value = isNum(v) ? v : c.startFrom !== "start" && isNum(this.remembered[id]) ? this.remembered[id] : c.start;
     this.log(`control: ${c.name} on${prev && prev !== id ? ` (was ${this.control(prev)?.name})` : ""}, ${this.targetName(c.target)} at ${this.value} %`);
     this.publishAll();
     this.arm();
@@ -357,6 +358,22 @@ export class Controls {
     throw new Error(`unsupported command ${cmd}`);
   }
 
+  /**
+   * For devices that don't report a value: set what the control thinks the value is (default: its starting
+   * value) without sending anything to the device. Returns the new value.
+   */
+  reset(id, value) {
+    const c = this.control(id);
+    if (!c) throw new Error(`no control ${id}`);
+    const v = value === undefined || value === null || value === "" ? c.start : Number(value);
+    if (!(v >= 0 && v <= 100)) throw new Error("value 0–100 %");
+    this.remembered[id] = Math.round(v);
+    if (this.active === id) { this.value = Math.round(v); this.publishAll(); }
+    this.save();
+    this.log(`control: ${c.name} value reset to ${Math.round(v)} %`);
+    return Math.round(v);
+  }
+
   remember(c) {
     if (["light", "display", "backlight"].includes(c.target.type)) return; // these report their level
     this.remembered[c.id] = this.value;
@@ -384,6 +401,6 @@ export class Controls {
     if (isNum(v) && v !== this.value) { this.value = v; this.publishAll(); }
   }
   status() {
-    return { active: this.active, value: this.value, text: this.activeText(), borrowed: Object.keys(this.borrowed) };
+    return { active: this.active, value: this.value, text: this.activeText(), borrowed: Object.keys(this.borrowed), remembered: { ...this.remembered } };
   }
 }

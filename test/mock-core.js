@@ -259,6 +259,13 @@ export function start(port) {
       const em = /^\/api\/entities\/([^/]+)(\/command)?$/.exec(url);
       if (em) {
         const id = decodeURIComponent(em[1]);
+        if (activities[id] && em[2] && req.method === "PUT") {
+          const b = JSON.parse(body);
+          commands.push({ entity: id, cmd_id: b.cmd_id, params: b.params });
+          if (b.cmd_id === "activity.off") activities[id].state = "OFF";
+          if (b.cmd_id === "activity.start" || b.cmd_id === "activity.on") activities[id].state = "ON";
+          return send(200, { code: "OK" });
+        }
         if (!devices[id]) return send(404, { message: "no entity " + id });
         if (!em[2] && req.method === "GET") return send(200, { entity_id: id, name: { en: NAMES[id] }, attributes: devices[id] });
         if (em[2] && req.method === "PUT") {
