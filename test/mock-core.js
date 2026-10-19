@@ -141,6 +141,7 @@ export function start(port) {
       }
       if (auth !== "Bearer " + KEY) return send(401, { code: "UNAUTHORIZED" });
       if (url === "/api/cfg" && req.method === "GET") return send(200, cfg);
+      if (url === "/api/system/power/battery" && req.method === "GET") return send(200, { capacity: 55, power_supply: true, status: "CHARGING" });
       if (url === "/api/cfg/entity/commands" && req.method === "GET") return send(200, ENTITY_COMMANDS);
       if (url === "/api/resources/Icon" && req.method === "POST") {
         if (!/^multipart\/form-data/.test(req.headers["content-type"] || "")) return send(400, { message: "multipart expected" });

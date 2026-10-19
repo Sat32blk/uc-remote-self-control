@@ -900,6 +900,8 @@ async function refresh() {
   if (!core) return false;
   try {
     cache = await core.get("/cfg");
+    try { battery = readBattery(await core.get("/system/power/battery")) || battery; } catch {}
+    if (battery) cache.battery = battery;
     publishStates();
     controls?.refresh().catch(() => {});
     await api.setDeviceState(uc.DeviceStates.Connected);
@@ -929,8 +931,22 @@ const SETTING_LABELS = {
   "haptic.enabled": "Haptic feedback on",
   "power_saving.display_off_sec": "Display timeout (seconds)",
   "power_saving.standby_sec": "Sleep timeout (seconds, 0 = never)",
-  "power_saving.wakeup_sensitivity": "Wake sensitivity (0–3)"
+  "power_saving.wakeup_sensitivity": "Wake sensitivity (0–3)",
+  "battery.level": "Battery level (%)",
+  "battery.charging": "Battery charging",
+  "battery.on_charger": "On the charger",
+  "battery.status": "Battery status (CHARGING, DISCHARGING, FULL…)"
 };
+/** The remote's battery, read with the settings (GET /system/power/battery). */
+let battery = null;
+function readBattery(b) {
+  if (!b || typeof b !== "object") return null;
+  const level = Number(b.capacity ?? b.percent ?? b.level);
+  if (!Number.isFinite(level)) return null;
+  const status = typeof b.status === "string" ? b.status.toUpperCase() : "";
+  const onCharger = typeof b.power_supply === "boolean" ? b.power_supply : typeof b.on_charger === "boolean" ? b.on_charger : status === "CHARGING" || status === "FULL";
+  return { level: Math.round(level), charging: status === "CHARGING", on_charger: onCharger, status: status || (onCharger ? "CHARGING" : "DISCHARGING") };
+}
 /** The remote's own state for the builder's device states panel: settings + this integration's controls. */
 function remoteState() {
   const attributes = {}, labels = {};

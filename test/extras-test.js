@@ -229,6 +229,12 @@ ok(h.status === 404, "test of an unsaved slider refused");
 h = await http("GET", "/api/extras");
 ok(h.data.status.slider_receiver_volume.value === 33 && h.data.status.menu_receiver_input.current === "Shield", "status shows current values");
 
+// ---- battery in the device states panel ------------------------------------------------------
+h = await http("GET", "/api/states?id=self:remote");
+ok(h.status === 200 && h.data.attributes["battery.level"] === 55 && h.data.attributes["battery.charging"] === true && h.data.labels["battery.level"] === "Battery level (%)", "This remote shows the battery: 55 %, charging");
+h = await http("GET", "/api/catalog");
+ok(h.status === 200 && h.data.settings?.["battery.level"] === "Battery level (%)", "battery level offered for setting conditions");
+
 // ---- removing ----------------------------------------------------------------------------------
 h = await http("POST", "/api/extras", { sliders: [], menus: [] });
 r = await req("get_available_entities");
