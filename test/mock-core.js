@@ -41,7 +41,7 @@ let pageSeq = 100;
 export const icons = {}; // uploaded icon id -> raw body
 export const groups = [
   { group_id: "g_av", name: { en: "Living room AV" }, activity_ids: [], options: { turn_off_unused_entities: "run_off_sequence" } },
-  { group_id: "g_other", name: { en: "Bedroom" }, activity_ids: ["uc.main.someother"], options: { turn_off_unused_entities: "always" } }
+  { group_id: "g_other", name: { en: "Bedroom" }, activity_ids: ["uc.main.ro"], options: { turn_off_unused_entities: "always" } }
 ];
 export const entityIcons = {}; // entity id -> icon set with PATCH /entities/{id}
 
@@ -163,14 +163,24 @@ export function start(port) {
       if (gm && req.method === "GET" && !gm[1]) {
         const q = new URLSearchParams(gm[2] || "");
         const limit = Number(q.get("limit") || 10), page = Number(q.get("page") || 1);
-        return send(200, groups.slice((page - 1) * limit, page * limit));
+        // like the real core: the list is an overview without members or options
+        return send(200, groups.slice((page - 1) * limit, page * limit).map((g) => ({ group_id: g.group_id, name: g.name, activity_count: g.activity_ids.length })));
+      }
+      const groupDetail = (g) => ({ group_id: g.group_id, name: g.name, options: g.options, activities: g.activity_ids.map((entity_id) => ({ entity_id, name: activities[entity_id]?.name || { en: entity_id } })) });
+      if (gm && req.method === "GET" && gm[1]) {
+        const g = groups.find((x) => x.group_id === decodeURIComponent(gm[1]));
+        return g ? send(200, groupDetail(g)) : send(404, { message: "no group" });
       }
       if (gm && req.method === "PATCH" && gm[1]) {
         const g = groups.find((x) => x.group_id === decodeURIComponent(gm[1]));
         if (!g) return send(404, { message: "no group" });
         const b = JSON.parse(body);
-        if (b.activity_ids) g.activity_ids = b.activity_ids;
-        return send(200, g);
+        if (b.activity_ids) {
+          const missing = b.activity_ids.filter((id) => !activities[id]);
+          if (missing.length) return send(400, { code: "BAD_REQUEST", message: "Activity not found: " + missing.join(", ") });
+          g.activity_ids = b.activity_ids;
+        }
+        return send(200, groupDetail(g));
       }
       const am = /^\/api\/activities(?:\?(.*))?$/.exec(url);
       if (am && req.method === "GET") {

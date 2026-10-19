@@ -69,7 +69,16 @@ export function freeSpot(grid, items, w, h) {
 
 /** The remote's activity groups: [{ id, name, members, offMode }]. */
 export async function activityGroups(core) {
-  const list = await pagedGet(core, "/activity_groups");
+  const overview = await pagedGet(core, "/activity_groups");
+  // the list is only an overview (no members, no options): read each group
+  const list = [];
+  for (const o of overview) {
+    const id = o.group_id ?? o.id;
+    if (!id) continue;
+    let d = null;
+    try { d = await core.get(`/activity_groups/${encodeURIComponent(id)}`); } catch {}
+    list.push({ ...o, ...(d || {}) });
+  }
   return list.map((g) => ({
     id: g.group_id ?? g.id,
     name: nameOf(g.name) || g.group_id || g.id,

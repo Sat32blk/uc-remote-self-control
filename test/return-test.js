@@ -196,7 +196,7 @@ ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.command?.entity_id === 
   ok(activities[MUSIC].buttons.STOP?.short_press?.cmd_id === "activity.start", "Play Music: its own button (STOP short press)");
   const av = groups.find((g) => g.group_id === "g_av");
   ok(av.activity_ids.includes(TV_ACT) && av.activity_ids.includes(MUSIC), "turn off when leaving: both activities put in the chosen activity group");
-  ok(groups.find((g) => g.group_id === "g_other").activity_ids.join() === "uc.main.someother", "other groups left alone");
+  ok(groups.find((g) => g.group_id === "g_other").activity_ids.join() === "uc.main.ro", "other groups left alone");
   h = await http("POST", "/api/return", { hosts: [TV_ACT, MUSIC], group: "g_av", hostCfg: {
     [TV_ACT]: { screen: "text", button: "NONE", close: false },
     [MUSIC]: { screen: "none", button: "STOP", close: true } } });
