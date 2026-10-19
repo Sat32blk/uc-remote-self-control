@@ -113,6 +113,12 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .drow .check { font-size: 13px; white-space: nowrap; }
 @media (max-width: 720px) { .drow { grid-template-columns: 1fr 1fr; } .drow .dact { grid-column: 1 / -1; } .drow.dhead { display: none; } }
 .subhead2 { margin: 6px 0 0; font-size: 14px; }
+.pane.split { flex-direction: row; flex-wrap: wrap; align-items: flex-start; max-width: 1440px; gap: 18px; }
+.pane.split[hidden] { display: none; }
+.pane-main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.pane-side { flex: 1 1 340px; min-width: 0; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
+@media (max-width: 960px) { .pane-side { position: static; max-height: none; } }
+.pane-side .stable td.k { white-space: normal; }
 .states-panel summary { font-weight: 600; cursor: pointer; }
 .states-body { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .stable { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -122,6 +128,7 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .stable td.now b { color: var(--accent); }
 .stable tr.changed td.now b { background: var(--accent-soft); border-radius: 4px; padding: 0 3px; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+input.filled { outline: 2px solid var(--ok); }
 .chip { font-size: 12px; min-height: 26px; padding: 2px 8px; border-radius: 13px; background: var(--inset); }
 .chip.seen { border-color: var(--accent); }
 .chip.now { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -184,7 +191,8 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <button type="button" role="tab" id="tab-ctl" aria-selected="false" aria-controls="ctl-app">Controls ⇅</button>
   </nav>
 
-  <section class="pane" id="app" hidden aria-label="Smart controls">
+  <section class="pane split" id="app" hidden aria-label="Smart controls">
+    <div class="pane-main">
     <div class="createbar">
       <button class="primary" id="add-button" type="button">+ Create smart control</button>
       <select id="template" aria-label="Create from a template">
@@ -200,10 +208,6 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <div id="smart-editor"></div>
     <h2 class="list-title">Your smart controls and quick menus</h2>
     <div id="buttons" class="bars"></div>
-    <details class="panel states-panel" id="states-smart" data-where="smart">
-      <summary>Device states (live): what your devices report</summary>
-      <div class="states-body"></div>
-    </details>
     <p class="note">After saving a new control or menu, add it to the integration (Integrations → Remote Self-Control → add entities) and to the activities that use it. <b>Smart controls</b> are buttons; <b>quick menus</b> are lists that open a pop-up on a home tile or an activity page, and each choice runs its steps. Both run in the background, so they can't switch the remote's screen to another activity.</p>
     <details class="panel">
       <summary>Rules text (backup / import)</summary>
@@ -217,9 +221,17 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
         <span id="import-status" class="status"></span>
       </div>
     </details>
+    </div>
+    <aside class="pane-side" aria-label="Device states">
+      <details open class="panel states-panel" id="states-smart" data-where="smart">
+        <summary>Device states (live): what your devices report</summary>
+        <div class="states-body"></div>
+      </details>
+    </aside>
   </section>
 
-  <section class="pane" id="icons-app" hidden aria-label="State icons">
+  <section class="pane split" id="icons-app" hidden aria-label="State icons">
+    <div class="pane-main">
     <div class="createbar">
       <button class="primary" id="icon-add" type="button">+ Create state icon</button>
       <button class="primary" id="slider-add" type="button">+ Create slider</button>
@@ -227,16 +239,19 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <div id="icons-editor"></div>
     <h2 class="list-title">Your state icons and sliders</h2>
     <div id="icons-list" class="bars"></div>
-    <details class="panel states-panel" id="states-icons" data-where="icons">
-      <summary>Device states (live): what your devices report</summary>
-      <div class="states-body"></div>
-    </details>
     <details class="panel">
       <summary>How state icons and sliders work</summary>
       <p class="note"><b>Sliders</b> are light entities for a number on one of your devices, like the receiver's volume. Put one on a home page: tapping the tile opens the remote's slider pop-up. On a Remote 3 you can also assign it to an activity's touch slider. New sliders are in the <b>Remote Sliders &amp; Menus</b> group when you add them to the integration.</p>
       <p class="note">Pick a button on an activity page. Its current icon or text is the <b>default</b> look. Then drop an image (or type a label) for each state of a device, like <i>ON</i> or an input name. (Level graphics that follow a number are part of <b>sliders</b>: Create slider → Show the level on a page.) The button switches look within about 2 seconds of the change and goes back to its default when no state matches. What the button does when pressed doesn't change.</p>
       <p class="note">Only activities with <b>one page</b> are offered: when a page of the activity on screen changes, the remote jumps back to that activity's first page, which would interrupt you on activities with more pages.</p>
     </details>
+    </div>
+    <aside class="pane-side" aria-label="Device states">
+      <details open class="panel states-panel" id="states-icons" data-where="icons">
+        <summary>Device states (live): what your devices report</summary>
+        <div class="states-body"></div>
+      </details>
+    </aside>
   </section>
 
   <section class="pane" id="ret-app" hidden aria-label="Return to previous activity">
@@ -440,10 +455,12 @@ function changed(rerender) {
   if (rerender) render();
 }
 
-function valueInput(id, dev, attr, val, onInput) {
+function valueInput(id, dev, attr, val, onInput, retarget) {
   const lid = id + "-l";
   const list = valuesOf(dev, attr);
-  return [input(id, val, onInput, { label: "Value", list: lid }), datalist(lid, list)];
+  const inp = input(id, val, onInput, { label: "Value", list: lid });
+  if (retarget) inp._retarget = retarget; // the device states panel can set the device and value together
+  return [inp, datalist(lid, list)];
 }
 
 function condRow(cond, list, idx) {
@@ -457,7 +474,7 @@ function condRow(cond, list, idx) {
     const attrs = dev ? Object.keys(dev.values) : [cond.attr];
     row.append(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), cond.attr, (v) => { cond.attr = v; cond.val = ""; notify(true); }, "What to check"));
     row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; notify(false); }, "Comparison"));
-    row.append(...valueInput(id + "-v", dev, cond.attr, cond.val, (v) => { cond.val = v; notify(false); }));
+    row.append(...valueInput(id + "-v", dev, cond.attr, cond.val, (v) => { cond.val = v; notify(false); }, (ent, attr, v) => { cond.ent = ent; cond.attr = attr; cond.val = v; notify(true); }));
   } else if (cond.t === "activity") {
     row.append(select(id + "-n", [["on", "is running"], ["off", "is not running"]], cond.neg ? "off" : "on", (v) => { cond.neg = v === "off"; notify(false); }, "Running or not"));
     row.append(select(id + "-a", CAT.activities.map((a) => [a.id, a.name]), cond.act, (v) => { cond.act = v; notify(false); }, "Activity"));
@@ -523,7 +540,7 @@ function stepRow(step, list, idx) {
     const attrs = dev ? Object.keys(dev.values) : [step.attr];
     row.append(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), step.attr, (v) => { step.attr = v; notify(true); }, "What to check"));
     row.append(select(id + "-o", Object.entries(OPS), step.op, (v) => { step.op = v; notify(false); }, "Comparison"));
-    row.append(...valueInput(id + "-v", dev, step.attr, step.val, (v) => { step.val = v; notify(false); }));
+    row.append(...valueInput(id + "-v", dev, step.attr, step.val, (v) => { step.val = v; notify(false); }, (ent, attr, v) => { step.ent = ent; step.attr = attr; step.val = v; notify(true); }));
     row.append(el("span", { class: "sep" }, "up to"), input(id + "-t", step.timeout, (v) => { step.timeout = v; notify(false); }, { label: "Timeout ms", type: "number", cls: "num" }), el("span", { class: "sep" }, "ms"));
   } else if (step.t === "setvar") {
     row.append(input(id + "-n", step.name, (v) => { step.name = v; notify(false); }, { label: "Memory name", cls: "mono", placeholder: "night_mode" }), el("span", { class: "sep" }, "="),
@@ -1046,7 +1063,7 @@ function statesPanel(where) {
       el("button", { type: "button", class: "small", on: { click: async () => { await api("POST", "/api/states/forget", { id: st.dev }); delete SEEN[st.dev]; st.data.seen = {}; renderStatesBody(where); } } }, "Forget values seen"));
   }
   box.replaceChildren(
-    el("p", { class: "hint" }, "Pick a device to see every value its integration reports, updated every 2 seconds while this is open. Values seen are collected (also in the background if you tick it), so things that only show up sometimes, like an audio format, can be picked later. Click a value to use it: it's added to the state icon or slider you're editing, or copied to paste into a smart control's condition."),
+    el("p", { class: "hint" }, "Pick a device to see every value its integration reports, updated every 2 seconds while this is open. Values seen are collected (also in the background if you tick it), so things that only show up sometimes, like an audio format, can be picked later. To use a value: click a value field in the editor (a condition's value, for example), then click the value here: it's filled in, and a condition also gets this device and what to check. In a state icon it's added as a state; for a slider, "use" points it at the number. Otherwise it's copied."),
     top, el("div", { class: "states-out" }));
   renderStatesBody(where);
 }
@@ -1089,6 +1106,24 @@ async function readStates(where) {
   if (!$(`#states-${where} input[type=checkbox]`)) statesPanel(where); // first read: add the "keep collecting" controls
   else renderStatesBody(where);
 }
+// The value field (condition, step, state) clicked last in an editor: a clicked value goes straight into it.
+let lastValueInput = null;
+document.addEventListener("focusin", (e) => {
+  const t = e.target;
+  if (t instanceof HTMLInputElement && t.closest(".editbox") && (t.getAttribute("list") || /value/i.test(t.getAttribute("aria-label") || ""))) lastValueInput = t;
+});
+/** Copies text; works on plain http too (the builder isn't served over https, where navigator.clipboard is missing). */
+function copyText(text) {
+  try { if (window.isSecureContext && navigator.clipboard) { navigator.clipboard.writeText(text); return true; } } catch {}
+  const ta = el("textarea", { style: "position:fixed;top:0;left:0;opacity:0", "aria-hidden": "true" });
+  ta.value = text;
+  document.body.append(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch {}
+  ta.remove();
+  return ok;
+}
 function useValue(where, ent, attr, value) {
   const st = SP[where];
   const name = devName(ent);
@@ -1111,24 +1146,39 @@ function useValue(where, ent, attr, value) {
     e.item.entity = ent; e.item.attr = attr;
     extrasChanged(true);
     st.msg = { text: `The slider now reads ${name} ${attr}.` };
+  } else if (lastValueInput && document.contains(lastValueInput)) {
+    // put it straight into the value field clicked last (a condition's value, a step's value, a state)
+    const text = String(value);
+    if (lastValueInput._retarget) {
+      lastValueInput._retarget(ent, attr, text); // condition / wait step: device, what to check and value
+      lastValueInput = null;
+      st.msg = { text: `Set the condition to ${name} · ${attr} is "${text}".` };
+    } else {
+      lastValueInput.value = text;
+      lastValueInput.dispatchEvent(new Event("input", { bubbles: true }));
+      lastValueInput.classList.add("filled");
+      const li = lastValueInput;
+      setTimeout(() => li.classList.remove("filled"), 1200);
+      st.msg = { text: `Put "${text}" into the value field you clicked last.` };
+    }
   } else {
     const text = String(value);
-    try { navigator.clipboard.writeText(text); } catch {}
-    st.msg = { text: `Copied "${text}" (${name} · ${attr}). Paste it as the value of a condition (Device → ${attr} → is).` };
+    const ok = copyText(text);
+    st.msg = ok ? { text: `Copied "${text}" (${name} · ${attr}). Paste it into a condition's value, or click a value field first and then the value to fill it in directly.` }
+      : { err: true, text: `Couldn't copy. Click a value field in the editor first, then click "${text}" to fill it in.` };
   }
   renderStatesBody(where);
 }
-for (const where of ["smart", "icons"]) {
+function startStates(where) {
   const det = $(`#states-${where}`);
-  det.addEventListener("toggle", () => {
-    const st = (SP[where] = SP[where] || { dev: "", data: null, prev: null, timer: null, msg: null });
-    clearInterval(st.timer);
-    if (!det.open) return;
-    statesPanel(where);
-    readStates(where);
-    st.timer = setInterval(() => { if (det.open && !det.closest(".pane").hidden && !document.hidden) readStates(where); }, 2000);
-  });
+  const st = (SP[where] = SP[where] || { dev: "", data: null, prev: null, timer: null, msg: null });
+  clearInterval(st.timer);
+  if (!det.open || !CAT.devices.length) return;
+  statesPanel(where);
+  readStates(where);
+  st.timer = setInterval(() => { if (det.open && !det.closest(".pane").hidden && !document.hidden) readStates(where); }, 2000);
 }
+for (const where of ["smart", "icons"]) $(`#states-${where}`).addEventListener("toggle", () => startStates(where));
 
 function render() {
   const e = ED.smart;
@@ -2360,6 +2410,7 @@ async function loadAll() {
   $("#json").textContent = saved;
   $("#login").hidden = true; $("#tabs").hidden = false; $("#session-bar").hidden = false;
   await Promise.all([loadExtras(), loadReturn(), loadControls(), loadSeen()]);
+  startStates("smart"); startStates("icons");
   changed(true);
   let tab = "smart";
   try { tab = localStorage.getItem("scb_tab") || "smart"; } catch {}
