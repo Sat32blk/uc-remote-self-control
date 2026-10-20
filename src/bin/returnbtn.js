@@ -306,6 +306,47 @@ export class ReturnTracker {
     }
   }
 
+  /**
+   * Clean-up: takes every ↩ button off the pages and unmaps the physical ↩ buttons, then turns the feature
+   * off. Returns a list of what was done.
+   */
+  async removeAll() {
+    const core = this.getCore();
+    const done = [];
+    if (!core) throw new Error("not connected to the remote");
+    const known = this.customIcons();
+    const hosts = [...new Set([...this.cfg.hosts, ...Object.keys(this.hostState || {})])];
+    for (const host of hosts) {
+      const enc = encodeURI(host);
+      try {
+        const pages = (await core.get(`/activities/${enc}/ui/pages`)) || [];
+        for (const p of pages) {
+          const items = (p.items || []).filter((it) => !isReturnItem(it, known));
+          if (items.length !== (p.items || []).length) {
+            await core.patch(`/activities/${enc}/ui/pages/${encodeURIComponent(p.page_id)}`, { items });
+            done.push(`↩ button removed from ${this.nameOf(host)}`);
+          }
+        }
+        const o = this.optsFor(host);
+        if (o.button && o.button !== "NONE") {
+          const list = await core.get(`/activities/${enc}/buttons`);
+          const press = o.press === "long_press" ? "long_press" : "short_press";
+          const cur = (Array.isArray(list) ? list : []).find((b) => b.button === o.button)?.[press];
+          if (cur?.cmd_id === CMD) {
+            await core.request("DELETE", `/activities/${enc}/buttons/${encodeURIComponent(o.button)}/${press}`);
+            done.push(`${o.button} (${press === "long_press" ? "long" : "short"} press) of ${this.nameOf(host)} unmapped`);
+          }
+        }
+      } catch (e) {
+        done.push(`problem with ${this.nameOf(host)}: ${e.message}`);
+      }
+    }
+    this.cfg = { ...this.cfg, hosts: [], hostCfg: {} };
+    this.hostState = {};
+    this.save();
+    return done;
+  }
+
   /** New settings from the setup screen; places buttons and points them right away. */
   /**
    * New settings (setup screen or builder); places buttons and points them right away.

@@ -202,13 +202,19 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
   </form>
 
   <section class="panel" id="backup-panel" hidden aria-label="Backup and restore">
-    <h2>Backup and restore</h2>
+    <h2>Backup, restore and removal</h2>
     <p class="note">A backup holds everything you set up here: smart controls, quick menus and sliders, state icons and level pictures, ↩ buttons, start pages and Controls, plus the custom pictures they use. It doesn't hold the integration's login to the remote. Keep a copy before updating the integration or the remote.</p>
     <div class="row"><a class="btn primary" id="backup-dl" href="/api/backup" download>Download backup</a><span class="hint">Saves a .json file.</span></div>
     <h3>Restore</h3>
     <div class="row"><label class="btn" for="backup-file">Choose a backup file…</label><input type="file" id="backup-file" accept=".json,application/json" hidden><span class="hint" id="backup-name"></span></div>
     <div id="backup-parts" class="lines"></div>
     <div class="row"><button class="primary" id="backup-restore" type="button" hidden>Restore</button><span class="status" id="backup-status" role="status"></span></div>
+    <h3>Remove everything (before uninstalling)</h3>
+    <p class="note">Puts back what the integration changed on your remote: state icons and level pictures go back to the buttons' own looks, ↩ buttons are taken off your pages and unmapped, page orders are restored (start pages off), borrowed volume keys and quick-menu buttons are given back. Your smart controls, sliders, quick menus and Controls stay defined. <b>Download a backup first</b>: restoring it puts everything back.</p>
+    <label class="check" for="cleanup-pics"><input type="checkbox" id="cleanup-pics"> Also delete the pictures it uploaded (level pictures, state icon and ↩ pictures; tile icons are kept)</label>
+    <label class="check" for="cleanup-key"><input type="checkbox" id="cleanup-key"> Also remove the integration's access key to the remote (it stops working until you run its setup again; do this last, right before uninstalling)</label>
+    <div class="row"><button class="danger" id="cleanup-start" type="button">Remove everything…</button><button class="danger" id="cleanup-yes" type="button" hidden>Yes, remove it all</button><button id="cleanup-no" type="button" hidden>Cancel</button><span class="status" id="cleanup-status" role="status"></span></div>
+    <ul id="cleanup-list" class="note"></ul>
   </section>
 
   <nav class="tabs" id="tabs" role="tablist" hidden>
@@ -2034,7 +2040,7 @@ const iconsFromServer = (list, keepPreview = []) => list.map((b) => ({ ...b, sav
 function showIconCheck(d) {
   const c = d.check, lim = d.limits || {};
   const devs = new Set(ICONS.map((b) => b.entity).filter(Boolean)).size;
-  const used = `${ICONS.length} of ${lim.icons || "?"} state icons, watching ${devs} of ${lim.devices || "?"} devices.`;
+  const used = `${ICONS.length} of ${lim.icons || "?"} state icons, watching ${devs} of ${lim.devices || "?"} devices.` + (d.writes ? ` ${d.writes.lastHour} page/button write(s) to the remote in the last hour (state icons write each page at most every 5 s).` : "");
   $("#icons-check").textContent = c
     ? `${used} Last check on the remote took ${c.ms} ms (reading ${c.devices} device${c.devices === 1 ? "" : "s"}: ${c.readMs} ms${c.pagesWritten ? `, ${c.pagesWritten} page${c.pagesWritten === 1 ? "" : "s"} updated` : ""}); it runs every 2 s.`
     : used;
@@ -2667,6 +2673,25 @@ const BACKUP_PARTS = [
   ["pages", "Start pages", (x) => `${(x?.starts || []).length} activity(ies)`],
   ["controls", "Controls", (x) => `${(x?.controls || []).length} control(s)`]
 ];
+$("#cleanup-start").addEventListener("click", () => {
+  $("#cleanup-start").hidden = true; $("#cleanup-yes").hidden = false; $("#cleanup-no").hidden = false;
+  $("#cleanup-status").className = "status err"; $("#cleanup-status").textContent = "Sure? This changes your remote's pages and buttons now.";
+});
+$("#cleanup-no").addEventListener("click", () => {
+  $("#cleanup-start").hidden = false; $("#cleanup-yes").hidden = true; $("#cleanup-no").hidden = true; $("#cleanup-status").textContent = "";
+});
+$("#cleanup-yes").addEventListener("click", async () => {
+  const st = $("#cleanup-status");
+  $("#cleanup-yes").disabled = true; st.className = "status"; st.textContent = "Removing…";
+  const r = await api("POST", "/api/cleanup", { confirm: "remove", pictures: $("#cleanup-pics").checked, revoke: $("#cleanup-key").checked });
+  $("#cleanup-yes").disabled = false; $("#cleanup-yes").hidden = true; $("#cleanup-no").hidden = true; $("#cleanup-start").hidden = false;
+  if (!r.data.done && !r.data.problems) { st.className = "status err"; st.textContent = r.data.error || "Couldn't clean up."; return; }
+  st.className = "status" + (r.data.problems?.length ? " err" : " ok");
+  st.textContent = r.data.problems?.length ? "Done, with problems (below)." : "Done.";
+  $("#cleanup-list").replaceChildren(...[...(r.data.done || []), ...(r.data.problems || []).map((x) => "⚠ " + x)].map((x) => el("li", {}, x)));
+  if (!r.data.done?.length && !r.data.problems?.length) $("#cleanup-list").replaceChildren(el("li", {}, "Nothing to put back."));
+  ICONS = []; iconsLoaded = false; RET = null; STARTS = null;
+});
 $("#backup-file").addEventListener("change", async (e) => {
   const f = e.target.files[0];
   const st = $("#backup-status"), box = $("#backup-parts");

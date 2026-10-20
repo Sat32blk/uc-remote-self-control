@@ -14,6 +14,20 @@ export class CoreError extends Error {
 // user opening it; the event listener ignores those for 2 s after our own write (the remote reports them
 // within a fraction of a second; a person can hardly open that activity again so quickly).
 const writes = new Map(); // activity id -> time of our last write
+// Every change this integration makes to an activity (pages, buttons, devices), for the builder's counter.
+const writeLog = []; // timestamps, last hour
+// Pages this integration has just written: the next read of such a page is the new "known" state (used to
+// notice when someone else changed a page in between, see StateIcons).
+const touched = new Set(); // "activity|page_id"
+export function writeStats() {
+  const hour = Date.now() - 3600000;
+  while (writeLog.length && writeLog[0] < hour) writeLog.shift();
+  return { lastHour: writeLog.length };
+}
+/** True (once) if this integration wrote that page since the last call. */
+export function takeTouched(activity, pageId) {
+  return touched.delete(`${activity}|${pageId}`);
+}
 export function wroteActivity(id, withinMs = 2000) {
   const t = writes.get(id);
   return t !== undefined && Date.now() - t < withinMs;
@@ -34,8 +48,13 @@ export class CoreClient {
   }
 
   async request(method, path, body) {
-    const act = method !== "GET" ? /^\/activities\/([^/?]+)/.exec(path)?.[1] : null;
-    if (act) writes.set(decodeURIComponent(act), Date.now());
+    const am = method !== "GET" ? /^\/activities\/([^/?]+)(?:\/ui\/pages\/([^/?]+))?/.exec(path) : null;
+    const act = am?.[1];
+    if (act) {
+      writes.set(decodeURIComponent(act), Date.now());
+      writeLog.push(Date.now());
+      if (am[2]) touched.add(`${decodeURIComponent(act)}|${decodeURIComponent(am[2])}`);
+    }
     const headers = { Accept: "application/json" };
     const auth = this.#authHeader();
     if (auth && !path.startsWith("/pub/")) headers.Authorization = auth;

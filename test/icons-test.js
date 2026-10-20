@@ -55,7 +55,7 @@ const binDir = path.resolve("src/bin");
 fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
 const drv = spawn(process.execPath, ["driver.js"], {
   cwd: binDir,
-  env: { ...process.env, UC_CONFIG_HOME: cfgDir, UC_INTEGRATION_HTTP_PORT: String(WS_PORT), UC_DISABLE_MDNS_PUBLISH: "true", UC_SELF_BUILDER_PORT: "10934", UC_SELF_RETURN_POLL_MS: "250" },
+  env: { ...process.env, UC_CONFIG_HOME: cfgDir, UC_INTEGRATION_HTTP_PORT: String(WS_PORT), UC_DISABLE_MDNS_PUBLISH: "true", UC_SELF_BUILDER_PORT: "10934", UC_SELF_RETURN_POLL_MS: "250", UC_SELF_PAGE_WRITE_MS: "0" },
   stdio: ["ignore", "pipe", "pipe"]
 });
 let drvLog = "";

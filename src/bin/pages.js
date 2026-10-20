@@ -199,6 +199,25 @@ export class PageJumper {
     for (const s of this.starts) await this.settle(s.activity);
   }
 
+  /** Clean-up: every rotated activity back to your own order (also the one on screen), start pages off. */
+  async restoreAll() {
+    const done = [];
+    this.starts = [];
+    for (const activity of Object.keys(this.saved)) {
+      await this.queue(async () => {
+        const own = this.saved[activity];
+        const cur = (await this.pagesOf(activity)).map((p) => p.page_id);
+        const order = own.filter((id) => cur.includes(id));
+        for (const id of cur) if (!order.includes(id)) order.push(id);
+        if (!same(order, cur)) await this.write(activity, order);
+        delete this.saved[activity];
+        done.push(`page order of ${activity} restored`);
+      }).catch((e) => done.push(`problem restoring the page order of ${activity}: ${e.message}`));
+    }
+    this.save();
+    return done;
+  }
+
   replaceStarts(starts) {
     this.starts = starts;
     this.save();

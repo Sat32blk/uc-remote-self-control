@@ -34,6 +34,7 @@ import path from "node:path";
 const SESSION_MS = 12 * 60 * 60 * 1000;
 import { MAX_ICONS, MAX_DEVICES } from "./stateicons.js";
 import { makeBackup, restoreBackup, checkBackup } from "./backup.js";
+import { writeStats } from "./core.js";
 const MAX_RESTORE_BODY = 24 * 1024 * 1024; // a backup carries its pictures
 const MAX_BODY = 512 * 1024;
 
@@ -131,7 +132,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, version = "", log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, cleanup = null, version = "", log, warn }) {
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -252,7 +253,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
     },
     "GET /api/icons": async (req, res) => {
       if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
-      send(res, 200, { icons: stateIcons().list(), activities: await stateIcons().activities(), check: stateIcons().lastCheck || null, limits: { icons: MAX_ICONS, devices: MAX_DEVICES } });
+      send(res, 200, { icons: stateIcons().list(), activities: await stateIcons().activities(), check: stateIcons().lastCheck || null, limits: { icons: MAX_ICONS, devices: MAX_DEVICES }, writes: writeStats() });
     },
     "POST /api/icons": async (req, res) => {
       const body = await readJson(req);
@@ -385,6 +386,17 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
         send(res, 400, { ok: false, error: e.message });
       }
     },
+    "POST /api/cleanup": async (req, res) => {
+      const body = await readJson(req);
+      if (body.confirm !== "remove") return send(res, 400, { ok: false, error: "confirmation missing" });
+      try {
+        const r = await cleanup({ pictures: body.pictures === true, revoke: body.revoke === true });
+        send(res, 200, { ok: !r.problems.length, ...r });
+      } catch (e) {
+        send(res, 502, { ok: false, error: e.message });
+      }
+    },
+    "GET /api/write-stats": async (req, res) => send(res, 200, writeStats()),
     "GET /api/backup": async (req, res) => {
       const core = getCore();
       if (!core) return send(res, 503, { error: "The integration isn't connected to the remote." });

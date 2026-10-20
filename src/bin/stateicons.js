@@ -12,6 +12,10 @@
 // (0 %, 10 % … 100 %). The frame closest to the device's value is shown, like a volume bar.
 
 import fs from "node:fs";
+import { takeTouched } from "./core.js";
+
+export const MIN_WRITE_MS = Number(process.env.UC_SELF_PAGE_WRITE_MS ?? 5000); // at most one page write per activity every 5 s
+const hashOf = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return h.toString(36); };
 
 export const MAX_ICONS = 60;
 export const MAX_DEVICES = 25; // different devices the state icons watch (each is read every 2 s)
@@ -162,6 +166,9 @@ export class StateIcons {
     this.warn = warn;
     this.icons = [];
     this.status = {}; // id -> { value, look, error, at }
+    this.known = {}; // activity -> hash of its page as this integration last saw / wrote it
+    this.paused = {}; // activity -> reason (its page was changed by someone else)
+    this.lastWrite = {}; // activity -> time of the last page write by state icons
     this.busy = Promise.resolve();
     this.load();
   }
@@ -210,6 +217,9 @@ export class StateIcons {
    */
   /** hints: optional Map "activity|x,y" -> default look (from a backup), used when no old binding knows it. */
   async replace(icons, hints = null) {
+    // saving again resumes paused pages: the page as it is now becomes the known state
+    this.paused = {};
+    this.known = {};
     const core = this.getCore();
     const old = new Map(this.icons.map((b) => [b.id, b]));
     // default look per spot of the old bindings (a spot another state icon controlled shows that one's look now)
@@ -326,6 +336,15 @@ export class StateIcons {
       (byActivity.get(b.activity) || byActivity.set(b.activity, []).get(b.activity)).push({ b, looks, spots, key });
     }
     for (const [activity, changes] of byActivity) {
+      if (this.paused[activity]) {
+        for (const c of changes) { this.status[c.b.id].error = this.paused[activity]; this.status[c.b.id].key = null; }
+        continue;
+      }
+      // gentle on the remote's storage: one write per activity every MIN_WRITE_MS (the next check catches up)
+      if (!force && now - (this.lastWrite[activity] || 0) < MIN_WRITE_MS) {
+        for (const c of changes) this.status[c.b.id].key = null;
+        continue;
+      }
       try {
         const missing = await this.write(core, activity, changes.flatMap((c) => c.spots.map((sp, k) => ({ location: sp.location, look: c.looks[k] }))));
         for (const c of changes) {
@@ -358,6 +377,15 @@ export class StateIcons {
     const pages = (await core.get(`/activities/${encodeURI(activity)}/ui/pages`)) || [];
     if (pages.length !== 1) throw new Error(`the activity now has ${pages.length} pages; state icons only work on single-page activities`);
     const page = pages[0];
+    // someone else (the web configurator) changed the page since we last saw it: don't overwrite their
+    // change; pause until the state icons are saved again in the builder
+    const h = hashOf(JSON.stringify(page.items || []));
+    if (takeTouched(activity, page.page_id) || this.known[activity] === undefined) this.known[activity] = h;
+    else if (this.known[activity] !== h) {
+      this.paused[activity] = "the page was changed outside the integration (web configurator?), so its state icons are paused. Check the buttons, then save the state icons again in the builder to resume.";
+      this.warn(`state icons: ${activity}: ${this.paused[activity]}`);
+      throw new Error(this.paused[activity]);
+    }
     const missing = new Set();
     let changed = false;
     const items = (page.items || []).map((it) => {
@@ -370,7 +398,15 @@ export class StateIcons {
     for (const c of changes) {
       if (!(page.items || []).some((it) => sameSpot(it.location, c.location) && ["icon", "text"].includes(it.type))) missing.add(`${c.location.x},${c.location.y}`);
     }
-    if (changed) await core.patch(`/activities/${encodeURI(activity)}/ui/pages/${encodeURIComponent(page.page_id)}`, { items });
+    if (changed) {
+      await core.patch(`/activities/${encodeURI(activity)}/ui/pages/${encodeURIComponent(page.page_id)}`, { items });
+      this.lastWrite[activity] = Date.now();
+      // remember the page as we left it, so a later change by someone else can be noticed
+      try {
+        const after = ((await core.get(`/activities/${encodeURI(activity)}/ui/pages`)) || [])[0];
+        if (after) { this.known[activity] = hashOf(JSON.stringify(after.items || [])); takeTouched(activity, page.page_id); }
+      } catch {}
+    }
     return missing;
   }
 

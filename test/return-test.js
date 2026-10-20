@@ -233,6 +233,18 @@ ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.command?.entity_id === 
     await sleep(400);
     ok(activities[TV_ACT].pages.map((p) => p.page_id).join() === "p1,p_apps,p_rec", "start page removed: your own order is back");
     activities[TV_ACT].pages.splice(1);
+    // ---- remove everything (before uninstalling) ----
+    ok(activities[TV_ACT].pages[0].items.some((it) => isReturnItem(it)) && activities[MUSIC].buttons.STOP?.short_press?.cmd_id === "activity.start", "before clean-up: ↩ button on Watch TV, STOP mapped in Play Music");
+    h2 = await http("POST", "/api/cleanup", {});
+    ok(h2.status === 400, "clean-up needs the confirmation");
+    h2 = await http("POST", "/api/cleanup", { confirm: "remove" });
+    ok(h2.status === 200 && h2.data.done.some((x) => /↩ button removed from Watch TV/.test(x)), "clean-up: " + JSON.stringify(h2.data.done));
+    ok(!activities[TV_ACT].pages[0].items.some((it) => isReturnItem(it)), "↩ button gone from the page");
+    ok(!activities[MUSIC].buttons.STOP?.short_press, "STOP unmapped again");
+    h2 = await http("GET", "/api/return");
+    ok(h2.data.cfg.hosts.length === 0, "↩ turned off");
+    h2 = await http("GET", "/api/write-stats");
+    ok(h2.status === 200 && h2.data.lastHour > 0, "write counter: " + h2.data.lastHour + " writes in the last hour");
   }
 }
 

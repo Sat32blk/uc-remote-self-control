@@ -1015,6 +1015,71 @@ function startPolling() {
   }, RETURN_POLL_MS);
 }
 
+/**
+ * "Remove everything" (builder, before uninstalling): puts back what the integration changed on the remote.
+ * Smart controls, sliders, quick menus and Controls stay defined (they don't change your pages); a backup
+ * restores the rest. Optionally deletes the pictures it uploaded and its API key (last: after that it has no
+ * access to the remote any more).
+ */
+async function cleanupAll({ pictures = false, revoke = false } = {}) {
+  if (!core) throw new Error("The integration isn't connected to the remote.");
+  const done = [], problems = [];
+  const step = async (label, fn) => {
+    try { const r = await fn(); if (Array.isArray(r)) for (const x of r) (/^problem/.test(x) ? problems : done).push(x); else if (r) done.push(r); }
+    catch (e) { problems.push(`${label}: ${e.message}`); }
+  };
+  stopPolling(); // nothing may write in between
+  await step("state icons", async () => { const n = stateIcons.icons.length; const r = await stateIcons.replace([]); if (r.errors?.length) throw new Error(r.errors.join("; ")); return n ? `${n} state icon(s) / level picture(s) removed, buttons back to their own look` : null; });
+  await step("↩ buttons", () => returnTracker.removeAll());
+  await step("page orders", () => pageJumper.restoreAll());
+  await step("Controls", async () => {
+    const had = Object.keys(controls.borrowed).length || (controls.active ? 1 : 0);
+    await controls.deactivate("off (clean-up)"); await controls.recover();
+    if (Object.keys(controls.borrowed).length) return "problem: a volume rocker could not be given back";
+    return had ? "Control turned off, volume rockers back to normal" : null;
+  });
+  await step("quick menu buttons", async () => {
+    const out = [];
+    for (const m of extras.menus.filter((x) => x.button?.activity && x.button?.button)) {
+      const b = m.button, enc = encodeURI(b.activity);
+      const list = await core.get(`/activities/${enc}/buttons`);
+      const cur = (Array.isArray(list) ? list : []).find((x) => x.button === b.button)?.[b.press || "short_press"];
+      if (cur?.entity_id === "self_control.main." + m.id) { await core.request("DELETE", `/activities/${enc}/buttons/${encodeURIComponent(b.button)}/${b.press || "short_press"}`); out.push(`${b.button} unmapped from quick menu ${m.name}`); }
+    }
+    if (out.length) { extras.replace({ ...extras.config, menus: extras.menus.map(({ button, ...m }) => m) }); appliedButtons.clear(); }
+    return out;
+  });
+  if (pictures) await step("pictures", async () => {
+    let n = 0;
+    for (let page = 1; page <= 50; page++) {
+      const part = await core.get(`/resources/Icon?limit=100&page=${page}`);
+      const list = Array.isArray(part) ? part : [];
+      for (const r of list) {
+        const id = r.id || r.resource_id || r.name;
+        if (!/^(lv|si|ret)_/.test(String(id || ""))) continue;
+        try { await core.request("DELETE", `/resources/Icon/${encodeURIComponent(id)}`); n++; } catch {}
+      }
+      if (list.length < 100) break;
+    }
+    return `${n} picture(s) deleted (level pictures, state icon and ↩ pictures; tile icons are kept, your tiles use them)`;
+  });
+  log(`clean-up: ${done.join("; ") || "nothing to do"}${problems.length ? " | problems: " + problems.join("; ") : ""}`);
+  if (revoke) {
+    try {
+      const keys = await core.get("/auth/api_keys");
+      const ours = (Array.isArray(keys) ? keys : []).filter((k) => /^Self-Control/.test(k.name || ""));
+      for (const k of ours) await core.request("DELETE", `/auth/api_keys/${encodeURIComponent(k.key_id || k.id)}`);
+      done.push(`${ours.length} API key(s) of the integration removed: it no longer has access to the remote (run its setup again to use it)`);
+      config = null;
+      saveConfig({});
+      core = null;
+    } catch (e) {
+      problems.push(`API key: ${e.message}`);
+    }
+  } else startPolling();
+  return { done, problems };
+}
+
 // The remote's own events: which activity was opened (also one already on), for ↩ and page jumps.
 let coreEvents = null;
 let pageJumper = null;
@@ -1484,6 +1549,7 @@ startWebServer({
     startPolling();
     return [];
   },
+  cleanup: (opts) => cleanupAll(opts),
   pagesApi: {
     list: (activity) => pageJumper.pagesOf(activity),
     starts: () => pageJumper.starts,
