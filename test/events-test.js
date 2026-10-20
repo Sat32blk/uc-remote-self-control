@@ -55,5 +55,21 @@ ok(!sent.length && rt.current === SHIELD, "repeat ON of the current activity: no
 ev.onMessage(Buffer.from(JSON.stringify({ kind: "event", msg: "entity_change", msg_data: { entity_id: "x.sensor", entity_type: "sensor", new_state: { attributes: { state: "ON" } } } })));
 ok(ev.events.length === 4 && rt.current === SHIELD, "non-activity events ignored");
 
+// ---- our own page writes are reported like an "opened" event: they must not count ----
+{
+  const { CoreClient, wroteActivity } = await import("../src/bin/core.js");
+  const http = await import("node:http");
+  const srv = http.createServer((req, res) => { res.writeHead(200, { "Content-Type": "application/json" }); res.end("{}"); });
+  await new Promise((r) => srv.listen(18123, r));
+  const cc = new CoreClient("127.0.0.1:18123", { apiKey: "k" });
+  await cc.patch(`/activities/${DEV}/ui/pages`, { page_order: ["a"] });
+  ok(wroteActivity(DEV) && !wroteActivity(SHIELD), "our own page write of the receiver page is remembered");
+  // the user is in Shield; our write to the receiver page is reported as "ON"
+  ev.onMessage(msg(DEV, { state: "ON" }));
+  await tick();
+  ok(rt.current === SHIELD, "the remote reporting our own page change isn't taken as opening that activity");
+  srv.close();
+}
+
 console.log(fails ? `${fails} FAILED` : "ALL PASSED");
 process.exit(fails ? 1 : 0);

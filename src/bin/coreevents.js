@@ -1,9 +1,12 @@
-// Listens to the remote's own WebSocket Core-API events. Tested on a Remote 3 (2026-10-19): opening an
+// Listens to the remote's own WebSocket Core-API events. An "ON" event right after this integration changed
+// that activity (pages, ↩ button, start page) is its own change being reported, not the user opening it.
+// Tested on a Remote 3 (2026-10-19): opening an
 // activity, even one that is already on (e.g. with ↩), makes the core send an entity_change for it with
 // state "ON" (after "RUNNING" steps if it re-runs its start sequence). REST polling can't see that, so
 // these events tell the return tracker which activity was opened. Recent activity events are kept for
 // the builder's test panel.
 import WebSocket from "ws";
+import { wroteActivity } from "./core.js";
 
 const MAX = 40;
 
@@ -72,7 +75,9 @@ export class CoreEvents {
     const d = m.msg_data || {};
     const state = d.new_state?.attributes?.state;
     // an activity reported as ON = it was opened (started, or reopened while already on)
-    if (m.msg === "entity_change" && d.entity_type === "activity" && d.entity_id && String(state || "").toUpperCase() === "ON") {
+    // our own page / button changes are reported the same way as an activity being opened: skip those
+    const ours = d.entity_id && wroteActivity(d.entity_id);
+    if (m.msg === "entity_change" && d.entity_type === "activity" && d.entity_id && !ours && String(state || "").toUpperCase() === "ON") {
       try { this.onActivity(d.entity_id); } catch (e) { this.warn("events: " + e.message); }
     }
     if (m.msg === "entity_change" && d.entity_type === "activity" && d.entity_id && String(state || "").toUpperCase() === "OFF") {

@@ -9,6 +9,16 @@ export class CoreError extends Error {
   }
 }
 
+// Activities this integration changed (pages, buttons, devices) and when. Changing an activity makes the
+// remote send an entity_change for it with its state ("ON" if it's running), which looks exactly like the
+// user opening it; the event listener ignores those for 2 s after our own write (the remote reports them
+// within a fraction of a second; a person can hardly open that activity again so quickly).
+const writes = new Map(); // activity id -> time of our last write
+export function wroteActivity(id, withinMs = 2000) {
+  const t = writes.get(id);
+  return t !== undefined && Date.now() - t < withinMs;
+}
+
 export class CoreClient {
   constructor(address, { apiKey, pin, timeoutMs = 5000 } = {}) {
     this.base = `http://${address || "127.0.0.1"}/api`;
@@ -24,6 +34,8 @@ export class CoreClient {
   }
 
   async request(method, path, body) {
+    const act = method !== "GET" ? /^\/activities\/([^/?]+)/.exec(path)?.[1] : null;
+    if (act) writes.set(decodeURIComponent(act), Date.now());
     const headers = { Accept: "application/json" };
     const auth = this.#authHeader();
     if (auth && !path.startsWith("/pub/")) headers.Authorization = auth;
@@ -42,6 +54,7 @@ export class CoreClient {
       throw new CoreError(`${method} ${path}: ${e.message}`, 0, "unreachable");
     }
 
+    if (act) writes.set(decodeURIComponent(act), Date.now()); // the remote reports the change after answering
     const text = await res.text();
     let data;
     try {
