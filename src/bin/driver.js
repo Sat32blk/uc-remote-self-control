@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as uc from "@unfoldedcircle/integration-api";
 import { CoreClient, CoreError } from "./core.js";
-import { SmartEngine, validateRules } from "./smart.js";
+import { SmartEngine, validateRules, vCond } from "./smart.js";
 import { startWebServer, builderUrls } from "./web.js";
 import { listActivities, addTile, PAGE_NAME } from "./tile.js";
 import { ReturnTracker, RETURN_MARK, activityGroups } from "./returnbtn.js";
@@ -18,6 +18,7 @@ import { Extras, validateExtras } from "./extras.js";
 import { Controls, validateControls } from "./controls.js";
 import { DeviceStates } from "./states.js";
 import { CoreEvents } from "./coreevents.js";
+import { PageJumper, validateStarts } from "./pages.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -508,6 +509,12 @@ const SNAPSHOT_FIELDS = {
 
 const selfApi = {
   keys: [...Object.keys(SELECTS), ...Object.keys(SWITCHES)],
+  // "Go to page" step: activity null = the one on screen
+  async page(activity, spec) {
+    if (!pageJumper) throw new Error("pages not ready");
+    syncCoreEvents();
+    return pageJumper.goTo(activity || null, spec);
+  },
   // Current value of one of this integration's controls, as shown in the remote ("Amber", "60 %", "on").
   control(key) {
     if (SELECTS[key]) {
@@ -992,6 +999,7 @@ function remoteState() {
   return { attributes, labels };
 }
 let statesPolledAt = 0;
+let pagesCheckedAt = 0;
 function startPolling() {
   stopPolling();
   if (!core || !connected || standby) return;
@@ -1003,16 +1011,28 @@ function startPolling() {
     if (stateIcons?.enabled) stateIcons.refresh(false);
     if (extras?.enabled) extras.refresh();
     if (deviceStates?.watched.length && Date.now() - statesPolledAt > 5000) { statesPolledAt = Date.now(); deviceStates.poll().catch(() => {}); }
+    if (pageJumper?.starts.length && Date.now() - pagesCheckedAt > 5000) { pagesCheckedAt = Date.now(); pageJumper.refresh().catch((e) => warn("pages:", e.message)); }
   }, RETURN_POLL_MS);
 }
 
-// The remote's own events: tell the return tracker which activity was opened (also one already on).
+// The remote's own events: which activity was opened (also one already on), for ↩ and page jumps.
 let coreEvents = null;
+let pageJumper = null;
+let screenActivity; // activity on screen per the events (undefined = not known yet, null = none)
+const onScreen = () => (screenActivity === undefined ? returnTracker?.current || null : screenActivity);
 function syncCoreEvents() {
-  const want = !!(core && connected && !standby && config?.apiKey && returnTracker?.enabled);
+  const want = !!(core && connected && !standby && config?.apiKey && (returnTracker?.enabled || pageJumper?.enabled));
   if (want) {
     if (!coreEvents) coreEvents = new CoreEvents({ address: config.address, apiKey: config.apiKey, log, warn,
-      onActivity: (id) => { returnTracker.opened(id).catch((e) => warn("return:", e.message)); } });
+      onActivity: (id) => {
+        screenActivity = id;
+        returnTracker.opened(id).catch((e) => warn("return:", e.message));
+        pageJumper?.opened(id).catch((e) => warn("pages:", e.message));
+      },
+      onActivityOff: (id) => {
+        if (onScreen() === id) screenActivity = null;
+        pageJumper?.settle(id).catch((e) => warn("pages:", e.message));
+      } });
     coreEvents.start();
   } else coreEvents?.stop();
 }
@@ -1396,6 +1416,7 @@ controls = new Controls({
 buildControlEntities();
 deviceStates = new DeviceStates({ getCore: () => core, file: path.join(api.getConfigDirPath(), "states_seen.json"), remote: remoteState, log, warn });
 initSmart();
+pageJumper = new PageJumper({ getCore: () => core, onScreen, test: (c) => smart.test(c, new Map()), file: path.join(api.getConfigDirPath(), "pages.json"), log, warn });
 
 const CONTROL_NAMES = Object.fromEntries(LAYOUT.map(([, id, name]) => [id, name]));
 Object.assign(CONTROL_NAMES_ALL, CONTROL_NAMES);
@@ -1462,6 +1483,20 @@ startWebServer({
     log(`return: on for ${hosts.map((h) => { const o = returnTracker.optsFor(h); return `${returnTracker.nameOf(h)} (${o.screen === "custom" ? "picture" : o.screen}${o.button !== "NONE" ? ", " + o.button + " " + (o.press === "long_press" ? "long" : "short") : ""}${o.close ? ", turns off when left" : ""})`; }).join(", ")} (from the builder)`);
     startPolling();
     return [];
+  },
+  pagesApi: {
+    list: (activity) => pageJumper.pagesOf(activity),
+    starts: () => pageJumper.starts,
+    validate: (body) => validateStarts(body, (c, p, errs) => vCond(c, p, errs, { resolvable: (x) => typeof x === "string" && x.includes("."), selfKnown: (x) => selfApi.keys.includes(x) })),
+    save: async (starts) => {
+      const gone = pageJumper.starts.filter((s) => !starts.some((n) => n.activity === s.activity)).map((s) => s.activity);
+      pageJumper.replaceStarts(starts);
+      for (const a of gone) await pageJumper.settle(a);
+      syncCoreEvents();
+      await pageJumper.refresh();
+      log(`start pages saved: ${starts.map((s) => s.name || s.activity).join(", ") || "none"}`);
+    },
+    go: (activity, page) => pageJumper.goTo(activity || null, page)
   },
   extras: () => extras,
   validateExtras: (body) => validateExtras(body, selfApi.keys, reservedIds()),

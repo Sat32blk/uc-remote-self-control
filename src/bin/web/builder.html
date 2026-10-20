@@ -203,7 +203,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
 
   <section class="panel" id="backup-panel" hidden aria-label="Backup and restore">
     <h2>Backup and restore</h2>
-    <p class="note">A backup holds everything you set up here: smart controls, quick menus and sliders, state icons and level pictures, ↩ buttons and Controls, plus the custom pictures they use. It doesn't hold the integration's login to the remote. Keep a copy before updating the integration or the remote.</p>
+    <p class="note">A backup holds everything you set up here: smart controls, quick menus and sliders, state icons and level pictures, ↩ buttons, start pages and Controls, plus the custom pictures they use. It doesn't hold the integration's login to the remote. Keep a copy before updating the integration or the remote.</p>
     <div class="row"><a class="btn primary" id="backup-dl" href="/api/backup" download>Download backup</a><span class="hint">Saves a .json file.</span></div>
     <h3>Restore</h3>
     <div class="row"><label class="btn" for="backup-file">Choose a backup file…</label><input type="file" id="backup-file" accept=".json,application/json" hidden><span class="hint" id="backup-name"></span></div>
@@ -214,7 +214,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
   <nav class="tabs" id="tabs" role="tablist" hidden>
     <button type="button" role="tab" id="tab-smart" aria-selected="true" aria-controls="app">Smart Controls</button>
     <button type="button" role="tab" id="tab-icons" aria-selected="false" aria-controls="icons-app">Icons &amp; Sliders</button>
-    <button type="button" role="tab" id="tab-ret" aria-selected="false" aria-controls="ret-app">Return ↩</button>
+    <button type="button" role="tab" id="tab-ret" aria-selected="false" aria-controls="ret-app">Return &amp; Pages ↩</button>
     <button type="button" role="tab" id="tab-ctl" aria-selected="false" aria-controls="ctl-app">Controls ⇅</button>
   </nav>
 
@@ -290,6 +290,15 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <h2 class="list-title">Activities with a ↩ button</h2>
     <div id="ret-list" class="bars"></div>
     <p class="status" id="ret-status" role="status"></p>
+
+    <h2 class="list-title">Start pages</h2>
+    <p class="hint">Pick the page an activity opens on, depending on your devices: e.g. <i>Watch TV</i> opens on <i>Apps</i> if the Shield is on, otherwise on <i>Live TV</i>. To jump to a page while you're in an activity, use the <b>Go to page</b> step in a smart control or quick menu.</p>
+    <div id="starts-list" class="lines"></div>
+    <div class="row"><button class="small" id="starts-add" type="button">+ Add a start page</button><button class="primary" id="starts-save" type="button" hidden>Save start pages</button><span class="status" id="starts-status" role="status"></span></div>
+    <details class="panel">
+      <summary>How page jumps work</summary>
+      <p class="note">The remote has no "go to page" command, but it always shows an activity's first page when it opens, and it jumps to the first page when the page order of the activity on screen changes. So the integration turns the page order around (keeping your swipe order, just starting at another page). When you leave the activity, your own order is put back, unless a start page picks another one. A jump takes about a second.</p>
+    </details>
     <details class="panel">
       <summary>How the ↩ button works</summary>
       <p class="note">The integration watches which activity you start (whether or not the old one turns off). In every activity listed here it keeps a ↩ button pointed at the activity you used before; pressing it opens that activity. The ↩ button can be on screen (text, back arrow or your own picture), on a physical button, or both.</p>
@@ -333,7 +342,8 @@ let CAT = { devices: [], activities: [], controls: {}, settings: {} };
 let DEV = {};           // id -> device
 let buttons = [];       // editor model
 let saved = "";         // JSON of the last saved rules, for dirty tracking
-let notify = (r) => { if (r) { render(); if (iconsLoaded) renderIcons(); } }; // change hook used by the shared step/condition rows
+let notify = (r) => { if (r) { render(); if (iconsLoaded) renderIcons(); if (STARTS) renderStarts(); } }; // change hook used by the shared step/condition rows
+let STARTS = null; // start-page rules being edited (Return & Pages tab)
 
 // ---------------------------------------------------------------------------
 // API
@@ -386,6 +396,7 @@ function stepIn(a, A) {
   if (a.save_settings) return { t: "save", name: a.save_settings };
   if (a.restore_settings) return { t: "restore", name: a.restore_settings };
   if (a.stop) return { t: "stop" };
+  if (a.page) return { t: "page", act: a.activity ? A[a.activity] || a.activity : "", page: String(a.page) };
   return { t: "raw", json: JSON.stringify(a) };
 }
 function stepOut(s) {
@@ -398,6 +409,7 @@ function stepOut(s) {
     case "save": return { save_settings: s.name || "saved" };
     case "restore": return { restore_settings: s.name || "saved" };
     case "stop": return { stop: true };
+    case "page": return s.act ? { page: s.page, activity: s.act } : { page: s.page };
     default: try { return JSON.parse(s.json); } catch { return { invalid_json: s.json }; }
   }
 }
@@ -553,7 +565,7 @@ function commandOptions(dev) {
 
 function stepRow(step, list, idx) {
   const id = nid("s");
-  const kinds = [["cmd", "Device command"], ["self", "This remote's control"], ["delay", "Wait (time)"], ["wait", "Wait until"], ["setvar", "Set memory"], ["save", "Remember remote settings"], ["restore", "Restore remote settings"], ["stop", "Stop"], ["raw", "Advanced (JSON)"]];
+  const kinds = [["cmd", "Device command"], ["self", "This remote's control"], ["delay", "Wait (time)"], ["wait", "Wait until"], ["setvar", "Set memory"], ["save", "Remember remote settings"], ["restore", "Restore remote settings"], ["page", "Go to page"], ["stop", "Stop"], ["raw", "Advanced (JSON)"]];
   const row = el("div", { class: "line" });
   row.append(select(id + "-k", kinds, step.t, (t) => { list[idx] = newStep(t); notify(true); }, "Step type"));
   if (step.t === "cmd") {
@@ -587,6 +599,8 @@ function stepRow(step, list, idx) {
       input(id + "-v", step.to, (v) => { step.to = v; notify(false); }, { label: "Value", placeholder: "on" }));
   } else if (step.t === "save" || step.t === "restore") {
     row.append(el("span", { class: "sep" }, "backlight, display, sound and haptics as"), input(id + "-n", step.name, (v) => { step.name = v; notify(false); }, { label: "Name", cls: "mono", placeholder: "before_night_mode" }));
+  } else if (step.t === "page") {
+    row.append(...pageStepFields(id, step, notify));
   } else if (step.t === "raw") {
     row.append(el("textarea", { id: id + "-j", "aria-label": "Step JSON", on: { input: (e) => { step.json = e.target.value; notify(false); } } }, step.json || "{}"));
   }
@@ -618,8 +632,49 @@ function newStep(t) {
     wait: { t, ent: d?.id || "", attr: "state", op: "is_not", val: "OFF", timeout: 8000 },
     setvar: { t, name: "my_var", to: "on" },
     save: { t, name: "saved" }, restore: { t, name: "saved" },
-    stop: { t }, raw: { t, json: "{}" }
+    stop: { t }, raw: { t, json: "{}" },
+    page: { t, act: "", page: "#1" }
   }[t];
+}
+
+// ---- pages of an activity (for "Go to page" and start pages) ----------------------------------------
+const PAGES = {}; // activity -> [{ page_id, name }] | Promise
+const PAGE_WAIT = {}; // activity -> callbacks waiting for its pages
+function pagesOf(activity, onLoad) {
+  if (!activity) return null;
+  if (Array.isArray(PAGES[activity])) return PAGES[activity];
+  if (onLoad) (PAGE_WAIT[activity] = PAGE_WAIT[activity] || []).push(onLoad);
+  if (!PAGES[activity]) PAGES[activity] = api("GET", "/api/pages?activity=" + encodeURIComponent(activity)).then((r) => {
+    PAGES[activity] = r.ok ? r.data.pages : [];
+    const w = PAGE_WAIT[activity] || []; delete PAGE_WAIT[activity];
+    if (w.length) w[0](); // one redraw is enough
+  });
+  return null;
+}
+const pageLabel = (p, i) => `${i + 1} · ${p.name || "(no name)"}`;
+/** A page picker for an activity (page ids), or a name / "#n" field for "the activity on screen". */
+function pagePicker(id, activity, value, onPick, rerender) {
+  if (!activity) {
+    const nums = [1, 2, 3, 4, 5, 6].map((n) => ["#" + n, "Page " + n]);
+    const known = nums.some(([v]) => v === value);
+    const sel = select(id + "-pn", [...nums, ["name", "A page named…"]], known ? value : "name", (v) => { if (v === "name") { onPick(""); rerender(); } else onPick(v); }, "Page");
+    if (known) return [sel];
+    return [sel, input(id + "-pt", value, (v) => onPick(v.trim()), { label: "Page name", placeholder: "Apps" })];
+  }
+  const list = pagesOf(activity, rerender);
+  if (!list) return [el("span", { class: "hint" }, "Loading pages…")];
+  if (!list.length) return [el("span", { class: "hint" }, "This activity has no pages.")];
+  const opts = list.map((p, i) => [p.page_id, pageLabel(p, i)]);
+  if (value && !opts.some(([v]) => v === value)) opts.unshift([value, value]);
+  return [select(id + "-pg", opts, value || list[0].page_id, onPick, "Page")];
+}
+function pageStepFields(id, step, notify) {
+  const acts = [["", "The activity on screen"], ...CAT.activities.map((a) => [a.id, a.name])];
+  const out = [select(id + "-pa", acts, step.act || "", (v) => { step.act = v; step.page = v ? "" : "#1"; notify(true); }, "Activity")];
+  if (step.act && !step.page) { const l = pagesOf(step.act); if (l && l.length) step.page = l[0].page_id; }
+  out.push(...pagePicker(id, step.act, step.page, (v) => { step.page = v; notify(false); }, () => notify(true)));
+  out.push(el("span", { class: "hint" }, step.act ? "opens on it next time (or jumps there if it's on screen)" : "jumps there"));
+  return out;
 }
 
 function stepsBlock(list) {
@@ -755,6 +810,7 @@ function describeStep(s) {
     case "save": return `remember settings`;
     case "restore": return `restore settings`;
     case "stop": return "stop";
+    case "page": return s.act ? `${CAT.activities.find((a) => a.id === s.act)?.name || "activity"}: page ${(PAGES[s.act]?.find?.((p) => p.page_id === s.page)?.name) || s.page}` : `go to page ${s.page}`;
     default: return "custom step";
   }
 }
@@ -936,6 +992,72 @@ async function deleteRet() {
   ED.ret = null;
   renderRet();
 }
+// ---- start pages --------------------------------------------------------------------------------------
+let startsSaved = "";
+function startsIn(list) {
+  return list.map((s) => ({ activity: s.activity, name: s.name || "", otherwise: s.otherwise || "",
+    rules: s.rules.map((r) => { const c = r.if; const join = c && c.all ? "all" : c && c.any ? "any" : "all";
+      const conds = c && (c.all || c.any) ? (c.all || c.any).map((x) => condIn(x, {})) : [condIn(c, {})];
+      return { join, conds, page: r.page }; }) }));
+}
+function startsOut() {
+  return STARTS.map((s) => ({ activity: s.activity, name: CAT.activities.find((a) => a.id === s.activity)?.name || s.activity, otherwise: s.otherwise || null,
+    rules: s.rules.map((r) => ({ if: r.conds.length === 1 ? condOut(r.conds[0]) : { [r.join]: r.conds.map(condOut) }, page: r.page })) }));
+}
+async function loadStarts() {
+  if (STARTS) return renderStarts();
+  const r = await api("GET", "/api/starts");
+  STARTS = r.ok ? startsIn(r.data.starts || []) : [];
+  startsSaved = JSON.stringify(startsOut());
+  renderStarts();
+}
+function renderStarts() {
+  const box = $("#starts-list");
+  if (!box || !STARTS) return;
+  box.replaceChildren(...STARTS.map((s, si) => {
+    const id = "st" + si;
+    const card = el("article", { class: "card", "aria-label": "Start page" });
+    const used = new Set(STARTS.filter((x, k) => k !== si).map((x) => x.activity));
+    card.append(el("div", { class: "fields" }, field(id + "-a", "Activity", select(id + "-a", [["", "Pick an activity…"], ...CAT.activities.filter((a) => !used.has(a.id)).map((a) => [a.id, a.name])], s.activity, (v) => {
+      s.activity = v; for (const r of s.rules) r.page = ""; s.otherwise = ""; notify(true); }, "Activity"))));
+    if (s.activity) {
+      s.rules.forEach((r, ri) => {
+        const b = el("div", { class: "branch" });
+        b.append(el("div", { class: "branch-head" }, el("span", { class: "tag" }, ri === 0 ? "IF" : "ELSE IF"),
+          r.conds.length > 1 ? select(id + "-j" + ri, [["all", "all of these"], ["any", "any of these"]], r.join, (v) => { r.join = v; notify(false); }, "Match") : "",
+          el("button", { class: "ghost small", type: "button", on: { click: () => { s.rules.splice(ri, 1); notify(true); } } }, "Remove branch")));
+        b.append(el("div", { class: "lines" }, ...r.conds.map((c, ci) => condRow(c, r.conds, ci))),
+          el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { r.conds.push(newCond("device")); notify(true); } } }, "Add condition")));
+        b.append(el("div", { class: "fields" }, el("span", { class: "sep" }, "open on"), ...pagePicker(id + "-p" + ri, s.activity, r.page, (v) => { r.page = v; notify(false); }, () => notify(true))));
+        if (!r.page) { const l = pagesOf(s.activity); if (l?.length) r.page = l[0].page_id; }
+        card.append(b);
+      });
+      const l = pagesOf(s.activity, () => notify(true));
+      const oth = [["", "its own first page"], ...(l || []).map((p, i) => [p.page_id, pageLabel(p, i)])];
+      card.append(el("div", { class: "fields" }, field(id + "-o", s.rules.length ? "Otherwise open on" : "Always open on", select(id + "-o", oth, s.otherwise || "", (v) => { s.otherwise = v; notify(false); }, "Otherwise"))));
+      card.append(el("div", { class: "row" },
+        el("button", { class: "small", type: "button", on: { click: () => { s.rules.push({ join: "all", conds: [newCond("device")], page: "" }); notify(true); } } }, s.rules.length ? "Add else-if branch" : "Add a condition branch"),
+        el("button", { class: "ghost small danger", type: "button", on: { click: () => { STARTS.splice(si, 1); notify(true); } } }, "Remove")));
+    }
+    return card;
+  }));
+  if (!STARTS.length) box.append(el("p", { class: "empty" }, "No start pages yet."));
+  const dirty = JSON.stringify(startsOut()) !== startsSaved;
+  $("#starts-save").hidden = !dirty;
+  if (dirty && !$("#starts-status").classList.contains("err")) { $("#starts-status").className = "status"; $("#starts-status").textContent = "Not saved yet."; }
+}
+$("#starts-add").addEventListener("click", () => { if (!STARTS) return; STARTS.push({ activity: "", name: "", otherwise: "", rules: [] }); notify(true); });
+$("#starts-save").addEventListener("click", async () => {
+  const st = $("#starts-status");
+  st.className = "status"; st.textContent = "Saving…";
+  const out = startsOut();
+  if (out.some((s) => !s.activity)) { st.className = "status err"; st.textContent = "Pick the activity in every start page (or remove it)."; return; }
+  const r = await api("POST", "/api/starts", { starts: out });
+  if (!r.ok) { st.className = "status err"; st.textContent = (r.data.errors || [r.data.error]).join(" · "); return; }
+  STARTS = startsIn(r.data.starts); startsSaved = JSON.stringify(startsOut());
+  st.className = "status ok"; st.textContent = "Saved. Activities open on these pages from now on (checked every few seconds while they're not on screen).";
+  renderStarts();
+});
 async function loadReturn() {
   const r = await api("GET", "/api/return");
   if (r.ok) RET = r.data;
@@ -2472,7 +2594,7 @@ async function loadExtras() {
 
 const TABS = {
   smart: { pane: "#app", intro: "Buttons and pop-up menus for the Remote Self-Control integration. A smart control checks your devices or the remote, then runs the first branch that matches; a quick menu runs the steps of the choice you pick." },
-  ret: { pane: "#ret-app", intro: "A ↩ button in your activities that always opens the activity you used before, on screen (text, back arrow or your own picture) and/or on a physical button, with settings per activity." },
+  ret: { pane: "#ret-app", intro: "A ↩ button in your activities that always opens the activity you used before, and start pages: the page an activity opens on, depending on your devices." },
   ctl: { pane: "#ctl-app", intro: "Point the volume rocker and the touch slider at something else for a while: turn on a Control: <name> switch, and they change a light, a volume or one of your sliders, with the remote's own level pop-ups. Then they go back to the activity's defaults." },
   icons: { pane: "#icons-app", intro: "Show and control your devices: state icons make a button on a page follow a device's state (like a green power icon); sliders control a number like the receiver's volume with the remote's slider pop-up." }
 };
@@ -2487,7 +2609,7 @@ function showTab(which) {
   try { localStorage.setItem("scb_tab", which); } catch {}
   if (which === "icons") { if (!iconsLoaded) loadIcons(); else renderIcons(); }
   if (which === "smart") render();
-  if (which === "ret") renderRet();
+  if (which === "ret") { renderRet(); loadStarts(); }
   if (which === "ctl") renderCtl();
 }
 for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () => showTab(k));
@@ -2496,7 +2618,7 @@ for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () =
 // Session
 // ---------------------------------------------------------------------------
 function showLogin(msg) {
-  $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = ED.ret = ED.ctl = null; RET = null; CTL = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
+  $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = ED.ret = ED.ctl = null; RET = null; CTL = null; STARTS = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
   $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
   $("#pin").focus();
 }
@@ -2542,6 +2664,7 @@ const BACKUP_PARTS = [
   ["extras", "Sliders and quick menus", (x) => `${(x?.sliders || []).length} slider(s), ${(x?.menus || []).length} quick menu(s)`],
   ["icons", "State icons and level pictures", (x) => `${(x || []).length} item(s)`],
   ["return", "↩ buttons", (x) => `${(x?.hosts || []).length} activity(ies)`],
+  ["pages", "Start pages", (x) => `${(x?.starts || []).length} activity(ies)`],
   ["controls", "Controls", (x) => `${(x?.controls || []).length} control(s)`]
 ];
 $("#backup-file").addEventListener("change", async (e) => {

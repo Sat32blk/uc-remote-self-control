@@ -30,6 +30,8 @@
 //   { "set_var": "night", "to": "on" }
 //   { "save_settings": "night" } / { "restore_settings": "night" }
 //     remember / put back the remote's backlight, display, sound and haptic settings
+//   { "page": "Apps", "activity": "<activity id or alias>" }  go to a page (name, page id or "#n");
+//     without "activity" the activity on screen jumps to it, otherwise that activity opens on it next time
 //   { "stop": true }
 
 import fs from "node:fs";
@@ -108,8 +110,11 @@ export function vActions(list, path, errs, ctx) {
     } else if ("set_var" in a) {
       if (typeof a.set_var !== "string" || !a.set_var) errs.push(`${p}.set_var: variable name`);
       if (!("to" in a)) errs.push(`${p}: set_var needs "to"`);
+    } else if ("page" in a) {
+      if (typeof a.page !== "string" || !a.page.trim() || a.page.length > 80) errs.push(`${p}.page: a page name, page id or "#n"`);
+      if (a.activity !== undefined && a.activity !== null && (typeof a.activity !== "string" || !ctx.resolvable(a.activity))) errs.push(`${p}.activity: unknown activity "${a.activity}"`);
     } else if (!("stop" in a)) {
-      errs.push(`${p}: unknown step (use cmd, self, delay, wait_until, set_var, save_settings, restore_settings or stop)`);
+      errs.push(`${p}: unknown step (use cmd, self, page, delay, wait_until, set_var, save_settings, restore_settings or stop)`);
     }
   });
 }
@@ -319,6 +324,9 @@ export class SmartEngine {
     } else if (a.self) {
       await this.self.run(a.self, a);
       trail.push(`${a.self} → ${a.option ?? a.state}`);
+    } else if (a.page) {
+      if (!this.self.page) throw new Error("page jumps aren't available");
+      trail.push(await this.self.page(a.activity ? this.resolve(a.activity) : null, a.page));
     } else if ("delay" in a) {
       await sleep(Number(a.delay));
     } else if (a.wait_until) {

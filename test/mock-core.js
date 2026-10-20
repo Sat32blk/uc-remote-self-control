@@ -38,6 +38,7 @@ export const activities = {
   "uc.main.ro": { name: { en: "Integration Activity" }, editable: false, entity_ids: [], pages: [] }
 };
 let pageSeq = 100;
+export const pageOrders = []; // PATCH page_order calls
 export const icons = {}; // uploaded icon id -> raw body
 export const groups = [
   { group_id: "g_av", name: { en: "Living room AV" }, activity_ids: [], options: { turn_off_unused_entities: "run_off_sequence" } },
@@ -233,6 +234,13 @@ export function start(port) {
         if (a1[2] && !a1[3] && req.method === "POST") {
           const err = checkItems(b.items); if (err) return send(400, { message: err });
           const pg = { page_id: "p" + pageSeq++, ...b }; act.pages.push(pg); return send(201, { page_id: pg.page_id });
+        }
+        if (a1[2] && !a1[3] && req.method === "PATCH") {
+          const ord = b.page_order;
+          if (!Array.isArray(ord) || ord.length !== act.pages.length || !ord.every((id) => act.pages.some((x) => x.page_id === id))) return send(400, { message: "page_order must list every page" });
+          act.pages = ord.map((id) => act.pages.find((x) => x.page_id === id));
+          pageOrders.push({ activity: a1[1], order: [...ord] });
+          return send(200, act.pages);
         }
         if (a1[3] && req.method === "PATCH") {
           const pg = act.pages.find((x) => x.page_id === decodeURIComponent(a1[3]));

@@ -131,7 +131,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, version = "", log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, version = "", log, warn }) {
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -359,6 +359,32 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
         send(res, 400, { ok: false, error: e.message });
       }
     },
+    "GET /api/pages": async (req, res) => {
+      const activity = new URL(req.url, "http://x").searchParams.get("activity") || "";
+      if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      if (!activity) return send(res, 400, { error: "activity missing" });
+      try {
+        send(res, 200, { pages: await pagesApi.list(activity) });
+      } catch (e) {
+        send(res, 502, { error: e.message });
+      }
+    },
+    "GET /api/starts": async (req, res) => send(res, 200, { starts: pagesApi.starts() }),
+    "POST /api/starts": async (req, res) => {
+      const body = await readJson(req);
+      const v = pagesApi.validate(body);
+      if (v.errors.length) return send(res, 422, { ok: false, errors: v.errors });
+      await pagesApi.save(v.starts);
+      send(res, 200, { ok: true, starts: pagesApi.starts() });
+    },
+    "POST /api/pages/go": async (req, res) => {
+      const body = await readJson(req);
+      try {
+        send(res, 200, { ok: true, result: await pagesApi.go(body.activity || null, String(body.page || "")) });
+      } catch (e) {
+        send(res, 400, { ok: false, error: e.message });
+      }
+    },
     "GET /api/backup": async (req, res) => {
       const core = getCore();
       if (!core) return send(res, 503, { error: "The integration isn't connected to the remote." });
@@ -371,6 +397,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
         icons: stateIcons().icons,
         controls: { timeout: ctl.timeout, activities: ctl.activities, controls: ctl.controls },
         returnCfg: ret.cfg,
+        starts: pagesApi ? pagesApi.starts() : null,
         downloadIcon: async (id) => (await core.download(`/resources/Icon/${encodeURIComponent(id)}`)).body
       });
       const day = b.created.slice(0, 10);
@@ -396,7 +423,9 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
         applyIcons: async (icons, defaults) => { const r = await stateIcons().replace(icons, defaults); if (!r.errors.length) onIconsChanged && onIconsChanged(); return r; },
         validateControls: (x) => controlsApi.validate(x),
         applyControls: (cfg) => controlsApi.save(cfg),
-        applyReturn: (cfg) => saveReturn(cfg)
+        applyReturn: (cfg) => saveReturn(cfg),
+        validateStarts: (x) => pagesApi.validate({ starts: x }),
+        applyStarts: (x) => pagesApi.save(x)
       }, which);
       log(`backup restored: ${r.done.join(", ") || "nothing"}${r.errors.length ? "; problems: " + r.errors.join(" | ") : ""}`);
       send(res, r.errors.length && !r.done.length ? 422 : 200, { ok: !r.errors.length, ...r });

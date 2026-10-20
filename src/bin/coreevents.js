@@ -8,8 +8,8 @@ import WebSocket from "ws";
 const MAX = 40;
 
 export class CoreEvents {
-  constructor({ address, apiKey, onActivity = () => {}, log = () => {}, warn = () => {} }) {
-    Object.assign(this, { address, apiKey, onActivity, log, warn });
+  constructor({ address, apiKey, onActivity = () => {}, onActivityOff = () => {}, log = () => {}, warn = () => {} }) {
+    Object.assign(this, { address, apiKey, onActivity, onActivityOff, log, warn });
     this.events = [];
     this.ws = null;
     this.state = "off";
@@ -74,6 +74,9 @@ export class CoreEvents {
     // an activity reported as ON = it was opened (started, or reopened while already on)
     if (m.msg === "entity_change" && d.entity_type === "activity" && d.entity_id && String(state || "").toUpperCase() === "ON") {
       try { this.onActivity(d.entity_id); } catch (e) { this.warn("events: " + e.message); }
+    }
+    if (m.msg === "entity_change" && d.entity_type === "activity" && d.entity_id && String(state || "").toUpperCase() === "OFF") {
+      try { this.onActivityOff(d.entity_id); } catch (e) { this.warn("events: " + e.message); }
     }
     if (d.entity_type !== "activity") return; // keep the panel to activities
     const text = JSON.stringify(d);

@@ -32,6 +32,7 @@ export async function makeBackup(src) {
     extras: src.extras ? { sliders: src.extras.sliders || [], menus: src.extras.menus || [] } : null,
     icons: (src.icons || []).map(({ status, page_id, ...b }) => b),
     controls: src.controls || null,
+    pages: src.starts ? { starts: src.starts } : null,
     return: src.returnCfg ? { hosts: src.returnCfg.hosts || [], screen: src.returnCfg.screen, button: src.returnCfg.button, press: src.returnCfg.press, buttonScope: src.returnCfg.buttonScope, hostCfg: src.returnCfg.hostCfg || {} } : null
   };
   const pictures = {};
@@ -98,6 +99,11 @@ export async function restoreBackup(b, api, which = null) {
     else plan.push(["controls", () => api.applyControls(v.config)]);
   }
   if (want("return")) plan.push(["return", () => api.applyReturn(b.parts.return)]);
+  if (want("pages") && api.validateStarts) {
+    const v = api.validateStarts(b.parts.pages.starts || []);
+    if (v.errors.length) errors.push(...v.errors.map((e) => "Start pages: " + e));
+    else plan.push(["pages", () => api.applyStarts(v.starts)]);
+  }
   if (errors.length) return { errors, done: [], warnings: [] };
 
   const warnings = [];

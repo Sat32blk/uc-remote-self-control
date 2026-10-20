@@ -12,6 +12,7 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
 - **Controls:** press a switch and the volume rocker and touch slider change something else for a few seconds (a light, a tone control, the screen brightness), with the remote's own volume pop-up.
 - **Level pictures:** a button that shows a device's level (bar, gauge, battery, …, 16 designs) in any color, even changing color with the value.
 - **Device states (live):** see every value your devices (and the remote itself, including its battery) report, and click them into conditions and state icons.
+- **Page jumps:** a smart control can jump to any page of the activity you're in, and **start pages** pick the page an activity opens on, depending on your devices.
 - **Backup and restore:** everything you set up, with its pictures, in one file.
 
 > [!WARNING]
@@ -43,6 +44,7 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
   10. [A pop-up menu for the receiver's inputs](#10-a-pop-up-menu-for-the-receivers-inputs)
   11. [The volume keys and touch slider for a light (Controls)](#11-the-volume-keys-and-touch-slider-for-a-light-controls)
   12. [Back up everything](#12-back-up-everything)
+  13. [Jump to a page, and start pages](#13-jump-to-a-page-and-start-pages)
 - [The builder](#the-builder)
 - [Entities](#entities)
 - [Rules reference](#rules-reference)
@@ -243,6 +245,15 @@ To restore, choose the file, tick the parts you want and press **Restore**. Ever
 
 <img src="docs/images/builder-backup.png" alt="Backup and restore" width="760">
 
+### 13. Jump to a page, and start pages
+
+The remote has no "go to page" command, but it always opens an activity on its first page and jumps to the first page when the page order of the activity on screen changes. The integration uses that: it turns the page order around (your swipe order stays the same, it just starts at another page), and puts your own order back when you leave the activity.
+
+- **Go to page** (a step in smart controls and quick menus): pick *The activity on screen* and a page (*Page 2*, or a page by name), or a specific activity and one of its pages. With branches you get page jumps with logic: "if the Shield is playing → the Apps page, otherwise → the Remote page". If the chosen activity isn't on screen, it opens on that page next time.
+- **Start pages** (Return & Pages tab): per activity, *if* conditions → *open on* a page, *otherwise* another page or its own first page. They're checked every few seconds while the activity isn't on screen, so it opens on the right page.
+
+A jump takes about a second. Like state icons, pages are only changed when you ask for a jump or after you've left the activity.
+
 ## The builder
 
 The integration serves its own builder page on your network, at `http://<remote-name>.local:10123/` or `http://<remote-ip>:10123/`. The exact addresses are shown in Integrations → Remote Self-Control → Configure.
@@ -347,6 +358,7 @@ Tips:
 | Wait until | `{ "wait_until": { "entity": "receiver", "is": "ON" }, "timeout": 10000 }` |
 | Memory | `{ "set_var": "night_mode", "to": "on" }` |
 | Remember / restore settings | `{ "save_settings": "before" }`, `{ "restore_settings": "before" }` |
+| Go to page | `{ "page": "Apps" }` (activity on screen; a name, page id or `"#2"`), `{ "page": "Apps", "activity": "<activity id>" }` |
 | Stop | `{ "stop": true }` |
 
 For lists, `option` can also be `next` / `previous` (wraps around) or `up` / `down` (stops at the ends). The short form `{ "id", "name", "if", "do", "else" }` works too. Limits: 60 smart controls, 12 branches each, 24 steps per branch, pauses and waits up to 60 s; 60 state icons watching up to 25 devices; 30 sliders, quick menus (30 choices each) and Controls. A press while the same control is still running is ignored.
@@ -390,6 +402,7 @@ src/bin/controls.js                     Controls (volume rocker / touch slider f
 src/bin/states.js                       device states panel (live values, values seen)
 src/bin/coreevents.js                   the remote's own events (which activity was opened)
 src/bin/backup.js                       backup and restore
+src/bin/pages.js                        page jumps and start pages
 src/bin/default-rules.json              default Smart Controls (Smart Test Button)
 examples/                               example rules
 test/                                   fake Core API + Integration-API test client
@@ -413,6 +426,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **0.8.1:** **Page jumps**: a *Go to page* step for smart controls and quick menus (the activity on screen, or the page another activity opens on), and **start pages** per activity with if / otherwise (Return & Pages tab). Pages are rotated so your swipe order stays, and your own order comes back when you leave. Start pages are part of the backup.
 - **0.8.0:** Backup and restore in the builder (Backup button): one .json file with smart controls, sliders and quick menus, state icons and level pictures, ↩ buttons and Controls, plus the custom pictures they use (not the login). Restore picks the parts, checks them all before changing anything and uploads missing pictures. The Return tab's event test panel is removed (the events are used automatically).
 - **0.7.9:** Return: the integration listens to the remote's own events, so going back with ↩ to an activity that is still on is seen: the ↩ buttons follow it and "turn off when leaving" works there too. Previous Activity sensor shows the name and is only sent when it changes.
 - **0.7.8:** fix: editing a smart button, slider or quick menu that is already on an activity no longer breaks it (saved ids stay fixed; the remote gets the new definition right away; removed ones show as unavailable). Quick menus: the step-through button option is gone (map Select next/previous). Return: "turn off when leaving" sends a plain activity.off (no activity groups) + a test panel of the remote's own events. Slider levels: one button, no draw-over, 16 designs (Battery, Needle, Pie, Steps added), color wheel, colors by value. Controls: start from the last or the starting value; reset / set the counted value.

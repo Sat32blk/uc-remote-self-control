@@ -218,6 +218,22 @@ ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.command?.entity_id === 
   await sleep(600);
   ok(!commands.some((c) => c.cmd_id === "activity.off"), "not marked: Watch TV stays on when left");
   ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.type === "text", "Watch TV: back to a text ↩ button");
+  // ---- page jumps (Return & Pages tab) -----------------------------------------------------
+  {
+    activities[TV_ACT].pages.push({ page_id: "p_apps", name: "Apps", grid: { width: 4, height: 6 }, items: [] }, { page_id: "p_rec", name: "Recordings", grid: { width: 4, height: 6 }, items: [] });
+    let h2 = await http("GET", "/api/pages?activity=" + TV_ACT);
+    ok(h2.status === 200 && h2.data.pages.map((p) => p.name).join() === "Main,Apps,Recordings", "builder lists an activity's pages: " + JSON.stringify(h2.data).slice(0, 200));
+    h2 = await http("POST", "/api/starts", { starts: [{ activity: TV_ACT, rules: [] }] });
+    ok(h2.status === 422, "start page without branch or otherwise refused");
+    // Watch TV isn't on screen (Play Music is): its start page becomes Recordings
+    h2 = await http("POST", "/api/starts", { starts: [{ activity: TV_ACT, name: "Watch TV", rules: [{ if: { entity: "uc.main.ro", is: "NEVER" }, page: "p_apps" }], otherwise: "p_rec" }] });
+    await sleep(400);
+    ok(h2.status === 200 && activities[TV_ACT].pages.map((p) => p.page_id).join() === "p_rec,p1,p_apps", "start page saved: Watch TV now opens on Recordings (order rotated)");
+    h2 = await http("POST", "/api/starts", { starts: [] });
+    await sleep(400);
+    ok(activities[TV_ACT].pages.map((p) => p.page_id).join() === "p1,p_apps,p_rec", "start page removed: your own order is back");
+    activities[TV_ACT].pages.splice(1);
+  }
 }
 
 // ---- turn off ---------------------------------------------------------------------------
