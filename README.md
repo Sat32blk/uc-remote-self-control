@@ -8,18 +8,24 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
 - **Smart Controls:** buttons with if / else logic ("if the receiver is on, turn *it* up, otherwise the TV"), built in a browser page the integration serves itself.
 - **State icons:** make a button on a page change its icon with a device's state, like a green power icon while the receiver is on. Pick the button, drop in an image per state.
 - **Sliders & quick menus:** turn any number on your devices (receiver volume, a light, a blind) into a slider with the remote's own slider pop-up, and make pop-up menus whose choices run Smart Control steps (inputs, sound modes, scenes).
-- **Return to previous activity:** a ↩ button (on screen or a physical button) that always takes you back to the activity you came from.
+- **Return to previous activity:** a ↩ button (on screen or a physical button) that always takes you back to the activity you came from, optionally turning off the one you leave.
+- **Controls:** press a switch and the volume rocker and touch slider change something else for a few seconds (a light, a tone control, the screen brightness), with the remote's own volume pop-up.
+- **Level pictures:** a button that shows a device's level (bar, gauge, battery, …, 16 designs) in any color, even changing color with the value.
+- **Device states (live):** see every value your devices (and the remote itself, including its battery) report, and click them into conditions and state icons.
+- **Backup and restore:** everything you set up, with its pictures, in one file.
 
 > [!WARNING]
 > **Beta.** Tested on one Remote 3 so far. The integration changes your remote's settings, activities, pages and button mappings. **Back up your remote's configuration in the web configurator before installing**, so you can restore it if something goes wrong.
 
 > Community project, not affiliated with Unfolded Circle. MIT licensed. It changes the remote's settings through the remote's local Core REST API.
 
-![The ↩ button and the Smart Controls page on the remote (illustration)](docs/images/remote-screens.png)
+![The ↩ button and a Smart Controls page on the remote (illustration)](docs/images/remote-screens.png)
 
-<p align="center"><img src="docs/images/state-icon-demo.gif" alt="State icon: the power button turns green when the receiver is on" width="320"></p>
+![Controls with the remote's own pop-up, and a level picture on a button (illustration)](docs/images/remote-controls.png)
 
-*Illustration of what the integration adds to an activity. The screenshots below are of the real builder page, running against a test remote with example devices.*
+<p align="center"><img src="docs/images/state-icon-demo.gif" alt="State icon: the power button turns green when the receiver is on" width="300"></p>
+
+*Illustrations of what the integration adds to your activities, drawn after a Remote 3 screen. The screenshots further down are of the real builder page, running against a test remote with example devices.*
 
 ## Contents
 
@@ -35,6 +41,8 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
   8. [A power icon that turns green when the receiver is on](#8-a-power-icon-that-turns-green-when-the-receiver-is-on)
   9. [A receiver volume slider](#9-a-receiver-volume-slider)
   10. [A pop-up menu for the receiver's inputs](#10-a-pop-up-menu-for-the-receivers-inputs)
+  11. [The volume keys and touch slider for a light (Controls)](#11-the-volume-keys-and-touch-slider-for-a-light-controls)
+  12. [Back up everything](#12-back-up-everything)
 - [The builder](#the-builder)
 - [Entities](#entities)
 - [Rules reference](#rules-reference)
@@ -50,7 +58,7 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
    - If setup fails with a connection error, run it again with the remote's own IP address.
 4. Add the entities you want to the integration, then use them in activities, macros or pages.
 
-To update, use Install custom with **Update existing driver** checked. Your Smart Controls and settings are kept. No restart of the remote is needed.
+To update, first save a **Backup** in the builder (walkthrough 12), then use Install custom with **Update existing driver** checked. Your Smart Controls and settings are kept. No restart of the remote is needed.
 
 ## Walkthroughs
 
@@ -122,7 +130,7 @@ Jump from *Watch TV* to a *Home Assistant* or *Music* activity and back with one
 1. Open the builder's **Return ↩** tab → **+ Add an activity**, and pick the activity that gets a ↩ button. Each activity has its own settings and shows as one bar (with where its ↩ goes right now); **Edit** changes it, **Delete** inside the editor removes it.
 2. **On screen:** a text button "↩ <previous activity>", a back arrow, **your own picture** (drag and drop any PNG, JPG or SVG; it's resized to 90×90 and uploaded to the remote) or nothing. It's added to the first free spot of the activity's first page; move it wherever you like in the web configurator. Changing the look later updates the button where it is. A text button needs two free cells side by side; with only one, the icon is used. **The page's grid is never changed**: if there's no free spot, nothing is added (the bar then says so).
 3. **Physical button (optional):** button and short or long press, always or only if there's no room on screen. It replaces what that button does in that activity.
-4. **Turn this activity off when I switch to another one (optional):** the activities you mark go into one of the remote's **activity groups** (you pick which). When you switch between them, the remote turns off the activity you leave but keeps devices the new one uses on, like a shared receiver. This applies to every switch between them, not only ↩.
+4. **Turn this activity off when I switch to another one (optional):** when you leave a marked activity (with ↩ or any other way), the integration sends it a plain "turn off". Meant for a single device's control page (a receiver page, say), whose own on/off sequences don't matter. It works when ↩ goes back to an activity that is still running, too.
 
 The older setup screen (Integrations → Remote Self-Control → **Configure** → **Return to previous activity**) still works for the basic settings.
 
@@ -144,7 +152,7 @@ sequenceDiagram
 
 Why it works this way: the remote only switches screens when *you* press a button that starts an activity. An integration can't switch screens, so instead it rewrites the ↩ buttons ahead of time. While you're in one activity, the ↩ buttons in all the others already point to it.
 
-Limit: the remote reports an activity "starting" only when it goes from off to on. Reopening an activity that's still on (for example with ↩) isn't seen, so ↩ toggles between the last two activities you started.
+The integration follows the remote's own events, so it also sees you reopen an activity that is still on (for example with ↩), and the ↩ buttons keep pointing the right way.
 
 ### 7. Display brightness on the touch slider
 
@@ -188,18 +196,17 @@ A slider is a light entity of this integration that stands for a number on anoth
 3. **Save**, then type a value under **Try a value** and press **Set** to check it.
 4. Integrations → Remote Self-Control → add the new slider (group **Remote Sliders & Menus**).
 5. Put it on a **home page**: tapping the tile opens the slider pop-up. On a Remote 3 you can also set an activity's **touch slider** to it.
-6. Optional: pick a **tile icon** (step 4) and tick **Show the level on a page** (step 5) to add a live level graphic: pick a single-page activity, click the button, pick a design and color (below).
+6. Optional: pick a **tile icon** (step 4), and in step 5 pick a single-page activity and click the button that should **show the level**, then pick a design and color (below).
 
 The slider follows changes made elsewhere (within about 2 seconds while the remote is awake). Switching the slider **off** sets the lowest value; **on** goes back to the last value. When you drag quickly, the newest position wins: values in between are skipped instead of queued.
 
 **Custom graphics.** The slider pop-up itself is drawn by the remote and can't be restyled, but two things can:
 
 - **Tile icon:** 12 icons (volume, speaker, subwoofer, light bulb, brightness, blinds, temperature, fan, knob, equalizer, microphone, list) for the slider's or menu's tile on home pages and in lists. Pick one on the card; it's uploaded to the remote and set once the entity has been added to the integration.
-- **Live level graphic:** a button on an activity page whose image shows the current value: bar, column, arc gauge, ring, dots, signal, speaker, knob, tank, thermometer, equalizer or segments, in 6 colors. It's set up in the slider itself (step 5), the only place level graphics are made. The gauges have transparent backgrounds; because the remote shows one picture per button, **Draw over the button's own picture** (offered when the button has a custom picture, like a tile of a picture-skin page) bakes that picture under the gauge, and **Gauge size** (full, large, medium) leaves more of it visible. 11 images (0 %, 10 % … 100 %) are made in the builder and uploaded when you save, and the button shows the one closest to the value. Same limits as state icons: **single-page activities only**, about 2 seconds' delay. What the button does when pressed doesn't change (map it to the slider's toggle or volume up, for example).
-- **Over several buttons:** set **Draw over** to *Several buttons* and click two opposite corners on the page, for example the top and bottom tiles of the left column. The gauge is drawn as one picture over the whole rectangle (column, row or block, up to 24 buttons) and cut into one image per button. **Fit to the shape**: *Stretch* fills the shape (a column gauge becomes a tall bar down the side), *Keep proportions* centers it. Every button in the shape must be a 1×1 icon or text button; empty spots are allowed (that part isn't shown). Saving uploads 11 images per button, so a 6-button column takes a little longer.
-- **Only when the value changes:** **Show the level** → *Only for a few seconds when the value changes* (1–60 s, default 4). The buttons show their own pictures until the value changes (from anywhere, e.g. the remote's volume keys), then the level appears and hides again after the set time. Like all page changes it arrives about 2 seconds after the change.
+- **Level picture:** a button on an activity page whose picture shows the current value. 16 designs: bar, column, arc gauge, ring, dots, signal, speaker, knob, tank, thermometer, equalizer, segments, battery, needle, pie and steps. Pick the color on a **color wheel**, and add **Change color from a value…** steps (for example orange from 60 %, red from 85 %). 11 pictures (0 %, 10 % … 100 %) are made in the builder and uploaded when you save, and the button shows the one closest to the value. **Size** (full, large, medium) leaves room around it. Same limits as state icons: **single-page activities only**, about 2 seconds' delay. What the button does when pressed doesn't change (map it to the slider's toggle or volume up, for example).
+- **Only when the value changes:** **Show the level** → *Only for a few seconds when the value changes* (1–60 s, default 4). The button shows its own look until the value changes (from anywhere, e.g. the remote's volume keys), then the level appears and hides again after the set time.
 
-![The 12 level graphics and 12 tile icons](docs/images/slider-graphics.png)
+![The 16 level pictures, colors by value and the 12 tile icons](docs/images/slider-graphics.png)
 
 ### 10. A pop-up menu for the receiver's inputs
 
@@ -210,11 +217,31 @@ A quick menu is a list entity whose choices each run steps, the same steps as a 
 3. **Save**, then press **Run** on a choice to try it.
 4. Add the menu to the integration, and put it on a home page or an activity page: it opens the remote's list pop-up; picking a choice runs it.
 
-**Step through on a button:** in the menu's **Step through the choices with a button** section, pick an activity, a physical button and short or long press. Each press then runs the next choice (choice 1, then 2, then 3 …) and, with *start over at the first* ticked, goes back to choice 1 after the last. Add the menu to the integration before saving this; the integration maps the button and adds the menu to the activity's devices. Removing the button from the menu unmaps it again.
+**Step through on a button:** map a physical button to the menu's **Select next** (or **Select previous**) in the activity's button mapping. Each press runs the next choice; with *start over at the first* ticked (the default), it goes back to choice 1 after the last.
 
 Choices without a *current when* condition show as current after you pick them. **+ Create quick menu** starts an empty menu for anything else, for example scenes that set lights, inputs and volume together.
 
-![A slider and a quick menu in the builder](docs/images/builder-sliders-menus.png)
+![A slider with a level picture in the builder](docs/images/builder-sliders-menus.png)
+
+### 11. The volume keys and touch slider for a light (Controls)
+
+Point the remote's volume rocker and touch slider at something else for a moment (a light, a tone control, the screen), and get the remote's own volume pop-up with it.
+
+1. Builder → **Controls ⇅** tab → **+ Create control**, name it (*Ceiling Light*) and pick what it changes: a light, a volume, the remote's display or backlight brightness, or one of your sliders (for IR up/down devices).
+2. Set the **starting value** and the **change per rocker press**. For devices that don't report their level, choose whether it starts from the value it was left at or from the starting value every time; **Reset the value** fixes the count when it gets out of step.
+3. **Settings:** how long a control stays on after the last press (or until changed), and per activity what the rocker and touch slider do when no control is on (your TV's volume, the screen brightness, or nothing). **Borrow** keeps the rocker mapped straight to your TV and points it at *Control* only while a control is on.
+4. Integrations → Remote Self-Control → add **Control**, **Control Level**, **Control Active** and the new **Control: Ceiling Light** switch (group **Remote Controls**). Put the switch on a page, set the touch slider to *Control* (or *Control Level*).
+5. Press **Control: Ceiling Light**: the rocker now changes the light with the vertical pop-up, the slider too, and after the timeout everything goes back. Turning another control on switches to it.
+
+![A control in the builder](docs/images/builder-controls.png)
+
+### 12. Back up everything
+
+Builder → **Backup** (top right) → **Download backup** saves one `.json` file with your smart controls, sliders and quick menus, state icons and level pictures, ↩ buttons and Controls, **plus the custom pictures** they use. It doesn't contain the integration's login to the remote.
+
+To restore, choose the file, tick the parts you want and press **Restore**. Every part is checked first; if one has a problem nothing is changed. Missing pictures are uploaded again, so it also works after a factory reset or on another remote (↩ buttons for activities that don't exist there are skipped).
+
+<img src="docs/images/builder-backup.png" alt="Backup and restore" width="760">
 
 ## The builder
 
@@ -229,7 +256,7 @@ The integration serves its own builder page on your network, at `http://<remote-
 - **Create, then list:** each tab starts with its **+ Create** button. It opens an editor box for the new item; a **name is required**. After **Save**, the item shows below as one bar with its name, what it does and an **Edit** button that opens its settings again (with **Delete** inside).
 - **Save** writes to the remote (everything is checked first; errors are listed in the editor). **Save & test** runs a smart control once and shows the result.
 - **Device states (live)** (Smart Controls and Icons & Sliders tabs): pick a device and see every value its integration reports, updated every 2 seconds, with all values seen so far. Tick *Keep collecting in the background* to gather values that only show up now and then (an audio format, an app name). It sits to the right of the editor. Click a value field in the editor, then a value in the panel to fill it in (a condition also gets that device and attribute); in a state icon a clicked value is added as a state, and *use* points a slider at a number. Values seen are also offered in the value lists of state icons and conditions.
-- **Rules text** exports and imports everything as JSON, for backups and sharing.
+- **Backup** (top right) saves and restores everything you set up, with its pictures (walkthrough 12). **Rules text** exports and imports the smart controls alone as JSON, for sharing.
 - Works on phones and in dark mode, and needs no internet: everything is served by the remote.
 
 | Dark mode | Phone |
@@ -266,6 +293,10 @@ Grouped by area in the web configurator.
 | | Sound Effects | switch | on/off |
 | | Haptic Feedback | switch | on/off |
 | **Remote Navigation** | Previous Activity | sensor | name of the activity used before the current one |
+| **Remote Controls** | Control | media player | volume rocker / touch slider target; its volume is the level being changed |
+| | Control Level | light | the same level as a light (touch slider set to a light, home tile pop-up) |
+| | Control Active | sensor | "Ceiling Light · 60 %" or "None" |
+| | Control: (your control) | switch | turns that control on (and any other off) |
 | *(builder)* | State icons | page buttons | icon/label follows a device's state (single-page activities) |
 | **Remote Sliders & Menus** | (your sliders) | light | slider pop-up / touch slider for a number on a device |
 | | (your quick menus) | select | list pop-up; each choice runs steps |
@@ -303,7 +334,7 @@ Tips:
 | Activity | `{ "activity_on": "<activity id>" }` |
 | Time | `{ "time_between": ["22:00", "06:00"] }` |
 | This remote's control | `{ "control": "backlight_color", "is": "Movie red" }` |
-| This remote's setting | `{ "setting": "display.brightness", ">": 50 }` |
+| This remote's setting | `{ "setting": "display.brightness", ">": 50 }`, `{ "setting": "battery.level", "<": 20 }`, `{ "setting": "battery.charging", "is": true }` |
 | Memory | `{ "var": "night_mode", "is": "on" }` |
 | Combine | `{ "all": [ … ] }`, `{ "any": [ … ] }`, `{ "not": … }` |
 
@@ -318,7 +349,7 @@ Tips:
 | Remember / restore settings | `{ "save_settings": "before" }`, `{ "restore_settings": "before" }` |
 | Stop | `{ "stop": true }` |
 
-For lists, `option` can also be `next` / `previous` (wraps around) or `up` / `down` (stops at the ends). The short form `{ "id", "name", "if", "do", "else" }` works too. Limits: 30 controls, 8 branches each, 12 steps per branch, 30 s per run. A press while the same control is still running is ignored.
+For lists, `option` can also be `next` / `previous` (wraps around) or `up` / `down` (stops at the ends). The short form `{ "id", "name", "if", "do", "else" }` works too. Limits: 60 smart controls, 12 branches each, 24 steps per branch, pauses and waits up to 60 s; 60 state icons watching up to 25 devices; 30 sliders, quick menus (30 choices each) and Controls. A press while the same control is still running is ignored.
 
 ## Security
 
@@ -335,7 +366,7 @@ For lists, `option` can also be `next` / `previous` (wraps around) or `up` / `do
 | `UC_SELF_RETURN_POLL_MS` | `2000` | How often activity states (↩ button), state-icon devices, slider values and menu conditions are read |
 | `UC_SELF_SLIDER_HOLD_MS` | `3000` | After you move a slider, device reports are ignored this long so a slow device can't jump it back |
 
-Files in the integration's config folder: `self_control.json` (address + API key), `smart_rules.json` (your rules; absent = defaults), `smart_vars.json` (remembered values), `return.json` (↩ settings and activity history), `state_icons.json` (state icons and each button's default look), `sliders_menus.json` (sliders, quick menus and their last values).
+Files in the integration's config folder: `self_control.json` (address + API key), `smart_rules.json` (your rules; absent = defaults), `smart_vars.json` (remembered values), `return.json` (↩ settings and activity history), `state_icons.json` (state icons and each button's default look), `sliders_menus.json` (sliders, quick menus and their last values), `controls.json` (Controls), `states_seen.json` (values seen in the device states panel). The builder's **Backup** saves all of these except the login and the caches.
 
 ## Logs and removal
 
@@ -355,6 +386,10 @@ src/bin/tile.js                         puts the Last Result tile on an activity
 src/bin/returnbtn.js                    return to previous activity (tracking + ↩ buttons)
 src/bin/stateicons.js                   state icons (watch devices, switch button looks)
 src/bin/extras.js                       virtual sliders and quick menus
+src/bin/controls.js                     Controls (volume rocker / touch slider for other things)
+src/bin/states.js                       device states panel (live values, values seen)
+src/bin/coreevents.js                   the remote's own events (which activity was opened)
+src/bin/backup.js                       backup and restore
 src/bin/default-rules.json              default Smart Controls (Smart Test Button)
 examples/                               example rules
 test/                                   fake Core API + Integration-API test client
@@ -365,7 +400,7 @@ Tests (Node 22):
 ```
 npm install                 # dev dependency: ws
 (cd src/bin && npm install)
-npm test                    # settings, Smart Controls + builder API, return button, state icons, sliders & menus
+npm test                    # builder page, settings, Smart Controls, return, state icons, sliders & menus, Controls, device states, events
 ```
 
 Build the install archive:

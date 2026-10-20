@@ -128,7 +128,13 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .pane-main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .pane-side { flex: 1 1 340px; min-width: 0; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
 @media (max-width: 960px) { .pane-side { position: static; max-height: none; } }
-.pane-side .stable td.k { white-space: normal; }
+/* beside the editor the panel is narrow: name and current value on one line, the values below */
+.pane-side .stable thead { display: none; }
+.pane-side .stable tr { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; border-bottom: 1px solid var(--line); }
+.pane-side .stable td { border-bottom: 0; }
+.pane-side .stable td.k { white-space: normal; overflow-wrap: anywhere; }
+.pane-side .stable td.now { overflow-wrap: normal; }
+.pane-side .stable td:nth-child(3) { grid-column: 1 / -1; padding-top: 0; }
 .states-panel summary { font-weight: 600; cursor: pointer; }
 .states-body { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .stable { width: 100%; border-collapse: collapse; font-size: 13px; }
