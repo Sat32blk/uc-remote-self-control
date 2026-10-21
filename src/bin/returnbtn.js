@@ -103,6 +103,8 @@ export class ReturnTracker {
     // group: activity group used to turn off the activity you leave; groupManaged: ids we put in it.
     this.cfg = { hosts: [], screen: "text", button: "NONE", press: "short_press", buttonScope: "all", hostCfg: {}, group: null, groupManaged: [], ...(saved.cfg || {}) };
     this.hostState = saved.hostState || {}; // host -> { target, placed }
+    // smart launcher copies count as their original activity (set by the driver)
+    this.alias = { originalOf: (x) => x, copiesOf: () => [] };
   }
 
   read() {
@@ -122,6 +124,7 @@ export class ReturnTracker {
 
   /** Settings for one host: its own over the defaults. */
   optsFor(host) {
+    host = this.alias.originalOf(host);
     const o = { screen: this.cfg.screen, icon: null, button: this.cfg.button, press: this.cfg.press, buttonScope: this.cfg.buttonScope, close: false, ...(this.cfg.hostCfg?.[host] || {}) };
     if (!SCREENS.includes(o.screen) || (o.screen === "custom" && !o.icon)) o.screen = o.screen === "custom" ? "icon" : "text";
     return o;
@@ -146,6 +149,7 @@ export class ReturnTracker {
     return this.names[id] || id || "";
   }
   targetFor(host) {
+    host = this.alias.originalOf(host);
     return this.history.find((a) => a !== host && (!this.states || a in this.states));
   }
 
@@ -162,15 +166,15 @@ export class ReturnTracker {
     }
     const started = [];
     if (this.states) {
-      for (const [id, st] of Object.entries(now)) if (isOn(st) && !isOn(this.states[id])) started.push(id);
+      for (const [id, st] of Object.entries(now)) if (isOn(st) && !isOn(this.states[id]) && !(this.alias.originalOf(id) === this.current)) started.push(id);
     } else if (this.history.length === 0) {
       // first run ever: seed with whatever is on now
-      for (const [id, st] of Object.entries(now)) if (isOn(st)) this.history.push(id);
+      for (const [id, st] of Object.entries(now)) if (isOn(st) && !this.history.includes(this.alias.originalOf(id))) this.history.push(this.alias.originalOf(id));
     }
     this.states = now;
     if (started.length) {
       const left = this.current;
-      for (const id of started) this.history = [id, ...this.history.filter((x) => x !== id)].slice(0, HISTORY_MAX);
+      for (const s of started) { const id = this.alias.originalOf(s); this.history = [id, ...this.history.filter((x) => x !== id)].slice(0, HISTORY_MAX); }
       this.log(`return: current ${this.nameOf(this.current)}, previous ${this.nameOf(this.previous) || "-"}`);
       this.save();
       this.onChange();
@@ -185,6 +189,7 @@ export class ReturnTracker {
    * which polling can't see. It becomes current; the one left is turned off if it's marked for that.
    */
   async opened(id) {
+    id = this.alias.originalOf(id);
     const core = this.getCore();
     if (!core || !id || id === this.current) return;
     const left = this.current;
@@ -202,10 +207,13 @@ export class ReturnTracker {
    * plain activity.off. Meant for single-device control pages, whose on/off sequences don't matter.
    */
   async closeLeft(core, left, now) {
-    if (!this.cfg.hosts.includes(left) || !this.optsFor(left).close || !isOn(now[left])) return;
+    if (!this.cfg.hosts.includes(left) || !this.optsFor(left).close) return;
+    // the original or one of its launcher copies, whichever is running
+    const running = [left, ...this.alias.copiesOf(left)].find((x) => isOn(now[x]));
+    if (!running) return;
     try {
-      await core.request("PUT", `/entities/${encodeURI(left)}/command`, { cmd_id: "activity.off" });
-      this.states[left] = "OFF";
+      await core.request("PUT", `/entities/${encodeURI(running)}/command`, { cmd_id: "activity.off" });
+      this.states[running] = "OFF";
       this.log(`return: turned off ${this.nameOf(left)} (left for ${this.nameOf(this.current)})`);
     } catch (e) {
       this.warn(`return: turning off ${this.nameOf(left)} failed:`, e.message);
@@ -221,7 +229,7 @@ export class ReturnTracker {
   async _refresh(force) {
     const core = this.getCore();
     if (!core || !this.enabled) return;
-    for (const host of this.cfg.hosts) {
+    for (const host of this.cfg.hosts.flatMap((h) => [h, ...this.alias.copiesOf(h)])) {
       const target = this.targetFor(host);
       const hs = (this.hostState[host] = this.hostState[host] || {});
       if (!force && hs.target === target) continue;
@@ -338,6 +346,7 @@ export class ReturnTracker {
           }
         }
       } catch (e) {
+        if (e.status === 404) continue; // a launcher copy that was removed
         done.push(`problem with ${this.nameOf(host)}: ${e.message}`);
       }
     }

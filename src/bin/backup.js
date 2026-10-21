@@ -1,5 +1,5 @@
 // Backup and restore of everything a user set up in the builder: smart controls, quick menus and sliders,
-// state icons and level pictures, ↩ return buttons and Controls. Custom pictures used by them (on the
+// state icons and level pictures, ↩ return buttons, Controls, start pages and launchers. Custom pictures used by them (on the
 // remote as custom:<file>) are included, so a backup also works after a factory reset or on another remote.
 // Never included: the API key and the remote's address (self_control.json), or caches.
 
@@ -33,6 +33,7 @@ export async function makeBackup(src) {
     icons: (src.icons || []).map(({ status, page_id, ...b }) => b),
     controls: src.controls || null,
     pages: src.starts ? { starts: src.starts } : null,
+    launchers: src.launchers ? { launchers: src.launchers } : null,
     return: src.returnCfg ? { hosts: src.returnCfg.hosts || [], screen: src.returnCfg.screen, button: src.returnCfg.button, press: src.returnCfg.press, buttonScope: src.returnCfg.buttonScope, hostCfg: src.returnCfg.hostCfg || {} } : null
   };
   const pictures = {};
@@ -103,6 +104,11 @@ export async function restoreBackup(b, api, which = null) {
     const v = api.validateStarts(b.parts.pages.starts || []);
     if (v.errors.length) errors.push(...v.errors.map((e) => "Start pages: " + e));
     else plan.push(["pages", () => api.applyStarts(v.starts)]);
+  }
+  if (want("launchers") && api.validateLaunchers) {
+    const v = api.validateLaunchers(b.parts.launchers.launchers || []);
+    if (v.errors.length) errors.push(...v.errors.map((e) => "Launchers: " + e));
+    else plan.push(["launchers", () => api.applyLaunchers(v.launchers)]);
   }
   if (errors.length) return { errors, done: [], warnings: [] };
 

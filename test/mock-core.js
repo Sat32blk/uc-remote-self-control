@@ -45,6 +45,8 @@ export const groups = [
   { group_id: "g_other", name: { en: "Bedroom" }, activity_ids: ["uc.main.ro"], options: { turn_off_unused_entities: "always" } }
 ];
 export const entityIcons = {}; // entity id -> icon set with PATCH /entities/{id}
+export const profiles = { prof1: [{ page_id: "home1", name: "Home", items: [{ entity_id: "uc.main.act1" }] }] }; // home screen pages
+let actSeq = 1;
 
 // Command metadata as GET /cfg/entity/commands returns it (subset).
 const mpCmd = (c, params) => ({ id: "media_player." + c, cmd_id: c, name: { en: c.replace(/_/g, " ") }, params });
@@ -184,6 +186,28 @@ export function start(port) {
         }
         return send(200, groupDetail(g));
       }
+      if (url === "/api/activities" && req.method === "POST") {
+        // create, optionally cloned from another activity (all its settings, pages get new ids)
+        const b = JSON.parse(body);
+        const src = b.clone_from ? activities[b.clone_from] : null;
+        if (b.clone_from && !src) return send(422, { message: "clone_from not found" });
+        const id = "uc.main.new" + actSeq++;
+        const copy = src ? JSON.parse(JSON.stringify(src)) : { entity_ids: [], buttons: {}, pages: [] };
+        for (const p of copy.pages) p.page_id = "p" + pageSeq++;
+        activities[id] = { ...copy, name: b.name, icon: b.icon, description: b.description, state: "OFF" };
+        return send(201, { entity_id: id, name: b.name });
+      }
+      const pr = /^\/api\/profiles(?:\/([^/]+)\/pages(?:\/([^/?]+))?)?$/.exec(url);
+      if (pr) {
+        if (!pr[1] && req.method === "GET") return send(200, Object.keys(profiles).map((profile_id) => ({ profile_id, name: "Me" })));
+        const pages = profiles[decodeURIComponent(pr[1] || "")];
+        if (!pages) return send(404, { message: "no profile" });
+        if (!pr[2] && req.method === "GET") return send(200, pages);
+        const pg = pages.find((x) => x.page_id === decodeURIComponent(pr[2]));
+        if (!pg) return send(404, { message: "no page" });
+        if (req.method === "GET") return send(200, pg);
+        if (req.method === "PATCH") { const b = JSON.parse(body); if (b.items) pg.items = b.items.map((it) => ({ ...it })); return send(200, pg); }
+      }
       const am = /^\/api\/activities(?:\?(.*))?$/.exec(url);
       if (am && req.method === "GET") {
         const q = new URLSearchParams(am[1] || "");
@@ -203,6 +227,7 @@ export function start(port) {
         const act = activities[decodeURIComponent(ab[1])];
         if (!act) return send(404, { message: "no activity" });
         if (!ab[2] && req.method === "GET") return send(200, Object.entries(act.buttons || {}).map(([button, m]) => ({ button, ...m })));
+        if (!ab[2] && req.method === "POST") { act.buttons = Object.fromEntries(JSON.parse(body).map(({ button, ...m }) => [button, m])); return send(200, JSON.parse(body)); }
         if (ab[2] && req.method === "PATCH") {
           const b = JSON.parse(body);
           const cmd = b.short_press || b.long_press;
@@ -216,12 +241,17 @@ export function start(port) {
         const act = activities[decodeURIComponent(a1[1])];
         if (!act) return send(404, { message: "no activity" });
         const b = body ? JSON.parse(body) : {};
-        if (!a1[2] && req.method === "GET") return send(200, { entity_id: a1[1], name: act.name, options: { included_entities: act.entity_ids.map((entity_id) => ({ entity_id })) } });
+        if (!a1[2] && req.method === "GET") return send(200, { entity_id: a1[1], name: act.name, options: { included_entities: act.entity_ids.map((entity_id) => ({ entity_id })), sequences: act.sequences || { on: [], off: [] } } });
         if (!a1[2] && req.method === "PATCH") {
           for (const id of b.options?.entity_ids || []) if (!entityList().some((e) => e.entity_id === id) && !devices[id]) return send(400, { message: "Entity does not exist: " + id });
           if (b.options?.entity_ids) act.entity_ids = b.options.entity_ids;
+          for (const st of [...(b.options?.sequences?.on || []), ...(b.options?.sequences?.off || [])]) if (st.type === "command" && !act.entity_ids.includes(st.command?.entity_id)) return send(400, { message: "sequence entity not included: " + st.command?.entity_id });
+          if (b.options?.sequences) act.sequences = b.options.sequences;
+          if (b.name) act.name = b.name;
           return send(200, {});
         }
+        if (!a1[2] && req.method === "DELETE") { delete activities[decodeURIComponent(a1[1])]; for (const g of groups) g.activity_ids = g.activity_ids.filter((x) => x !== decodeURIComponent(a1[1])); return send(200, {}); }
+        if (a1[3] && req.method === "DELETE") { act.pages = act.pages.filter((x) => x.page_id !== decodeURIComponent(a1[3])); return send(200, {}); }
         const checkItems = (items) => {
           for (const it of items || []) {
             const ref = it.sensor?.sensor_id || it.command?.entity_id;

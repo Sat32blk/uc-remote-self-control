@@ -86,6 +86,7 @@ export class Controls {
     this.config = { timeout: 8, activities: [], controls: [] };
     this.remembered = {}; // control id -> last value (targets that don't report one)
     this.borrowed = {}; // activity id -> { VOLUME_UP: original short_press | null, ... }
+    this.alias = { originalOf: (x) => x }; // smart launcher copies use their original's row (set by the driver)
     this.active = null;
     this.value = 50; // what Control shows (0..100)
     this.timer = null;
@@ -215,14 +216,15 @@ export class Controls {
   }
   /** The defaults of the running activity (the first running one that has a row). */
   async defaults() {
-    const on = await this.activitiesOn();
+    const on = (await this.activitiesOn()).map((id) => this.alias.originalOf(id));
     return this.config.activities.find((a) => on.includes(a.activity)) || null;
   }
 
   // ---- borrowing the volume rocker ----------------------------------------------------------
   async borrowActivities() {
+    // the running activity itself: a launcher copy borrows with its original's setting
     const on = await this.activitiesOn();
-    return this.config.activities.filter((a) => a.borrow && on.includes(a.activity)).map((a) => a.activity);
+    return on.filter((id) => this.config.activities.some((a) => a.borrow && a.activity === this.alias.originalOf(id)));
   }
   async borrow(activity) {
     const core = this.getCore();

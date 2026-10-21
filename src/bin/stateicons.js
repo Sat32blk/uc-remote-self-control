@@ -169,6 +169,8 @@ export class StateIcons {
     this.known = {}; // activity -> hash of its page as this integration last saw / wrote it
     this.paused = {}; // activity -> reason (its page was changed by someone else)
     this.lastWrite = {}; // activity -> time of the last page write by state icons
+    // smart launcher copies show the same state icons as their original (set by the driver)
+    this.alias = { copiesOf: () => [] };
     this.busy = Promise.resolve();
     this.load();
   }
@@ -333,7 +335,7 @@ export class StateIcons {
       const key = JSON.stringify(looks);
       st.value = value === undefined ? null : value;
       if (!force && st.key === key && !st.error) continue;
-      (byActivity.get(b.activity) || byActivity.set(b.activity, []).get(b.activity)).push({ b, looks, spots, key });
+      for (const a of [b.activity, ...this.alias.copiesOf(b.activity)]) (byActivity.get(a) || byActivity.set(a, []).get(a)).push({ b, looks, spots, key });
     }
     for (const [activity, changes] of byActivity) {
       if (this.paused[activity]) {

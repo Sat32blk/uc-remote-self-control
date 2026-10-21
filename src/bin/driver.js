@@ -19,6 +19,9 @@ import { Controls, validateControls } from "./controls.js";
 import { DeviceStates } from "./states.js";
 import { CoreEvents } from "./coreevents.js";
 import { PageJumper, validateStarts } from "./pages.js";
+import { Launchers, validateLaunchers, LIMITS as LAUNCHER_LIMITS } from "./launcher.js";
+import { isReturnItem } from "./returnbtn.js";
+import { spotsOf } from "./stateicons.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -1000,6 +1003,7 @@ function remoteState() {
 }
 let statesPolledAt = 0;
 let pagesCheckedAt = 0;
+let launchersCheckedAt = 0;
 function startPolling() {
   stopPolling();
   if (!core || !connected || standby) return;
@@ -1012,6 +1016,7 @@ function startPolling() {
     if (extras?.enabled) extras.refresh();
     if (deviceStates?.watched.length && Date.now() - statesPolledAt > 5000) { statesPolledAt = Date.now(); deviceStates.poll().catch(() => {}); }
     if (pageJumper?.starts.length && Date.now() - pagesCheckedAt > 5000) { pagesCheckedAt = Date.now(); pageJumper.refresh().catch((e) => warn("pages:", e.message)); }
+    if (launchers?.launchers.length && Date.now() - launchersCheckedAt > 5000) { launchersCheckedAt = Date.now(); launchers.check().catch((e) => warn("launcher:", e.message)); }
   }, RETURN_POLL_MS);
 }
 
@@ -1030,6 +1035,7 @@ async function cleanupAll({ pictures = false, revoke = false } = {}) {
   };
   stopPolling(); // nothing may write in between
   await step("state icons", async () => { const n = stateIcons.icons.length; const r = await stateIcons.replace([]); if (r.errors?.length) throw new Error(r.errors.join("; ")); return n ? `${n} state icon(s) / level picture(s) removed, buttons back to their own look` : null; });
+  await step("launchers", () => launchers.removeAll());
   await step("↩ buttons", () => returnTracker.removeAll());
   await step("page orders", () => pageJumper.restoreAll());
   await step("Controls", async () => {
@@ -1083,16 +1089,18 @@ async function cleanupAll({ pictures = false, revoke = false } = {}) {
 // The remote's own events: which activity was opened (also one already on), for ↩ and page jumps.
 let coreEvents = null;
 let pageJumper = null;
+let launchers = null;
 let screenActivity; // activity on screen per the events (undefined = not known yet, null = none)
 const onScreen = () => (screenActivity === undefined ? returnTracker?.current || null : screenActivity);
 function syncCoreEvents() {
-  const want = !!(core && connected && !standby && config?.apiKey && (returnTracker?.enabled || pageJumper?.enabled));
+  const want = !!(core && connected && !standby && config?.apiKey && (returnTracker?.enabled || pageJumper?.enabled || launchers?.enabled));
   if (want) {
     if (!coreEvents) coreEvents = new CoreEvents({ address: config.address, apiKey: config.apiKey, log, warn,
       onActivity: (id) => {
         screenActivity = id;
         returnTracker.opened(id).catch((e) => warn("return:", e.message));
         pageJumper?.opened(id).catch((e) => warn("pages:", e.message));
+        launchers?.opened().catch((e) => warn("launcher:", e.message));
       },
       onActivityOff: (id) => {
         if (onScreen() === id) screenActivity = null;
@@ -1482,6 +1490,44 @@ buildControlEntities();
 deviceStates = new DeviceStates({ getCore: () => core, file: path.join(api.getConfigDirPath(), "states_seen.json"), remote: remoteState, log, warn });
 initSmart();
 pageJumper = new PageJumper({ getCore: () => core, onScreen, test: (c) => smart.test(c, new Map()), file: path.join(api.getConfigDirPath(), "pages.json"), log, warn });
+// Smart launchers: activity copies that also start an app; the rest of the integration treats a copy as
+// its original activity.
+launchers = new Launchers({
+  getCore: () => core, onScreen, test: (c) => smart.test(c, new Map()), file: path.join(api.getConfigDirPath(), "launchers.json"), log, warn,
+  hooks: {
+    // parts of a page other features change all the time: not a reason to update the copies
+    normItem: (activity, it) => {
+      if (isReturnItem(it, returnTracker.customIcons())) return { ret: true, location: it.location, size: it.size };
+      const loc = it.location || {};
+      const iconSpot = stateIcons.icons.some((b) => b.activity === activity && spotsOf(b).some((sp) => sp.location?.x === loc.x && sp.location?.y === loc.y));
+      if (iconSpot) { const { icon, text, ...rest } = it; return rest; }
+      return it;
+    },
+    managedButtons: (activity) => {
+      const out = new Set();
+      if (returnTracker.cfg.hosts.includes(activity)) { const b = returnTracker.optsFor(activity).button; if (b && b !== "NONE") out.add(b); }
+      if (controls.borrowed[activity]) { out.add("VOLUME_UP"); out.add("VOLUME_DOWN"); }
+      for (const m of extras.menus) if (m.button?.activity === activity && m.button?.button) out.add(m.button.button);
+      return out;
+    },
+    // a borrowed volume rocker is copied as the user's own mapping
+    buttonOverride: (activity, button) => (controls.borrowed[activity] && button in controls.borrowed[activity] ? controls.borrowed[activity][button] : undefined),
+    ownOrder: (activity) => pageJumper.saved[activity] || null,
+    copyChanged: (copy, orig) => {
+      delete stateIcons.known[copy];
+      delete stateIcons.paused[copy];
+      for (const b of stateIcons.icons) if (b.activity === orig && stateIcons.status[b.id]) stateIcons.status[b.id].key = null;
+      if (returnTracker.cfg.hosts.includes(orig)) { returnTracker.hostState[copy] = { placed: true }; returnTracker.refresh(false); }
+    }
+  }
+});
+{
+  const alias = { originalOf: (id) => launchers.originalOf(id), copiesOf: (id) => launchers.copiesOf(id) };
+  returnTracker.alias = alias;
+  pageJumper.alias = alias;
+  stateIcons.alias = alias;
+  controls.alias = alias;
+}
 
 const CONTROL_NAMES = Object.fromEntries(LAYOUT.map(([, id, name]) => [id, name]));
 Object.assign(CONTROL_NAMES_ALL, CONTROL_NAMES);
@@ -1503,7 +1549,7 @@ startWebServer({
   // ↩ Return to previous activity, also editable in the builder
   returnSettings: async () => ({
     cfg: returnTracker.cfg,
-    activities: core ? await listActivities(core).catch(() => []) : [],
+    activities: core ? (await listActivities(core).catch(() => [])).filter((a) => !launchers.isCopy(a.id)) : [],
     groups: core ? await activityGroups(core).catch(() => []) : [],
     targets: Object.fromEntries(returnTracker.cfg.hosts.map((h) => [h, returnTracker.nameOf(returnTracker.targetFor(h)) || null])),
     noRoom: returnTracker.cfg.hosts.filter((h) => { const hs = returnTracker.hostState[h]; return hs?.placed && !hs.onScreen && returnTracker.optsFor(h).screen !== "none"; }),
@@ -1563,6 +1609,20 @@ startWebServer({
       log(`start pages saved: ${starts.map((s) => s.name || s.activity).join(", ") || "none"}`);
     },
     go: (activity, page) => pageJumper.goTo(activity || null, page)
+  },
+  launchersApi: {
+    get: () => ({ launchers: launchers.view(), limits: LAUNCHER_LIMITS, scannedAt: launchers.scannedAt ? new Date(launchers.scannedAt).toISOString() : null }),
+    config: () => launchers.launchers,
+    copies: () => Object.fromEntries(Object.values(launchers.copies).flatMap((per) => Object.entries(per).map(([orig, c]) => [c.id, orig]))),
+    validate: (body) => validateLaunchers(body, (c, p, errs) => vCond(c, p, errs, { resolvable: (x) => typeof x === "string" && x.includes("."), selfKnown: (x) => selfApi.keys.includes(x) })),
+    save: async (list) => {
+      const problems = await launchers.replace(list);
+      syncCoreEvents();
+      log(`launchers saved: ${list.map((l) => l.name).join(", ") || "none"}${problems.length ? " | problems: " + problems.join("; ") : ""}`);
+      return problems;
+    },
+    place: (lid, where) => launchers.place(lid, where),
+    scan: () => launchers.scan()
   },
   extras: () => extras,
   validateExtras: (body) => validateExtras(body, selfApi.keys, reservedIds()),

@@ -222,6 +222,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <button type="button" role="tab" id="tab-icons" aria-selected="false" aria-controls="icons-app">Icons &amp; Sliders</button>
     <button type="button" role="tab" id="tab-ret" aria-selected="false" aria-controls="ret-app">Return &amp; Pages ↩</button>
     <button type="button" role="tab" id="tab-ctl" aria-selected="false" aria-controls="ctl-app">Controls ⇅</button>
+    <button type="button" role="tab" id="tab-launch" aria-selected="false" aria-controls="launch-app">Launchers 🚀</button>
   </nav>
 
   <section class="pane split" id="app" hidden aria-label="Smart controls">
@@ -345,6 +346,27 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
       <p class="note">Turn a control on with its switch (put it on a page or map it to a button). Turning on another control switches straight to it. It turns off after the time set above without use, or stays on until you turn it off.</p>
     </details>
   </section>
+
+  <section class="pane split" id="launch-app" hidden aria-label="Launchers">
+    <div class="pane-main">
+    <p class="hint">A launcher is one button, e.g. <b>Netflix</b>, that opens the right activity and starts the app in it: <i>if the Shield is on → Watch Shield, otherwise → Watch Roku</i>, then the app. <b>Beta:</b> it creates activities on your remote; make a backup in the web configurator first.</p>
+    <div id="launch-list" class="lines"></div>
+    <div class="row"><button class="small" id="launch-add" type="button">+ Add a launcher</button><button class="primary" id="launch-save" type="button" hidden>Save launchers</button><button class="small ghost" id="launch-scan" type="button">Look for launcher buttons again</button><span class="status" id="launch-status" role="status"></span></div>
+    <ul class="errors" id="launch-errors" hidden></ul>
+    <details class="panel">
+      <summary>How launchers work</summary>
+      <p class="note">The remote only switches to an activity's screen when the button you press starts that activity directly; a macro or an integration can start it, but the screen stays where it is. So the launcher decides <i>before</i> you press: for each activity of a launcher the integration keeps a <b>launcher copy</b> of that activity (same devices, pages and buttons, named after the launcher) whose start sequence ends with the app step. The launcher's buttons start one of the copies, and are re-pointed whenever your conditions pick another one. Pressing the button is then a plain "start activity": the screen opens and the app launches.</p>
+      <p class="note"><b>Edit the original activity, not the copy:</b> the copies follow their original within about a minute (pages, buttons, devices and the start sequence). ↩, start pages, state icons and Controls treat a copy as its original. The copies are in the same activity groups as their original, so switching between them doesn't turn devices off and on.</p>
+      <p class="note"><b>Buttons:</b> add one here (page button, physical button or home screen), or in the web configurator pick one of the launcher's copies as the activity to start; the integration finds those and keeps them pointed right. A button on a page of the activity on screen is re-pointed when you leave that activity (changing a page you're looking at would jump to page 1). Physical buttons and home tiles change at once.</p>
+    </details>
+    </div>
+    <aside class="pane-side" aria-label="Device states">
+      <details open class="panel states-panel" id="states-launch" data-where="launch">
+        <summary>Device states (live): what your devices report</summary>
+        <div class="states-body"></div>
+      </details>
+    </aside>
+  </section>
 </div>
 
 <script>
@@ -356,7 +378,8 @@ let CAT = { devices: [], activities: [], controls: {}, settings: {} };
 let DEV = {};           // id -> device
 let buttons = [];       // editor model
 let saved = "";         // JSON of the last saved rules, for dirty tracking
-let notify = (r) => { if (r) { render(); if (iconsLoaded) renderIcons(); if (STARTS) renderStarts(); } }; // change hook used by the shared step/condition rows
+let notify = (r) => { if (r) { render(); if (iconsLoaded) renderIcons(); if (STARTS) renderStarts(); if (LAUNCH) renderLaunchers(); } else if (LAUNCH) launchDirty(); }; // change hook used by the shared step/condition rows
+let LAUNCH = null; // launchers being edited (Launchers tab)
 let STARTS = null; // start-page rules being edited (Return & Pages tab)
 
 // ---------------------------------------------------------------------------
@@ -577,22 +600,29 @@ function commandOptions(dev) {
   return opts;
 }
 
+/** Device, command and its parameters (a smart step, or a launcher's app step). */
+function cmdFields(id, step, filter) {
+  const out = [];
+  const dev = DEV[step.ent];
+  out.push(select(id + "-d", deviceOptions(filter), step.ent, (v) => { step.ent = v; const d = DEV[v]; step.cmd = d?.commands[0]?.id || d?.simple[0] || ""; step.params = {}; notify(true); }, "Device"));
+  out.push(select(id + "-c", commandOptions(dev), step.cmd, (v) => { step.cmd = v; step.params = {}; notify(true); }, "Command"));
+  const spec = dev?.commands.find((c) => c.id === step.cmd);
+  for (const p of spec?.params || []) {
+    const pid = id + "-p-" + p.key;
+    const isNum = p.type === "number";
+    if (p.list && p.list.length) out.push(select(pid, [["", p.label + "…"], ...p.list.map((x) => [String(x), String(x)])], String(step.params[p.key] ?? ""), (v) => { step.params[p.key] = v; notify(false); }, p.label));
+    else out.push(input(pid, step.params[p.key], (v) => { step.params[p.key] = isNum && v !== "" ? Number(v) : v; notify(false); }, { label: p.label, type: isNum ? "number" : "text", cls: isNum ? "num" : undefined, placeholder: p.label + (p.unit ? " (" + p.unit + ")" : "") }));
+  }
+  return out;
+}
+
 function stepRow(step, list, idx) {
   const id = nid("s");
   const kinds = [["cmd", "Device command"], ["self", "This remote's control"], ["delay", "Wait (time)"], ["wait", "Wait until"], ["setvar", "Set memory"], ["save", "Remember remote settings"], ["restore", "Restore remote settings"], ["page", "Go to page"], ["stop", "Stop"], ["raw", "Advanced (JSON)"]];
   const row = el("div", { class: "line" });
   row.append(select(id + "-k", kinds, step.t, (t) => { list[idx] = newStep(t); notify(true); }, "Step type"));
   if (step.t === "cmd") {
-    const dev = DEV[step.ent];
-    row.append(select(id + "-d", deviceOptions(), step.ent, (v) => { step.ent = v; const d = DEV[v]; step.cmd = d?.commands[0]?.id || d?.simple[0] || ""; step.params = {}; notify(true); }, "Device"));
-    row.append(select(id + "-c", commandOptions(dev), step.cmd, (v) => { step.cmd = v; step.params = {}; notify(true); }, "Command"));
-    const spec = dev?.commands.find((c) => c.id === step.cmd);
-    for (const p of spec?.params || []) {
-      const pid = id + "-p-" + p.key;
-      const isNum = p.type === "number";
-      if (p.list && p.list.length) row.append(select(pid, [["", p.label + "…"], ...p.list.map((x) => [String(x), String(x)])], String(step.params[p.key] ?? ""), (v) => { step.params[p.key] = v; notify(false); }, p.label));
-      else row.append(input(pid, step.params[p.key], (v) => { step.params[p.key] = isNum && v !== "" ? Number(v) : v; notify(false); }, { label: p.label, type: isNum ? "number" : "text", cls: isNum ? "num" : undefined, placeholder: p.label + (p.unit ? " (" + p.unit + ")" : "") }));
-    }
+    row.append(...cmdFields(id, step));
   } else if (step.t === "self") {
     row.append(select(id + "-c", Object.entries(CAT.controls).map(([k, d]) => [k, d.name]), step.key, (v) => { step.key = v; const c = CAT.controls[v]; step.val = c.switch ? "on" : c.options[0]; notify(true); }, "Control"));
     const c = CAT.controls[step.key];
@@ -1072,6 +1102,157 @@ $("#starts-save").addEventListener("click", async () => {
   st.className = "status ok"; st.textContent = "Saved. Activities open on these pages from now on (checked every few seconds while they're not on screen).";
   renderStarts();
 });
+// ---- smart launchers (Launchers tab) ----------------------------------------------------------------
+let launchSaved = "";
+let LAUNCH_VIEW = []; // as the integration reports them (copies, buttons found, current pick)
+const appDevice = (d) => d.type !== "activity" && d.type !== "macro";
+function launchersIn(list) {
+  return list.map((l) => ({ id: l.id, name: l.name, icon: l.icon || "", otherwise: l.otherwise || "",
+    targets: l.targets.map((t) => ({ activity: t.activity, wait: t.delay ? String(t.delay / 1000) : "", steps: t.steps.map((s) => ({ t: "cmd", ent: s.entity_id, cmd: s.cmd_id, params: { ...(s.params || {}) } })) })),
+    rules: l.rules.map((r) => { const c = r.if; const join = c && c.any ? "any" : "all";
+      const conds = c && (c.all || c.any) ? (c.all || c.any).map((x) => condIn(x, {})) : [condIn(c, {})];
+      return { join, conds, target: r.target }; }) }));
+}
+function launchersOut() {
+  return LAUNCH.map((l) => ({ id: l.id || undefined, name: l.name.trim(), icon: l.icon || null, otherwise: l.otherwise || (l.targets[0]?.activity || ""),
+    targets: l.targets.map((t) => ({ activity: t.activity, delay: Math.round((Number(t.wait) || 0) * 1000),
+      steps: t.steps.map((s) => { const o = stepOut(s); return { entity_id: o.entity, cmd_id: o.cmd, ...(o.params ? { params: o.params } : {}) }; }) })),
+    rules: l.rules.map((r) => ({ if: r.conds.length === 1 ? condOut(r.conds[0]) : { [r.join]: r.conds.map(condOut) }, target: r.target })) }));
+}
+async function loadLaunchers(force) {
+  if (LAUNCH && !force) return renderLaunchers();
+  const r = await api("GET", "/api/launchers");
+  if (!r.ok) { $("#launch-status").className = "status err"; $("#launch-status").textContent = r.data.error || "Couldn't read the launchers."; return; }
+  takeLaunchers(r.data);
+}
+function takeLaunchers(d) {
+  LAUNCH_VIEW = d.launchers || [];
+  LAUNCH = launchersIn(LAUNCH_VIEW);
+  launchSaved = JSON.stringify(launchersOut());
+  renderLaunchers();
+}
+function launchDirty() {
+  const dirty = !!LAUNCH && JSON.stringify(launchersOut()) !== launchSaved;
+  $("#launch-save").hidden = !dirty;
+  if (dirty && !$("#launch-status").classList.contains("err")) { $("#launch-status").className = "status"; $("#launch-status").textContent = "Not saved yet."; }
+  return dirty;
+}
+function placeText(p) {
+  if (p.kind === "home") return `home screen${p.name ? " · " + p.name : ""}`;
+  if (p.kind === "button") return `${p.button} (${p.press === "long_press" ? "long" : "short"}) in ${actName(p.activity)}`;
+  return `page ${p.name || p.page_id} of ${actName(p.activity)}`;
+}
+function launcherStatus(l) {
+  const v = LAUNCH_VIEW.find((x) => x.id === l.id);
+  if (!v) return el("p", { class: "hint" }, "Not saved yet: saving makes a launcher copy of each activity on your remote.");
+  const box = el("div", { class: "hint" });
+  box.append(el("div", {}, "Now opens: ", el("b", {}, v.chosen ? actName(v.chosen) : "–"), v.status?.error ? el("span", { class: "err" }, " · ⚠ " + v.status.error) : ""));
+  const places = v.places || [];
+  box.append(el("div", {}, places.length ? `Buttons: ${places.map(placeText).join(" · ")}` : "No buttons yet: add one below, or pick one of its copies as the activity of a button in the web configurator."));
+  return box;
+}
+function placeRow(l, li) {
+  const id = "lp" + li;
+  const st = (l._place = l._place || { kind: "page", activity: "", page: "", button: "", press: "short_press" });
+  const row = el("div", { class: "fields" }, el("span", { class: "sep" }, "Add a button:"));
+  row.append(select(id + "-k", [["page", "on an activity page"], ["button", "on a physical button"], ["home", "on the home screen"]], st.kind, (v) => { st.kind = v; renderLaunchers(); }, "Where"));
+  if (st.kind !== "home") row.append(select(id + "-a", [["", "Pick an activity…"], ...CAT.activities.map((a) => [a.id, a.name])], st.activity, (v) => { st.activity = v; st.page = ""; renderLaunchers(); }, "Activity"));
+  if (st.kind === "page" && st.activity) row.append(...pagePicker(id, st.activity, st.page, (v) => { st.page = v; }, () => renderLaunchers()));
+  if (st.kind === "button") {
+    row.append(input(id + "-b", st.button, (v) => { st.button = v.trim().toUpperCase(); }, { label: "Button", cls: "mono", placeholder: "RED", list: id + "-bl" }), datalist(id + "-bl", ["RED", "GREEN", "YELLOW", "BLUE", "STREAM", "MUTE", "MY_RECORDINGS", "PREV", "NEXT"]));
+    row.append(select(id + "-p", [["short_press", "short press"], ["long_press", "long press"]], st.press, (v) => { st.press = v; }, "Press"));
+  }
+  const msg = el("span", { class: "status", role: "status" });
+  row.append(el("button", { class: "small", type: "button", on: { click: async () => {
+    if (launchDirty()) { msg.className = "status err"; msg.textContent = "Save the launchers first."; return; }
+    msg.className = "status"; msg.textContent = "Adding…";
+    const r = await api("POST", "/api/launchers/place", { launcher: l.id, kind: st.kind, activity: st.activity, page: st.page, button: st.button, press: st.press });
+    if (!r.ok) { msg.className = "status err"; msg.textContent = r.data.error || "Couldn't add it."; return; }
+    LAUNCH_VIEW = r.data.launchers || LAUNCH_VIEW; l._place = null;
+    $("#launch-status").className = "status ok"; $("#launch-status").textContent = "Button added: " + r.data.result;
+    renderLaunchers();
+  } } }, "Add"), msg);
+  return row;
+}
+function renderLaunchers() {
+  const box = $("#launch-list");
+  if (!box || !LAUNCH) return;
+  box.replaceChildren(...LAUNCH.map((l, li) => {
+    const id = "ln" + li;
+    const card = el("article", { class: "card", "aria-label": "Launcher " + (l.name || li + 1) });
+    const pic = imageDrop(l.icon && l.icon.startsWith("custom:") ? l.icon : null, "ln", (icon, err) => { if (icon) { l.icon = icon; launchDirty(); } else if (err) { $("#launch-status").className = "status err"; $("#launch-status").textContent = err; } });
+    card.append(el("div", { class: "fields" },
+      field(id + "-n", "Name", input(id + "-n", l.name, (v) => { l.name = v; launchDirty(); }, { label: "Name", placeholder: "Netflix" })),
+      el("div", { class: "f" }, "Picture (optional)", pic)));
+    const acts = l.targets.map((t) => t.activity).filter(Boolean);
+    l.targets.forEach((t, ti) => {
+      const tid = id + "-t" + ti;
+      const used = new Set(l.targets.filter((x, k) => k !== ti).map((x) => x.activity));
+      const b = el("div", { class: "branch" });
+      b.append(el("div", { class: "branch-head" }, el("span", { class: "tag" }, "ACTIVITY " + (ti + 1)),
+        select(tid + "-a", [["", "Pick an activity…"], ...CAT.activities.filter((a) => !used.has(a.id)).map((a) => [a.id, a.name])], t.activity, (v) => {
+          const old = t.activity; t.activity = v; for (const r of l.rules) if (r.target === old) r.target = v; if (l.otherwise === old) l.otherwise = v; notify(true); }, "Activity"),
+        el("button", { class: "ghost small", type: "button", on: { click: () => { l.targets.splice(ti, 1); notify(true); } } }, "Remove")));
+      b.append(el("div", { class: "fields" }, el("span", { class: "sep" }, "then wait"), input(tid + "-w", t.wait, (v) => { t.wait = v; launchDirty(); }, { label: "Seconds to wait before the app", type: "number", cls: "num", placeholder: "0" }), el("span", { class: "sep" }, "s, and start the app:")));
+      const lines = el("div", { class: "lines" });
+      t.steps.forEach((s, si) => lines.append(el("div", { class: "line" }, ...cmdFields(tid + "-s" + si, s, appDevice),
+        el("button", { class: "ghost", type: "button", on: { click: () => { t.steps.splice(si, 1); notify(true); } } }, "Remove"))));
+      b.append(lines);
+      if (t.steps.length < 4) b.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { const d = firstDevice((x) => x.type === "media_player"); t.steps.push({ t: "cmd", ent: d?.id || "", cmd: d?.commands.find((c) => /select_source/.test(c.id))?.id || d?.commands[0]?.id || "", params: {} }); notify(true); } } }, t.steps.length ? "Add another step" : "Add the app step")));
+      card.append(b);
+    });
+    if (l.targets.length < 6) card.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { l.targets.push({ activity: "", wait: "", steps: [] }); notify(true); } } }, l.targets.length ? "Add another activity" : "Add an activity")));
+    if (acts.length > 1) {
+      l.rules.forEach((r, ri) => {
+        const b = el("div", { class: "branch" });
+        b.append(el("div", { class: "branch-head" }, el("span", { class: "tag" }, ri === 0 ? "IF" : "ELSE IF"),
+          r.conds.length > 1 ? select(id + "-j" + ri, [["all", "all of these"], ["any", "any of these"]], r.join, (v) => { r.join = v; notify(false); }, "Match") : "",
+          el("button", { class: "ghost small", type: "button", on: { click: () => { l.rules.splice(ri, 1); notify(true); } } }, "Remove branch")));
+        b.append(el("div", { class: "lines" }, ...r.conds.map((c, ci) => condRow(c, r.conds, ci))),
+          el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { r.conds.push(newCond("device")); notify(true); } } }, "Add condition")));
+        b.append(el("div", { class: "fields" }, el("span", { class: "sep" }, "open"), select(id + "-r" + ri, acts.map((a) => [a, actName(a)]), r.target || acts[0], (v) => { r.target = v; notify(false); }, "Activity")));
+        if (!r.target) r.target = acts[0];
+        card.append(b);
+      });
+      card.append(el("div", { class: "fields" }, field(id + "-o", l.rules.length ? "Otherwise open" : "Open", select(id + "-o", acts.map((a) => [a, actName(a)]), l.otherwise || acts[0], (v) => { l.otherwise = v; notify(false); }, "Otherwise"))));
+      if (!l.otherwise || !acts.includes(l.otherwise)) l.otherwise = acts[0];
+    }
+    card.append(launcherStatus(l));
+    if (LAUNCH_VIEW.some((x) => x.id === l.id)) card.append(placeRow(l, li));
+    card.append(el("div", { class: "row" },
+      acts.length > 1 ? el("button", { class: "small", type: "button", on: { click: () => { l.rules.push({ join: "all", conds: [newCond("device")], target: acts[0] }); notify(true); } } }, l.rules.length ? "Add else-if branch" : "Add a condition branch") : "",
+      el("button", { class: "ghost small danger", type: "button", on: { click: () => { LAUNCH.splice(li, 1); notify(true); } } }, "Remove launcher")));
+    return card;
+  }));
+  if (!LAUNCH.length) box.append(el("p", { class: "empty" }, "No launchers yet."));
+  launchDirty();
+}
+$("#launch-add").addEventListener("click", () => { if (!LAUNCH) return; LAUNCH.push({ id: "", name: "", icon: "", otherwise: "", targets: [{ activity: "", wait: "", steps: [] }], rules: [] }); notify(true); });
+$("#launch-save").addEventListener("click", async () => {
+  const st = $("#launch-status"), errs = $("#launch-errors");
+  errs.hidden = true;
+  const out = launchersOut();
+  if (out.some((l) => !l.name)) { st.className = "status err"; st.textContent = "Give every launcher a name."; return; }
+  if (out.some((l) => l.targets.some((t) => !t.activity))) { st.className = "status err"; st.textContent = "Pick the activity everywhere (or remove it)."; return; }
+  st.className = "status"; st.textContent = "Saving… (making or updating the launcher copies on your remote takes a few seconds per activity)";
+  $("#launch-save").disabled = true;
+  const r = await api("POST", "/api/launchers", { launchers: out });
+  $("#launch-save").disabled = false;
+  if (r.status === 422 || (!r.ok && r.status !== 207)) { st.className = "status err"; st.textContent = "Not saved:"; errs.replaceChildren(...(r.data.errors || [r.data.error]).map((x) => el("li", {}, x))); errs.hidden = false; return; }
+  takeLaunchers(r.data);
+  if (r.data.problems?.length) { st.className = "status err"; st.textContent = "Saved, with problems:"; errs.replaceChildren(...r.data.problems.map((x) => el("li", {}, x))); errs.hidden = false; }
+  else { st.className = "status ok"; st.textContent = "Saved. The launcher copies are ready; add a button below each launcher."; }
+});
+$("#launch-scan").addEventListener("click", async () => {
+  const st = $("#launch-status");
+  st.className = "status"; st.textContent = "Looking through your activities and home screen…";
+  const r = await api("POST", "/api/launchers/scan");
+  if (!r.ok) { st.className = "status err"; st.textContent = r.data.error || "Couldn't look."; return; }
+  LAUNCH_VIEW = r.data.launchers || LAUNCH_VIEW;
+  st.className = "status ok"; st.textContent = "Done.";
+  renderLaunchers();
+});
+
 async function loadReturn() {
   const r = await api("GET", "/api/return");
   if (r.ok) RET = r.data;
@@ -1329,7 +1510,7 @@ async function readStates(where) {
 let lastValueInput = null;
 document.addEventListener("focusin", (e) => {
   const t = e.target;
-  if (t instanceof HTMLInputElement && t.closest(".editbox, #starts-list") && (t.getAttribute("list") || /value/i.test(t.getAttribute("aria-label") || ""))) lastValueInput = t;
+  if (t instanceof HTMLInputElement && t.closest(".editbox, #starts-list, #launch-list") && (t.getAttribute("list") || /value/i.test(t.getAttribute("aria-label") || ""))) lastValueInput = t;
 });
 /** Copies text; works on plain http too (the builder isn't served over https, where navigator.clipboard is missing). */
 function copyText(text) {
@@ -2609,6 +2790,7 @@ async function loadExtras() {
 const TABS = {
   smart: { pane: "#app", intro: "Buttons and pop-up menus for the Remote Self-Control integration. A smart control checks your devices or the remote, then runs the first branch that matches; a quick menu runs the steps of the choice you pick." },
   ret: { pane: "#ret-app", intro: "A ↩ button in your activities that always opens the activity you used before, and start pages: the page an activity opens on, depending on your devices." },
+  launch: { pane: "#launch-app", intro: "Smart launchers: one button that opens the right activity for an app and starts the app, e.g. Netflix on the Shield if it's on, otherwise on the Roku." },
   ctl: { pane: "#ctl-app", intro: "Point the volume rocker and the touch slider at something else for a while: turn on a Control: <name> switch, and they change a light, a volume or one of your sliders, with the remote's own level pop-ups. Then they go back to the activity's defaults." },
   icons: { pane: "#icons-app", intro: "Show and control your devices: state icons make a button on a page follow a device's state (like a green power icon); sliders control a number like the receiver's volume with the remote's slider pop-up." }
 };
@@ -2625,6 +2807,7 @@ function showTab(which) {
   if (which === "smart") render();
   if (which === "ret") { renderRet(); loadStarts(); }
   if (which === "ctl") renderCtl();
+  if (which === "launch") loadLaunchers();
 }
 for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () => showTab(k));
 
@@ -2632,7 +2815,7 @@ for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () =
 // Session
 // ---------------------------------------------------------------------------
 function showLogin(msg) {
-  $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = ED.ret = ED.ctl = null; RET = null; CTL = null; STARTS = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
+  $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = ED.ret = ED.ctl = null; RET = null; CTL = null; STARTS = null; LAUNCH = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
   $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
   $("#pin").focus();
 }
@@ -2640,6 +2823,10 @@ async function loadAll() {
   const [cat, rules] = await Promise.all([api("GET", "/api/catalog"), api("GET", "/api/rules")]);
   if (!cat.ok) { $("#login").hidden = true; $("#app").hidden = false; $("#buttons").replaceChildren(el("p", { class: "status err" }, cat.data.error || "Couldn't read the remote's devices.")); return; }
   CAT = cat.data;
+  // launcher copies are managed by the integration: pick their original activity instead
+  const COPIES = CAT.copies || {};
+  CAT.activities = CAT.activities.filter((a) => !COPIES[a.id]);
+  CAT.devices = CAT.devices.filter((d) => !COPIES[d.id]);
   DEV = Object.fromEntries(CAT.devices.map((d) => [d.id, d]));
   $("#device-count").textContent = countText();
   let parsed;
@@ -2649,7 +2836,7 @@ async function loadAll() {
   $("#json").textContent = saved;
   $("#login").hidden = true; $("#tabs").hidden = false; $("#session-bar").hidden = false;
   await Promise.all([loadExtras(), loadReturn(), loadControls(), loadSeen()]);
-  startStates("smart"); startStates("icons"); startStates("ret");
+  startStates("smart"); startStates("icons"); startStates("ret"); startStates("launch");
   changed(true);
   let tab = "smart";
   try { tab = localStorage.getItem("scb_tab") || "smart"; } catch {}
@@ -2679,6 +2866,7 @@ const BACKUP_PARTS = [
   ["icons", "State icons and level pictures", (x) => `${(x || []).length} item(s)`],
   ["return", "↩ buttons", (x) => `${(x?.hosts || []).length} activity(ies)`],
   ["pages", "Start pages", (x) => `${(x?.starts || []).length} activity(ies)`],
+  ["launchers", "Launchers", (x) => `${(x?.launchers || []).length} launcher(s)`],
   ["controls", "Controls", (x) => `${(x?.controls || []).length} control(s)`]
 ];
 $("#cleanup-start").addEventListener("click", () => {

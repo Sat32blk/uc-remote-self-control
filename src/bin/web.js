@@ -132,7 +132,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, cleanup = null, version = "", log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, cleanup = null, version = "", log, warn }) {
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -233,7 +233,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       const cat = buildCatalog(entities, commands, "self_control");
       const integrations = {};
       for (const i of instances || []) if (i?.integration_id) integrations[i.integration_id] = (typeof i.name === "string" ? i.name : i.name?.en || Object.values(i.name || {})[0]) || i.integration_id;
-      send(res, 200, { ...cat, controls: controls(), settings, integrations });
+      send(res, 200, { ...cat, controls: controls(), settings, integrations, copies: launchersApi ? launchersApi.copies() : {} });
     },
     "GET /api/rules": async (req, res) => {
       const r = loadRulesText();
@@ -378,6 +378,41 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       await pagesApi.save(v.starts);
       send(res, 200, { ok: true, starts: pagesApi.starts() });
     },
+    // ---- smart launchers ----
+    "GET /api/launchers": async (req, res) => {
+      if (!launchersApi) return send(res, 404, { error: "not available" });
+      send(res, 200, launchersApi.get());
+    },
+    "POST /api/launchers": async (req, res) => {
+      const body = await readJson(req);
+      if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      const v = launchersApi.validate(body);
+      if (v.errors.length) return send(res, 422, { ok: false, errors: v.errors });
+      const problems = await launchersApi.save(v.launchers);
+      send(res, problems.length ? 207 : 200, { ok: !problems.length, problems, ...launchersApi.get() });
+    },
+    "POST /api/launchers/place": async (req, res) => {
+      const body = await readJson(req);
+      if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      try {
+        const where = { kind: ["page", "button", "home"].includes(body.kind) ? body.kind : "page", activity: String(body.activity || ""), page: body.page ? String(body.page) : null,
+          button: String(body.button || ""), press: body.press === "long_press" ? "long_press" : "short_press", look: body.look === "text" ? "text" : "icon" };
+        if (where.kind !== "home" && !where.activity) throw new Error("pick the activity");
+        const what = await launchersApi.place(String(body.launcher || ""), where);
+        send(res, 200, { ok: true, result: what, ...launchersApi.get() });
+      } catch (e) {
+        send(res, 400, { ok: false, error: e.message });
+      }
+    },
+    "POST /api/launchers/scan": async (req, res) => {
+      if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      try {
+        await launchersApi.scan();
+        send(res, 200, { ok: true, ...launchersApi.get() });
+      } catch (e) {
+        send(res, 502, { ok: false, error: e.message });
+      }
+    },
     "POST /api/pages/go": async (req, res) => {
       const body = await readJson(req);
       try {
@@ -410,6 +445,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
         controls: { timeout: ctl.timeout, activities: ctl.activities, controls: ctl.controls },
         returnCfg: ret.cfg,
         starts: pagesApi ? pagesApi.starts() : null,
+        launchers: launchersApi ? launchersApi.config() : null,
         downloadIcon: async (id) => (await core.download(`/resources/Icon/${encodeURIComponent(id)}`)).body
       });
       const day = b.created.slice(0, 10);
@@ -437,7 +473,9 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
         applyControls: (cfg) => controlsApi.save(cfg),
         applyReturn: (cfg) => saveReturn(cfg),
         validateStarts: (x) => pagesApi.validate({ starts: x }),
-        applyStarts: (x) => pagesApi.save(x)
+        applyStarts: (x) => pagesApi.save(x),
+        validateLaunchers: launchersApi ? (x) => launchersApi.validate({ launchers: x }) : null,
+        applyLaunchers: (x) => launchersApi.save(x)
       }, which);
       log(`backup restored: ${r.done.join(", ") || "nothing"}${r.errors.length ? "; problems: " + r.errors.join(" | ") : ""}`);
       send(res, r.errors.length && !r.done.length ? 422 : 200, { ok: !r.errors.length, ...r });

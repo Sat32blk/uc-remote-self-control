@@ -58,6 +58,8 @@ export class PageJumper {
     this.saved = {}; // activity -> the user's own page order (only while it's rotated)
     this.starts = []; // start-page rules
     this.busy = Promise.resolve();
+    // smart launcher copies follow their original's start page (set by the driver)
+    this.alias = { originalOf: (x) => x, copiesOf: () => [] };
     this.load();
   }
   load() {
@@ -121,7 +123,19 @@ export class PageJumper {
     // the user's own order: remembered while rotated (pages added or removed since are taken into account)
     let own = this.saved[act] ? this.saved[act].filter((id) => cur.includes(id)) : [...cur];
     for (const id of cur) if (!own.includes(id)) own.push(id);
-    const target = this.find(own, pages, spec);
+    let target = this.find(own, pages, spec);
+    const orig = this.alias.originalOf(act);
+    if (!target && orig !== act) {
+      // a launcher copy has the original's pages under other ids: same position in the original's order
+      try {
+        const op = await this.pagesOf(orig);
+        const oc = op.map((p) => p.page_id);
+        const oown = this.saved[orig] ? this.saved[orig].filter((id) => oc.includes(id)) : [...oc];
+        for (const id of oc) if (!oown.includes(id)) oown.push(id);
+        const t = this.find(oown, op, spec);
+        if (t) target = own[oown.indexOf(t)] || null;
+      } catch {}
+    }
     if (!target) throw new Error(`no page "${spec}"`);
     const name = pages.find((p) => p.page_id === target)?.name || spec;
     const i = own.indexOf(target);
@@ -178,7 +192,8 @@ export class PageJumper {
    */
   async settle(activity) {
     if (activity === this.onScreen()) return;
-    const rule = this.starts.find((s) => s.activity === activity);
+    const orig = this.alias.originalOf(activity);
+    const rule = this.starts.find((s) => s.activity === orig);
     const page = rule ? await this.startFor(rule) : null;
     if (page) {
       await this.queue(() => this._goTo(activity, page, false)).catch((e) => this.warn(`pages: start page of ${rule.name || activity}: ${e.message}`));
@@ -189,14 +204,14 @@ export class PageJumper {
 
   /** Another activity was opened: settle every other activity we changed or have rules for. */
   async opened(id) {
-    const ids = new Set([...Object.keys(this.saved), ...this.starts.map((s) => s.activity)]);
+    const ids = new Set([...Object.keys(this.saved), ...this.starts.flatMap((s) => [s.activity, ...this.alias.copiesOf(s.activity)])]);
     ids.delete(id);
     for (const a of ids) await this.settle(a);
   }
 
   /** Background check: keeps the start pages of activities that aren't on screen up to date. */
   async refresh() {
-    for (const s of this.starts) await this.settle(s.activity);
+    for (const s of this.starts) for (const a of [s.activity, ...this.alias.copiesOf(s.activity)]) await this.settle(a);
   }
 
   /** Clean-up: every rotated activity back to your own order (also the one on screen), start pages off. */
