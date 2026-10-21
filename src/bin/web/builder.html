@@ -288,7 +288,8 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     </aside>
   </section>
 
-  <section class="pane" id="ret-app" hidden aria-label="Return to previous activity">
+  <section class="pane split" id="ret-app" hidden aria-label="Return and pages">
+    <div class="pane-main">
     <div class="createbar">
       <button class="primary" id="ret-add" type="button">+ Add an activity</button>
     </div>
@@ -310,6 +311,13 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
       <p class="note">The integration watches which activity you start (whether or not the old one turns off). In every activity listed here it keeps a ↩ button pointed at the activity you used before; pressing it opens that activity. The ↩ button can be on screen (text, back arrow or your own picture), on a physical button, or both.</p>
       <p class="note"><b>Turn off when leaving</b>: when you switch from a marked activity to any other one, the integration sends the marked activity a plain "turn off" (within about 2 seconds). It's meant for a single device's control page.</p>
     </details>
+    </div>
+    <aside class="pane-side" aria-label="Device states">
+      <details open class="panel states-panel" id="states-ret" data-where="ret">
+        <summary>Device states (live): what your devices report</summary>
+        <div class="states-body"></div>
+      </details>
+    </aside>
   </section>
 
   <section class="pane" id="ctl-app" hidden aria-label="Controls">
@@ -1321,7 +1329,7 @@ async function readStates(where) {
 let lastValueInput = null;
 document.addEventListener("focusin", (e) => {
   const t = e.target;
-  if (t instanceof HTMLInputElement && t.closest(".editbox") && (t.getAttribute("list") || /value/i.test(t.getAttribute("aria-label") || ""))) lastValueInput = t;
+  if (t instanceof HTMLInputElement && t.closest(".editbox, #starts-list") && (t.getAttribute("list") || /value/i.test(t.getAttribute("aria-label") || ""))) lastValueInput = t;
 });
 /** Copies text; works on plain http too (the builder isn't served over https, where navigator.clipboard is missing). */
 function copyText(text) {
@@ -1389,7 +1397,7 @@ function startStates(where) {
   readStates(where);
   st.timer = setInterval(() => { if (det.open && !det.closest(".pane").hidden && !document.hidden) readStates(where); }, 2000);
 }
-for (const where of ["smart", "icons"]) $(`#states-${where}`).addEventListener("toggle", () => startStates(where));
+for (const where of ["smart", "icons", "ret"]) $(`#states-${where}`).addEventListener("toggle", () => startStates(where));
 
 function render() {
   const e = ED.smart;
@@ -2641,7 +2649,7 @@ async function loadAll() {
   $("#json").textContent = saved;
   $("#login").hidden = true; $("#tabs").hidden = false; $("#session-bar").hidden = false;
   await Promise.all([loadExtras(), loadReturn(), loadControls(), loadSeen()]);
-  startStates("smart"); startStates("icons");
+  startStates("smart"); startStates("icons"); startStates("ret");
   changed(true);
   let tab = "smart";
   try { tab = localStorage.getItem("scb_tab") || "smart"; } catch {}

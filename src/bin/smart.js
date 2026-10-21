@@ -326,7 +326,13 @@ export class SmartEngine {
       trail.push(`${a.self} → ${a.option ?? a.state}`);
     } else if (a.page) {
       if (!this.self.page) throw new Error("page jumps aren't available");
-      trail.push(await this.self.page(a.activity ? this.resolve(a.activity) : null, a.page));
+      try {
+        trail.push(await this.self.page(a.activity ? this.resolve(a.activity) : null, a.page));
+      } catch (e) {
+        // the activity on screen has no such page (the button is used in several activities): skip, go on
+        if (!/^no page |^no activity on screen/.test(e.message)) throw e;
+        trail.push(`${e.message}, page jump skipped`);
+      }
     } else if ("delay" in a) {
       await sleep(Number(a.delay));
     } else if (a.wait_until) {

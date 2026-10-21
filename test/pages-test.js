@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { PageJumper, validateStarts } from "../src/bin/pages.js";
-import { validateRules, vCond } from "../src/bin/smart.js";
+import { validateRules, vCond, SmartEngine } from "../src/bin/smart.js";
 
 let fails = 0;
 const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fails++; };
@@ -85,6 +85,16 @@ ok(!errs.length, "conditions validate with the smart engine's checker");
 const rules = validateRules({ buttons: [{ id: "smart_apps", name: "Apps page", do: [{ page: "Apps" }, { page: "Radio", activity: MUSIC }] }] });
 ok(!rules.errors.length, "smart step { page } and { page, activity } are valid");
 ok(validateRules({ buttons: [{ id: "smart_x", name: "X", do: [{ page: "" }] }] }).errors.some((e) => /page/.test(e)), "empty page refused");
+
+// ---- a page jump in an activity without that page: skipped, the other steps still run ----
+{
+  const ran = [];
+  const eng = new SmartEngine({ core: () => null, self: { keys: ["haptic"], read: () => null, control: () => "", run: async (k, st) => ran.push(k), page: async (act, spec) => { if (spec !== "Apps") throw new Error(`no page "${spec}"`); return "page Apps"; } },
+    varsFile: path.join(dir, "vars.json"), report: () => {}, log: () => {} });
+  eng.load(JSON.stringify({ buttons: [{ id: "smart_jump", name: "Jump", do: [{ page: "Recordings" }, { self: "haptic", state: "toggle" }] }] }));
+  const res = await eng.run("smart_jump");
+  ok(ran.includes("haptic") && /no page "Recordings", page jump skipped/.test(String(res)), "missing page: jump skipped, next step still runs: " + JSON.stringify(res).slice(0, 160));
+}
 
 console.log(fails ? `${fails} FAILED` : "ALL PASSED");
 process.exit(fails ? 1 : 0);

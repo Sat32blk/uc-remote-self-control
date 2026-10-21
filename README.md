@@ -250,7 +250,8 @@ To restore, choose the file, tick the parts you want and press **Restore**. Ever
 The remote has no "go to page" command, but it always opens an activity on its first page and jumps to the first page when the page order of the activity on screen changes. The integration uses that: it turns the page order around (your swipe order stays the same, it just starts at another page), and puts your own order back when you leave the activity.
 
 - **Go to page** (a step in smart controls and quick menus): pick *The activity on screen* and a page (*Page 2*, or a page by name), or a specific activity and one of its pages. With branches you get page jumps with logic: "if the Shield is playing → the Apps page, otherwise → the Remote page". If the chosen activity isn't on screen, it opens on that page next time.
-- **Start pages** (Return & Pages tab): per activity, *if* conditions → *open on* a page, *otherwise* another page or its own first page. They're checked every few seconds while the activity isn't on screen, so it opens on the right page.
+- A smart control with a Go to page step can sit in several activities: in one that doesn't have that page, the jump is skipped (the Last Result says so) and the other steps still run. *Page 2* means the 2nd page of whichever activity is on screen.
+- **Start pages** (Return & Pages tab, with the Device states panel beside it): per activity, *if* conditions → *open on* a page, *otherwise* another page or its own first page. They're checked every few seconds while the activity isn't on screen, so it opens on the right page.
 
 A jump takes about a second. Like state icons, pages are only changed when you ask for a jump or after you've left the activity.
 
@@ -426,6 +427,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **0.8.4:** the Device states (live) panel is also in the Return & Pages tab, for start-page conditions (click a value field, then a value). A Go to page step whose page doesn't exist in the activity on screen is skipped (noted in the Last Result) instead of stopping the smart control.
 - **0.8.3:** safety: state icons and level pictures write each activity's page at most every 5 seconds; if a page was changed outside the integration (e.g. in the web configurator) its state icons pause instead of overwriting it (save them again to resume); a counter shows how many changes the integration made to the remote in the last hour; **Remove everything** (Backup panel) puts back what the integration changed before you uninstall it (state icons, ↩ buttons, page orders, borrowed volume keys, quick-menu buttons, optionally its pictures and its API key).
 - **0.8.2:** fix: when the integration changed an activity's pages (a start page, a ↩ button), the remote's report of that change was taken as you opening that activity, so ↩ could lead to the wrong activity (e.g. the page-jump test activity). Those reports are now ignored.
 - **0.8.1:** **Page jumps**: a *Go to page* step for smart controls and quick menus (the activity on screen, or the page another activity opens on), and **start pages** per activity with if / otherwise (Return & Pages tab). Pages are rotated so your swipe order stays, and your own order comes back when you leave. Start pages are part of the backup.
