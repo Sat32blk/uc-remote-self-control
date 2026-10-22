@@ -222,7 +222,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <button type="button" role="tab" id="tab-icons" aria-selected="false" aria-controls="icons-app">Icons &amp; Sliders</button>
     <button type="button" role="tab" id="tab-ret" aria-selected="false" aria-controls="ret-app">Return &amp; Pages ↩</button>
     <button type="button" role="tab" id="tab-ctl" aria-selected="false" aria-controls="ctl-app">Controls ⇅</button>
-    <button type="button" role="tab" id="tab-launch" aria-selected="false" aria-controls="launch-app">Launchers 🚀</button>
+    <button type="button" role="tab" id="tab-launch" aria-selected="false" aria-controls="launch-app">Smart Launchers</button>
   </nav>
 
   <section class="pane split" id="app" hidden aria-label="Smart controls">
@@ -379,7 +379,7 @@ let DEV = {};           // id -> device
 let buttons = [];       // editor model
 let saved = "";         // JSON of the last saved rules, for dirty tracking
 let notify = (r) => { if (r) { render(); if (iconsLoaded) renderIcons(); if (STARTS) renderStarts(); if (LAUNCH) renderLaunchers(); } else if (LAUNCH) launchDirty(); }; // change hook used by the shared step/condition rows
-let LAUNCH = null; // launchers being edited (Launchers tab)
+let LAUNCH = null; // launchers being edited (Smart Launchers tab)
 let STARTS = null; // start-page rules being edited (Return & Pages tab)
 
 // ---------------------------------------------------------------------------
@@ -1102,7 +1102,7 @@ $("#starts-save").addEventListener("click", async () => {
   st.className = "status ok"; st.textContent = "Saved. Activities open on these pages from now on (checked every few seconds while they're not on screen).";
   renderStarts();
 });
-// ---- smart launchers (Launchers tab) ----------------------------------------------------------------
+// ---- smart launchers (Smart Launchers tab) ----------------------------------------------------------------
 let launchSaved = "";
 let LAUNCH_VIEW = []; // as the integration reports them (copies, buttons found, current pick)
 const appDevice = (d) => d.type !== "activity" && d.type !== "macro";

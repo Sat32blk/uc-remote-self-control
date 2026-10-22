@@ -262,7 +262,7 @@ A jump takes about a second. Like state icons, pages are only changed when you a
 
 A launcher is one button that opens the right activity for an app and starts the app in it: *if the Shield is on → Watch Shield, otherwise → Watch Roku*, then Netflix.
 
-1. Builder → **Launchers 🚀** → **+ Add a launcher**, name it *Netflix* (optionally drop a picture).
+1. Builder → **Smart Launchers** → **+ Add a launcher**, name it *Netflix* (optionally drop a picture).
 2. Activity 1: *Watch Roku*, **Add the app step**: the Roku, *select source*, *Netflix*. Optionally a wait before the app (some players need a few seconds after turning on).
 3. **Add another activity**: *Watch Shield* with its own app step.
 4. **Add a condition branch**: *SHIELD state is ON* → open *Watch Shield*. *Otherwise open*: *Watch Roku*.
@@ -447,7 +447,8 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
-- **0.8.5 (beta):** **Launchers** (new tab): one button (page, physical or home screen) that opens the activity your conditions pick and starts an app in it, using launcher copies of your activities that follow their original. ↩, start pages, state icons and Controls treat a copy as its original. Part of the backup and of Remove everything.
+- **0.8.6:** the builder tab is called **Smart Launchers**.
+- **0.8.5 (beta):** **Smart Launchers** (new tab): one button (page, physical or home screen) that opens the activity your conditions pick and starts an app in it, using launcher copies of your activities that follow their original. ↩, start pages, state icons and Controls treat a copy as its original. Part of the backup and of Remove everything.
 - **0.8.4:** the Device states (live) panel is also in the Return & Pages tab, for start-page conditions (click a value field, then a value). A Go to page step whose page doesn't exist in the activity on screen is skipped (noted in the Last Result) instead of stopping the smart control.
 - **0.8.3:** safety: state icons and level pictures write each activity's page at most every 5 seconds; if a page was changed outside the integration (e.g. in the web configurator) its state icons pause instead of overwriting it (save them again to resume); a counter shows how many changes the integration made to the remote in the last hour; **Remove everything** (Backup panel) puts back what the integration changed before you uninstall it (state icons, ↩ buttons, page orders, borrowed volume keys, quick-menu buttons, optionally its pictures and its API key).
 - **0.8.2:** fix: when the integration changed an activity's pages (a start page, a ↩ button), the remote's report of that change was taken as you opening that activity, so ↩ could lead to the wrong activity (e.g. the page-jump test activity). Those reports are now ignored.
