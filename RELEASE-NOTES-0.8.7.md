@@ -1,10 +1,21 @@
 **Beta.** Back up your remote's configuration in the web configurator before installing. If you already use the integration, also save a **Backup** in its builder first.
 
-**Install:** web configurator → Integrations → Add new → Install custom → `uc-intg-self-control-0.8.4.tar.gz`. To update, tick **Update existing driver**.
+**Install:** web configurator → Integrations → Add new → Install custom → `uc-intg-self-control-0.8.7.tar.gz`. To update, tick **Update existing driver**.
 
-## What's new since 0.5.0
+## New in 0.8.5 – 0.8.7: Smart Launchers (beta)
+One button that opens the activity your conditions pick, e.g. *if the Shield is on → Watch ShieldTV, otherwise → Watch RokuTV*. It can also run extra steps after that activity starts (optional).
+- New builder tab **Smart Launchers**: activities, if / otherwise branches, optional extra steps (with a wait before them).
+- Put the launcher on an activity page, a physical button or the home screen, from the builder or in the web configurator.
+- **How it works:** the remote only switches to an activity's screen when the button you press starts that activity directly, so the launcher decides before the press. For each of its activities the integration keeps a **launcher copy** (same devices, pages and buttons, named after the launcher, extra steps at the end of its start sequence) and points the launcher's buttons at the copy your conditions pick.
+  - The copies follow their original within about a minute: edit the original, not the copy.
+  - They're in the same activity groups as their original. As for any activity, the remote skips the power-on steps of devices that are already on.
+  - ↩, start pages, state icons and Controls treat a copy as its original.
+  - A button on a page of the activity on screen is re-pointed when you leave it; physical buttons and home tiles change at once.
+- **This feature creates activities on your remote.** Removing a launcher, or **Remove everything**, points its buttons back at the original activity and deletes the copies. Launchers are part of the backup.
 
-### Page jumps (new)
+## Everything else since 0.5.0
+
+### Page jumps
 The remote has no "go to page" command. The integration gets the same result by turning an activity's page order around: your swipe order stays the same and just starts at another page. Your own order comes back when you leave the activity.
 - **Go to page**, a step for smart controls and quick menus:
   - jump to a page of the activity you're in, e.g. "if the Shield is playing → Apps, otherwise → Remote";
