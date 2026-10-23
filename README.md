@@ -45,7 +45,7 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
   11. [The volume keys and touch slider for a light (Controls)](#11-the-volume-keys-and-touch-slider-for-a-light-controls)
   12. [Back up everything](#12-back-up-everything)
   13. [Jump to a page, and start pages](#13-jump-to-a-page-and-start-pages)
-  14. [One Netflix button for whichever player is on (launchers)](#14-one-netflix-button-for-whichever-player-is-on-launchers)
+  14. [One button for whichever activity fits (smart launchers)](#14-one-button-for-whichever-activity-fits-smart-launchers)
 - [The builder](#the-builder)
 - [Entities](#entities)
 - [Rules reference](#rules-reference)
@@ -256,21 +256,21 @@ The remote has no "go to page" command, but it always opens an activity on its f
 
 A jump takes about a second. Like state icons, pages are only changed when you ask for a jump or after you've left the activity.
 
-### 14. One Netflix button for whichever player is on (launchers)
+### 14. One button for whichever activity fits (smart launchers)
 
-*Beta (0.8.5). It creates activities on your remote: back up in the web configurator first.*
+*Beta. It creates activities on your remote: back up in the web configurator first.*
 
-A launcher is one button that opens the right activity for an app and starts the app in it: *if the Shield is on → Watch Shield, otherwise → Watch Roku*, then Netflix.
+A launcher is one button that opens the activity your conditions pick: *if the Shield is on → Watch ShieldTV, otherwise → Watch RokuTV*. It can also run extra steps after that activity starts (optional).
 
-1. Builder → **Smart Launchers** → **+ Add a launcher**, name it *Netflix* (optionally drop a picture).
-2. Activity 1: *Watch Roku*, **Add the app step**: the Roku, *select source*, *Netflix*. Optionally a wait before the app (some players need a few seconds after turning on).
-3. **Add another activity**: *Watch Shield* with its own app step.
-4. **Add a condition branch**: *SHIELD state is ON* → open *Watch Shield*. *Otherwise open*: *Watch Roku*.
-5. **Save launchers**, then **Add a button**: on an activity page, a physical button or the home screen.
+1. Builder → **Smart Launchers** → **+ Add a launcher**, give it a name (optionally drop a picture).
+2. Activity 1: *Watch RokuTV*. **Add another activity**: *Watch ShieldTV*. Optionally **Add extra steps after it starts** for either, with a wait before them.
+3. **Add a condition branch**: *SHIELD state is ON* → open *Watch ShieldTV*. *Otherwise open*: *Watch RokuTV*.
+4. **Save launchers**, then **Add a button**: on an activity page, a physical button or the home screen.
 
-Why it works this way: the remote only switches to an activity's screen when the button you press starts that activity directly (a macro or an integration can start it, but the screen stays where it is). So the launcher decides *before* the press. For each of its activities the integration keeps a **launcher copy** (same devices, pages and buttons, named after the launcher) whose start sequence ends with the app step, and points the launcher's buttons at the copy your conditions pick. The press is then a plain "start activity".
+Why it works this way: the remote only switches to an activity's screen when the button you press starts that activity directly (a macro or an integration can start it, but the screen stays where it is). So the launcher decides *before* the press. For each of its activities the integration keeps a **launcher copy** (same devices, pages and buttons, named after the launcher, with the extra steps at the end of its start sequence), and points the launcher's buttons at the copy your conditions pick. The press is then a plain "start activity".
 
-- Edit the **original** activities, not the copies: the copies follow within about a minute. ↩, start pages, state icons and Controls treat a copy as its original; the copies are put in the same activity groups, so going from Watch Roku to the Netflix copy doesn't turn devices off and on.
+- **Already on or all off:** the remote handles that as for any activity: it skips the power-on steps of devices that are already on and runs the rest of the start sequence and the extra steps.
+- Edit the **original** activities, not the copies: the copies follow within about a minute. ↩, start pages, state icons and Controls treat a copy as its original; the copies are put in the same activity groups, so going from Watch RokuTV to its launcher copy doesn't turn devices off and on.
 - Buttons you make in the web configurator that start one of the copies are found and kept pointed right too (**Look for launcher buttons again**).
 - A button on a page of the activity on screen is re-pointed when you leave it (changing a page you're looking at would jump to page 1). Physical buttons and home tiles change at once.
 - **Remove everything** and removing a launcher point its buttons back at the original activity and delete the copies. Launchers are part of the backup.
@@ -447,8 +447,9 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **0.8.7:** smart launchers: extra steps after the activity starts are optional and no longer described as "the app".
 - **0.8.6:** the builder tab is called **Smart Launchers**.
-- **0.8.5 (beta):** **Smart Launchers** (new tab): one button (page, physical or home screen) that opens the activity your conditions pick and starts an app in it, using launcher copies of your activities that follow their original. ↩, start pages, state icons and Controls treat a copy as its original. Part of the backup and of Remove everything.
+- **0.8.5 (beta):** **Smart Launchers** (new tab): one button (page, physical or home screen) that opens the activity your conditions pick, optionally with extra steps, using launcher copies of your activities that follow their original. ↩, start pages, state icons and Controls treat a copy as its original. Part of the backup and of Remove everything.
 - **0.8.4:** the Device states (live) panel is also in the Return & Pages tab, for start-page conditions (click a value field, then a value). A Go to page step whose page doesn't exist in the activity on screen is skipped (noted in the Last Result) instead of stopping the smart control.
 - **0.8.3:** safety: state icons and level pictures write each activity's page at most every 5 seconds; if a page was changed outside the integration (e.g. in the web configurator) its state icons pause instead of overwriting it (save them again to resume); a counter shows how many changes the integration made to the remote in the last hour; **Remove everything** (Backup panel) puts back what the integration changed before you uninstall it (state icons, ↩ buttons, page orders, borrowed volume keys, quick-menu buttons, optionally its pictures and its API key).
 - **0.8.2:** fix: when the integration changed an activity's pages (a start page, a ↩ button), the remote's report of that change was taken as you opening that activity, so ↩ could lead to the wrong activity (e.g. the page-jump test activity). Those reports are now ignored.

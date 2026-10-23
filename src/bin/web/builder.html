@@ -349,13 +349,14 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
 
   <section class="pane split" id="launch-app" hidden aria-label="Launchers">
     <div class="pane-main">
-    <p class="hint">A launcher is one button, e.g. <b>Netflix</b>, that opens the right activity and starts the app in it: <i>if the Shield is on → Watch Shield, otherwise → Watch Roku</i>, then the app. <b>Beta:</b> it creates activities on your remote; make a backup in the web configurator first.</p>
+    <p class="hint">A launcher is one button that opens the activity your conditions pick: e.g. <i>if the Shield is on → Watch ShieldTV, otherwise → Watch RokuTV</i>. Optionally it runs extra steps after that activity starts. <b>Beta:</b> it creates activities on your remote; make a backup in the web configurator first.</p>
     <div id="launch-list" class="lines"></div>
     <div class="row"><button class="small" id="launch-add" type="button">+ Add a launcher</button><button class="primary" id="launch-save" type="button" hidden>Save launchers</button><button class="small ghost" id="launch-scan" type="button">Look for launcher buttons again</button><span class="status" id="launch-status" role="status"></span></div>
     <ul class="errors" id="launch-errors" hidden></ul>
     <details class="panel">
       <summary>How launchers work</summary>
-      <p class="note">The remote only switches to an activity's screen when the button you press starts that activity directly; a macro or an integration can start it, but the screen stays where it is. So the launcher decides <i>before</i> you press: for each activity of a launcher the integration keeps a <b>launcher copy</b> of that activity (same devices, pages and buttons, named after the launcher) whose start sequence ends with the app step. The launcher's buttons start one of the copies, and are re-pointed whenever your conditions pick another one. Pressing the button is then a plain "start activity": the screen opens and the app launches.</p>
+      <p class="note">The remote only switches to an activity's screen when the button you press starts that activity directly; a macro or an integration can start it, but the screen stays where it is. So the launcher decides <i>before</i> you press: for each activity of a launcher the integration keeps a <b>launcher copy</b> of that activity (same devices, pages and buttons, named after the launcher), with any extra steps added at the end of its start sequence. The launcher's buttons start one of the copies, and are re-pointed whenever your conditions pick another one. Pressing the button is then a plain "start activity", so the screen opens.</p>
+      <p class="note"><b>Already on or all off:</b> the remote decides that, as for any activity. When a copy starts it skips the power-on steps of devices that are already on, then runs the rest of the start sequence (inputs and the like) and the extra steps. Pressing the button while that copy is already open runs its start sequence again in the same way.</p>
       <p class="note"><b>Edit the original activity, not the copy:</b> the copies follow their original within about a minute (pages, buttons, devices and the start sequence). ↩, start pages, state icons and Controls treat a copy as its original. The copies are in the same activity groups as their original, so switching between them doesn't turn devices off and on.</p>
       <p class="note"><b>Buttons:</b> add one here (page button, physical button or home screen), or in the web configurator pick one of the launcher's copies as the activity to start; the integration finds those and keeps them pointed right. A button on a page of the activity on screen is re-pointed when you leave that activity (changing a page you're looking at would jump to page 1). Physical buttons and home tiles change at once.</p>
     </details>
@@ -600,7 +601,7 @@ function commandOptions(dev) {
   return opts;
 }
 
-/** Device, command and its parameters (a smart step, or a launcher's app step). */
+/** Device, command and its parameters (a smart step, or a launcher's extra step). */
 function cmdFields(id, step, filter) {
   const out = [];
   const dev = DEV[step.ent];
@@ -1182,7 +1183,7 @@ function renderLaunchers() {
     const card = el("article", { class: "card", "aria-label": "Launcher " + (l.name || li + 1) });
     const pic = imageDrop(l.icon && l.icon.startsWith("custom:") ? l.icon : null, "ln", (icon, err) => { if (icon) { l.icon = icon; launchDirty(); } else if (err) { $("#launch-status").className = "status err"; $("#launch-status").textContent = err; } });
     card.append(el("div", { class: "fields" },
-      field(id + "-n", "Name", input(id + "-n", l.name, (v) => { l.name = v; launchDirty(); }, { label: "Name", placeholder: "Netflix" })),
+      field(id + "-n", "Name", input(id + "-n", l.name, (v) => { l.name = v; launchDirty(); }, { label: "Name", placeholder: "Watch TV" })),
       el("div", { class: "f" }, "Picture (optional)", pic)));
     const acts = l.targets.map((t) => t.activity).filter(Boolean);
     l.targets.forEach((t, ti) => {
@@ -1193,12 +1194,12 @@ function renderLaunchers() {
         select(tid + "-a", [["", "Pick an activity…"], ...CAT.activities.filter((a) => !used.has(a.id)).map((a) => [a.id, a.name])], t.activity, (v) => {
           const old = t.activity; t.activity = v; for (const r of l.rules) if (r.target === old) r.target = v; if (l.otherwise === old) l.otherwise = v; notify(true); }, "Activity"),
         el("button", { class: "ghost small", type: "button", on: { click: () => { l.targets.splice(ti, 1); notify(true); } } }, "Remove")));
-      b.append(el("div", { class: "fields" }, el("span", { class: "sep" }, "then wait"), input(tid + "-w", t.wait, (v) => { t.wait = v; launchDirty(); }, { label: "Seconds to wait before the app", type: "number", cls: "num", placeholder: "0" }), el("span", { class: "sep" }, "s, and start the app:")));
+      if (t.steps.length) b.append(el("div", { class: "fields" }, el("span", { class: "sep" }, "After it starts, wait"), input(tid + "-w", t.wait, (v) => { t.wait = v; launchDirty(); }, { label: "Seconds to wait before the extra steps", type: "number", cls: "num", placeholder: "0" }), el("span", { class: "sep" }, "s, then:")));
       const lines = el("div", { class: "lines" });
       t.steps.forEach((s, si) => lines.append(el("div", { class: "line" }, ...cmdFields(tid + "-s" + si, s, appDevice),
         el("button", { class: "ghost", type: "button", on: { click: () => { t.steps.splice(si, 1); notify(true); } } }, "Remove"))));
       b.append(lines);
-      if (t.steps.length < 4) b.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { const d = firstDevice((x) => x.type === "media_player"); t.steps.push({ t: "cmd", ent: d?.id || "", cmd: d?.commands.find((c) => /select_source/.test(c.id))?.id || d?.commands[0]?.id || "", params: {} }); notify(true); } } }, t.steps.length ? "Add another step" : "Add the app step")));
+      if (t.steps.length < 4) b.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { const d = firstDevice((x) => x.type === "media_player"); t.steps.push({ t: "cmd", ent: d?.id || "", cmd: d?.commands[0]?.id || "", params: {} }); notify(true); } } }, t.steps.length ? "Add another step" : "Add extra steps after it starts (optional)")));
       card.append(b);
     });
     if (l.targets.length < 6) card.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { l.targets.push({ activity: "", wait: "", steps: [] }); notify(true); } } }, l.targets.length ? "Add another activity" : "Add an activity")));
@@ -2790,7 +2791,7 @@ async function loadExtras() {
 const TABS = {
   smart: { pane: "#app", intro: "Buttons and pop-up menus for the Remote Self-Control integration. A smart control checks your devices or the remote, then runs the first branch that matches; a quick menu runs the steps of the choice you pick." },
   ret: { pane: "#ret-app", intro: "A ↩ button in your activities that always opens the activity you used before, and start pages: the page an activity opens on, depending on your devices." },
-  launch: { pane: "#launch-app", intro: "Smart launchers: one button that opens the right activity for an app and starts the app, e.g. Netflix on the Shield if it's on, otherwise on the Roku." },
+  launch: { pane: "#launch-app", intro: "Smart launchers: one button that opens the activity your conditions pick, e.g. Watch ShieldTV if the Shield is on, otherwise Watch RokuTV." },
   ctl: { pane: "#ctl-app", intro: "Point the volume rocker and the touch slider at something else for a while: turn on a Control: <name> switch, and they change a light, a volume or one of your sliders, with the remote's own level pop-ups. Then they go back to the activity's defaults." },
   icons: { pane: "#icons-app", intro: "Show and control your devices: state icons make a button on a page follow a device's state (like a green power icon); sliders control a number like the receiver's volume with the remote's slider pop-up." }
 };

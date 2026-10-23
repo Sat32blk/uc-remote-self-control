@@ -1,13 +1,14 @@
-// Smart launchers: one button (e.g. "Netflix") that opens the right activity and starts the app in it.
+// Smart launchers: one button that opens the activity the conditions pick, optionally with extra steps
+// after it starts.
 //
 // Why copies: the remote only switches to an activity's screen when the press itself is a direct
 // activity.start of that activity (tested on a Remote 3, 2026-10-21: a macro, or a command sent by an
 // integration, starts it but the screen stays where it is). So the choice has to be made before the press:
 //   - each target of a launcher gets an activity copy ("launcher copy"), cloned from the original activity,
-//     whose start sequence is the original's plus the app step(s) (e.g. Roku: select source "Netflix");
+//     whose start sequence is the original's plus the launcher's extra steps, if any;
 //   - the launcher's buttons (page buttons, physical buttons, home screen tiles) start one of the copies;
 //     the rules (if / otherwise) pick which, and the buttons are re-pointed whenever the pick changes,
-//     so the press is always a plain activity.start that opens the screen and launches the app;
+//     so the press is always a plain activity.start that opens the screen;
 //   - the copies are kept like their original (devices, sequences, pages, physical buttons) and are put in
 //     the same activity groups, so switching between the original and its copy doesn't turn devices off.
 //
@@ -53,14 +54,14 @@ export function validateLaunchers(input, vCond = () => {}) {
       const steps = list(t?.steps).slice(0, LIMITS.steps + 1).map((s, j) => {
         const entity_id = String(s?.entity_id || "");
         const cmd_id = String(s?.cmd_id || "");
-        if (!entity_id || !cmd_id) errors.push(`${tat}, app step ${j + 1}: pick the device and its command`);
+        if (!entity_id || !cmd_id) errors.push(`${tat}, extra step ${j + 1}: pick the device and its command`);
         const out = { entity_id, cmd_id };
         if (s?.params && typeof s.params === "object" && !Array.isArray(s.params) && Object.keys(s.params).length) out.params = s.params;
         return out;
       });
-      if (steps.length > LIMITS.steps) errors.push(`${tat}: at most ${LIMITS.steps} app steps`);
+      if (steps.length > LIMITS.steps) errors.push(`${tat}: at most ${LIMITS.steps} extra steps`);
       const delay = Math.round(Number(t?.delay) || 0);
-      if (delay < 0 || delay > LIMITS.delayMs) errors.push(`${tat}: the wait before the app must be 0–${LIMITS.delayMs / 1000} s`);
+      if (delay < 0 || delay > LIMITS.delayMs) errors.push(`${tat}: the wait before the extra steps must be 0–${LIMITS.delayMs / 1000} s`);
       return { activity, steps, delay: Math.max(0, Math.min(LIMITS.delayMs, delay)) };
     });
     if (!targets.length) errors.push(`${at}: add at least one activity`);
@@ -204,11 +205,11 @@ export class Launchers {
   }
 
   // ---- copies -----------------------------------------------------------------------------------
-  /** Start sequence of a copy: the original's, then the wait and the app steps. */
+  /** Start sequence of a copy: the original's, then the wait and the extra steps. */
   wantSeq(srcAct, t) {
     const { on, off } = this.seqOf(srcAct);
     const extra = [];
-    if (t.delay) extra.push({ type: "delay", delay: t.delay });
+    if (t.delay && t.steps.length) extra.push({ type: "delay", delay: t.delay });
     for (const s of t.steps) extra.push({ type: "command", command: { entity_id: s.entity_id, cmd_id: s.cmd_id, ...(s.params ? { params: s.params } : {}) } });
     const ids = this.includedOf(srcAct);
     for (const s of t.steps) if (!ids.includes(s.entity_id)) ids.push(s.entity_id);
@@ -254,7 +255,7 @@ export class Launchers {
   }
 
   /**
-   * Keeps one copy like its original: devices and sequences (plus the app steps), then pages and
+   * Keeps one copy like its original: devices and sequences (plus the extra steps), then pages and
    * physical buttons when they changed. A copy that is on screen keeps its pages until it's left.
    */
   async syncCopy(l, t, force = false) {
