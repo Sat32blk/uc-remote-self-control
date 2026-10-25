@@ -753,7 +753,7 @@ function addDevice(x) {
       for (const v of p.list.slice(0, 300)) regCmd(d, `${base} · ${v}`, { cmd_id: c.id, params: { [p.key]: v } });
       if (c.id.endsWith(".select_source") && (d.type === "media_player" || d.type === "remote")) INPUTS[d.id] = p.list.slice(0, 300).map(String);
       if (c.id === "select.select_option") d.options = p.list.map(String);
-    } else if (p.type === "number") for (const [v, l] of presets(p)) regCmd(d, `${base} · ${l}`, { cmd_id: c.id, params: { [p.key]: v } });
+    } else if (p.type === "number") for (const [v, l] of presets(p)) regCmd(d, `${base} · ${base.includes(p.key) ? "" : p.key.replace(/_/g, " ") + " "}${l}`, { cmd_id: c.id, params: { [p.key]: v } });
   }
   for (const sc of x.simple || []) regCmd(d, sc, { cmd_id: sc });
   return d;
@@ -1679,7 +1679,7 @@ function allCmds() {
 function cmdOptions() { return [["", "Nothing (picture / label only)"], ...allCmds()]; }
 const sel = (opts, value, onChange, label) => { const s = el("select", { "aria-label": label, on: { change: (e) => onChange(e.target.value) } }); for (const [v, t] of opts) s.append(el("option", { value: v, selected: v === (value || "") }, t)); return s; };
 // ---- "What it does": a searchable picker, narrowed by kind and device ------------------------------
-const CP_KINDS = [["all", "All"], ["dev", "Devices"], ["act", "Activities"], ["macro", "Macros"], ["smart", "Smart"], ["none", "Nothing"]];
+const CP_KINDS = [["all", "All"], ["dev", "Devices"], ["act", "Activities"], ["macro", "Macros"], ["smart", "Smart"], ["new", "Not added yet"], ["none", "Nothing"]];
 function cpKind(v) {
   if (!v) return "none";
   const d = DEV[devOfKey(v)];
@@ -1709,10 +1709,33 @@ function cmdPicker(key, opts, value, onPick) {
     const res = el("div", { class: "cp-list", role: "listbox" });
     let more = 0;
     const kindOk = (v) => st.kind === "all" || cpKind(v) === st.kind;
-    if (st.dev) {
+    if (st.kind === "new") {
+      // what the integrations offer but isn't on the remote yet: add it, then pick its command
+      const ready = INTG.filter((i) => i.status === "ok");
+      const waiting = ready.filter((i) => !i.ents);
+      if (waiting.length && !st.loading) { st.loading = true; Promise.all(waiting.map((i) => loadIntgEnts(i).catch(() => {}))).then(() => { st.loading = false; if (cpOpen === key) draw(); }); }
+      const offers = ready.flatMap((i) => (i.ents || []).filter((e) => !e.added).map((e) => ({ ...e, intg: i })));
+      const list = offers.filter((e) => (!st.intg || e.intg.id === st.intg) && words.every((w) => `${e.name} ${e.type} ${e.intg.name}`.toLowerCase().includes(w)));
+      const intgs = [...new Set(offers.map((e) => e.intg))];
+      res.append(el("div", { class: "cp-custom" }, el("span", { class: "hint", style: "flex:1 1 100%" }, "Devices your integrations offer that aren't on the remote yet. Click one to add it to the remote (right away), then pick its command."),
+        sel([["", `All integrations (${offers.length})`], ...intgs.map((i) => [i.id, `${i.name} (${offers.filter((e) => e.intg === i).length})`])], st.intg || "", (v) => { st.intg = v; draw(); }, "Integration")));
+      if (st.msg) res.append(el("p", { class: st.msgErr ? "warn" : "hint", style: "margin:6px" }, st.msg));
+      for (const e of list.slice(0, 200)) res.append(el("button", { type: "button", class: "cp-dev", disabled: !!st.adding, on: { click: async () => {
+        st.adding = e.id; st.msg = `Adding ${e.name}…`; st.msgErr = false; draw();
+        try {
+          const id = await addOffer(e);
+          st.kind = "all"; st.dev = id; st.msg = ""; st.q = "";
+        } catch (err) { st.msg = `${e.name} couldn't be added: ${err.message}`; st.msgErr = true; }
+        st.adding = null; draw();
+      } } }, el("span", {}, "＋ ", e.name), el("span", { class: "hint" }, `${String(e.type).replace("_", " ")} · ${e.intg.name}`)));
+      more = Math.max(0, list.length - 200);
+      if (st.loading) res.append(el("p", { class: "hint", style: "padding:6px" }, `Asking ${waiting.map((i) => i.name).join(", ")} what they offer…`));
+      else if (!list.length) res.append(el("p", { class: "hint", style: "padding:6px" }, offers.length ? "Nothing matches." : "Everything your integrations offer is already on the remote."));
+    } else if (st.dev) {
       // one device: all its commands
       const d = DEV[st.dev];
-      const list = opts.filter(([v, t]) => v.startsWith(st.dev + " · ") && words.every((w) => t.toLowerCase().includes(w)));
+      // read from the device itself: it may have just been added to the remote
+      const list = (d?.cmds || []).map((c) => [`${st.dev} · ${c}`, `${d.name} · ${c}`]).filter(([, t]) => words.every((w) => t.toLowerCase().includes(w)));
       res.append(el("button", { type: "button", class: "cp-back", on: { click: () => { st.dev = ""; draw(); } } }, "← All devices"),
         el("div", { class: "cp-group" }, d?.name || st.dev));
       const cf = customForm(d, (k) => { cpOpen = null; onPick(k); });
@@ -2618,6 +2641,25 @@ async function loadIntgEnts(i, reload) {
     return { id: `${i.id}.${own}`, add: own, name: txt(e.name) || own, type: e.entity_type || "?", added: false, avail: true };
   }).filter((e) => e.add && !DEV[e.id]);
   i.ents = [...on, ...offer];
+}
+/** The device list read again (after adding devices), keeping everything else you're editing. */
+async function refreshCatalog() {
+  const r = await fetch("/api/editor/catalog", { credentials: "same-origin" });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const cat = await r.json();
+  for (const x of cat.devices || []) if (!DEV[x.id] || DEV[x.id].type === "?") { if (DEV[x.id]) { DEVICES.splice(DEVICES.indexOf(DEV[x.id]), 1); delete DEV[x.id]; } addDevice(x); }
+  DEVICES.sort((a, b) => a.name.localeCompare(b.name));
+}
+/** Adds one offered device to the remote right away and returns its id on the remote. */
+async function addOffer(e) {
+  if (!(await ensureBackup())) throw new Error("no backup");
+  await api("POST", `/intg/instances/${enc(e.intg.id)}/entities`, [e.add]);
+  await refreshCatalog();
+  const id = DEV[e.id] ? e.id : DEVICES.find((d) => d.integration === e.intg.id && d.name === e.name)?.id;
+  const x = (e.intg.ents || []).find((y) => y.id === e.id);
+  if (x) { x.added = true; if (id) x.id = id; }
+  if (!id) throw new Error("added, but it isn't listed yet: reload from the remote");
+  return id;
 }
 const remoteRefuses = () => changedPages().length || groupsDirty() || homeDirty() || macDirtyNow();
 let dvErr = false;
