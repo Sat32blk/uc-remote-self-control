@@ -267,6 +267,8 @@ details.more summary{cursor:pointer;font-weight:600}
 .cp-list .cp-group{position:sticky;top:0;background:var(--soft);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);padding:5px 10px;border-bottom:1px solid var(--line)}
 .cp-list button.cp-dev{display:flex;justify-content:space-between;gap:8px}
 .cp-list button.cp-back{color:var(--acc);font-weight:600}
+.cp-custom{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--soft2)}
+.sqs .cp-custom{flex-basis:100%;border:1px solid var(--line);border-radius:8px}
 .opt2{display:flex;gap:8px;align-items:flex-start;margin-top:10px;font-size:14px;cursor:pointer}
 .opt2 input{margin-top:3px;accent-color:var(--acc)}
 #seq-set .fdiv{margin-top:10px}
@@ -725,6 +727,9 @@ function addDevice(x) {
     if (/\.(on|off|toggle)$/.test(c.id)) regCmd(d, base, { cmd_id: c.id });
     if (ps.length !== 1) continue;
     const p = ps[0];
+    // commands that take a value you can type yourself, like the web configurator's custom source
+    // (e.g. an Android TV app: "market://launch?id=ar.tvplayer.tv")
+    if (p.type !== "number" && p.type !== "bool" && p.type !== "boolean") (d.custom = d.custom || []).push({ cmd_id: c.id, key: p.key, base, label: p.label || p.key });
     if (Array.isArray(p.list) && p.list.length) {
       for (const v of p.list.slice(0, 300)) regCmd(d, `${base} · ${v}`, { cmd_id: c.id, params: { [p.key]: v } });
       if (c.id.endsWith(".select_source") && (d.type === "media_player" || d.type === "remote")) INPUTS[d.id] = p.list.slice(0, 300).map(String);
@@ -743,6 +748,23 @@ function keyOf(c) {
   const d = DEV[c.entity_id] || addDevice({ id: c.entity_id, name: c.entity_id.split(".").pop() + " (not on the remote any more)", type: "?" });
   const label = cmdBase(cmd.cmd_id) + (cmd.params ? " · " + Object.values(cmd.params).map((v) => (typeof v === "object" ? JSON.stringify(v) : v)).join(", ") : "");
   return regCmd(d, label, cmd);
+}
+/** A command with a value typed in (custom source, app link…): added to the device's list and returned as a key. */
+function customCmd(d, c, value) {
+  const v = String(value).trim();
+  if (!v) return null;
+  return regCmd(d, `${c.base} · ${v}`, { cmd_id: c.cmd_id, params: { [c.key]: v } });
+}
+/** A small form: a text field and a button, for one of the device's custom-value commands. */
+function customForm(d, onDone, placeholderCmd) {
+  const list = d?.custom || [];
+  if (!list.length) return null;
+  let which = list.find((c) => /select_source/.test(c.cmd_id)) || list[0];
+  const inp = el("input", { type: "text", maxlength: "255", "aria-label": "Custom value", placeholder: /select_source/.test(which.cmd_id) ? "e.g. market://launch?id=ar.tvplayer.tv" : "type the value", style: "flex:1 1 180px;min-width:0" });
+  const go = () => { const k = customCmd(d, which, inp.value); if (k) onDone(k); else inp.focus(); };
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+  const pick = list.length > 1 ? sel(list.map((c) => [c.cmd_id, c.base]), which.cmd_id, (v) => { which = list.find((c) => c.cmd_id === v); inp.placeholder = /select_source/.test(v) ? "e.g. market://launch?id=ar.tvplayer.tv" : "type the value"; }, "Command for the custom value") : el("span", { class: "hint" }, which.base);
+  return el("div", { class: "cp-custom" }, el("span", { class: "hint", style: "flex-basis:100%" }, "Custom value (like the web configurator's custom source, e.g. an app link):"), pick, inp, el("button", { class: "btn small primary", type: "button", on: { click: go } }, "Use"));
 }
 const cmdObj = (key) => (key && CMDS[key] ? clone(CMDS[key]) : null);
 const devOfKey = (key) => (key && CMDS[key] ? CMDS[key].entity_id : null);
@@ -1181,6 +1203,10 @@ function seqStepRow(list, i, which) {
     const cur = st.t === "on" ? "power on" : st.t === "off" ? "power off" : st.label;
     row.append(sel([...(DEV[st.d] ? [] : [[st.d, st.d + " (not on the remote)"]]), ...DEVICES.filter((d) => d.cmds?.length).map((d) => [d.id, d.name])], st.d, (v) => { st.d = v; if (st.t === "cmd" && !seqCmds(v).includes(st.label)) { st.t = "on"; delete st.label; } seqChanged(true); }, "Device"),
       sel([...new Set([...seqCmds(st.d), ...(cur ? [cur] : [])])].map((c) => [c, c]), cur, (v) => { if (v === "power on") { st.t = "on"; delete st.label; } else if (v === "power off") { st.t = "off"; delete st.label; } else { st.t = "cmd"; st.label = v; } seqChanged(true); }, "Command"));
+    if (DEV[st.d]?.custom?.length) row.append(el("button", { class: "btn small", type: "button", title: "Type a custom value, e.g. an app link for select source", "aria-label": "Custom value", on: { click: (e) => {
+      const f = customForm(DEV[st.d], (k) => { st.t = "cmd"; st.label = k.slice(st.d.length + 3); seqChanged(true); });
+      e.currentTarget.replaceWith(f); f.querySelector("input").focus();
+    } } }, "✎ custom"));
     if (st.t === "on" || st.t === "off") row.append(el("span", { class: "k " + st.t, title: st.t === "on" ? "skipped when the device is already on" : "left out when the next activity in the group uses the device" }, st.t === "on" ? "power on" : "power off"));
   }
   row.append(el("span", { class: "tools" },
@@ -1654,6 +1680,8 @@ function cmdPicker(key, opts, value, onPick) {
       const list = opts.filter(([v, t]) => v.startsWith(st.dev + " · ") && words.every((w) => t.toLowerCase().includes(w)));
       res.append(el("button", { type: "button", class: "cp-back", on: { click: () => { st.dev = ""; draw(); } } }, "← All devices"),
         el("div", { class: "cp-group" }, d?.name || st.dev));
+      const cf = customForm(d, (k) => { cpOpen = null; onPick(k); });
+      if (cf) res.append(cf);
       for (const [v, t] of list.slice(0, 400)) res.append(option(v, t.slice((d?.name || "").length + 3) || t));
       more = Math.max(0, list.length - 400);
       if (!list.length) res.append(el("p", { class: "hint", style: "padding:6px" }, "No command matches."));
