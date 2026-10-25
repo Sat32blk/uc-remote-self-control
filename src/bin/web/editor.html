@@ -974,7 +974,7 @@ function fits(pg, loc, size, ignoreId) {
   return null;
 }
 function itemAt(pg, x, y) { return pg.items.find((it) => x >= it.loc.x && x < it.loc.x + it.size.w && y >= it.loc.y && y < it.loc.y + it.size.h); }
-const DEFAULT_SIZE = { icon: [1, 1], text: [2, 1], sensor: [2, 1], select: [4, 1], media_player: [4, 2], numpad: [3, 4] };
+const DEFAULT_SIZE = { icon: [1, 1], text: [1, 1], sensor: [1, 1], select: [1, 1], media_player: [4, 2], numpad: [1, 1] };
 const TYPE_NAME = { icon: "Icon button", text: "Text button", sensor: "Sensor", select: "Select", media_player: "Media widget", numpad: "Number pad" };
 
 // ---------------------------------------------------------------------------------------------
