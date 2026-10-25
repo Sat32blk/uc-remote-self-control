@@ -136,6 +136,51 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
 }
 
 export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
+  /** Everything set up here as one backup; withPictures = include the custom pictures (base64). */
+  async function buildBackup(withPictures) {
+    const core = getCore();
+    if (!core) throw new Error("The integration isn't connected to the remote.");
+    const ret = await returnSettings();
+    const ctl = controlsApi.get();
+    return makeBackup({
+      version,
+      rulesText: loadRulesText().text,
+      extras: extras().config,
+      icons: stateIcons().icons,
+      controls: { timeout: ctl.timeout, activities: ctl.activities, controls: ctl.controls },
+      returnCfg: ret.cfg,
+      starts: pagesApi ? pagesApi.starts() : null,
+      launchers: launchersApi ? launchersApi.config() : null,
+      appLinks: (() => { try { return dataDir ? JSON.parse(fs.readFileSync(path.join(dataDir, "app_links.json"), "utf8")) : null; } catch { return null; } })(),
+      downloadIcon: async (id) => (await core.download(`/resources/Icon/${encodeURIComponent(id)}`)).body,
+      withPictures
+    });
+  }
+  /** Restores a backup (checked with checkBackup first). which: parts, or null for all. */
+  async function doRestore(b, which = null) {
+    const core = getCore();
+    if (!core) return { errors: ["The integration isn't connected to the remote."], done: [], warnings: [] };
+    const r = await restoreBackup(b, {
+      uploadIcon: (name, png) => core.uploadIcon(name, png),
+      validateRules: (rules) => validate(rules),
+      saveRules: (rules) => saveRules(rules),
+      validateExtras: (x) => validateExtras(x),
+      applyExtras: async (x) => { extras().replace(x); onExtrasChanged && (await onExtrasChanged()); },
+      validateIcons: (x) => validateIcons(x),
+      applyIcons: async (icons, defaults) => { const r = await stateIcons().replace(icons, defaults); if (!r.errors.length) onIconsChanged && onIconsChanged(); return r; },
+      validateControls: (x) => controlsApi.validate(x),
+      applyControls: (cfg) => controlsApi.save(cfg),
+      applyReturn: (cfg) => saveReturn(cfg),
+      validateStarts: (x) => pagesApi.validate({ starts: x }),
+      applyStarts: (x) => pagesApi.save(x),
+      validateLaunchers: launchersApi ? (x) => launchersApi.validate({ launchers: x }) : null,
+      applyLaunchers: (x) => launchersApi.save(x),
+      validateAppLinks: dataDir ? (x) => checkAppLinks(x) : null,
+      applyAppLinks: (x) => { fs.mkdirSync(dataDir, { recursive: true }); fs.writeFileSync(path.join(dataDir, "app_links.json"), JSON.stringify(x, null, 1)); }
+    }, which);
+    log(`backup restored: ${r.done.join(", ") || "nothing"}${r.errors.length ? "; problems: " + r.errors.join(" | ") : ""}`);
+    return r;
+  }
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -435,20 +480,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
     "GET /api/backup": async (req, res) => {
       const core = getCore();
       if (!core) return send(res, 503, { error: "The integration isn't connected to the remote." });
-      const ret = await returnSettings();
-      const ctl = controlsApi.get();
-      const b = await makeBackup({
-        version,
-        rulesText: loadRulesText().text,
-        extras: extras().config,
-        icons: stateIcons().icons,
-        controls: { timeout: ctl.timeout, activities: ctl.activities, controls: ctl.controls },
-        returnCfg: ret.cfg,
-        starts: pagesApi ? pagesApi.starts() : null,
-        launchers: launchersApi ? launchersApi.config() : null,
-        appLinks: (() => { try { return dataDir ? JSON.parse(fs.readFileSync(path.join(dataDir, "app_links.json"), "utf8")) : null; } catch { return null; } })(),
-        downloadIcon: async (id) => (await core.download(`/resources/Icon/${encodeURIComponent(id)}`)).body
-      });
+      const b = await buildBackup(true);
       const day = b.created.slice(0, 10);
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Content-Disposition": `attachment; filename="self-control-backup-${day}.json"` });
       res.end(JSON.stringify(b, null, 1));
@@ -462,25 +494,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       const bad = checkBackup(b);
       if (bad) return send(res, 422, { ok: false, errors: [bad] });
       const which = Array.isArray(body.parts) ? body.parts.map(String) : null;
-      const r = await restoreBackup(b, {
-        uploadIcon: (name, png) => core.uploadIcon(name, png),
-        validateRules: (rules) => validate(rules),
-        saveRules: (rules) => saveRules(rules),
-        validateExtras: (x) => validateExtras(x),
-        applyExtras: async (x) => { extras().replace(x); onExtrasChanged && (await onExtrasChanged()); },
-        validateIcons: (x) => validateIcons(x),
-        applyIcons: async (icons, defaults) => { const r = await stateIcons().replace(icons, defaults); if (!r.errors.length) onIconsChanged && onIconsChanged(); return r; },
-        validateControls: (x) => controlsApi.validate(x),
-        applyControls: (cfg) => controlsApi.save(cfg),
-        applyReturn: (cfg) => saveReturn(cfg),
-        validateStarts: (x) => pagesApi.validate({ starts: x }),
-        applyStarts: (x) => pagesApi.save(x),
-        validateLaunchers: launchersApi ? (x) => launchersApi.validate({ launchers: x }) : null,
-        applyLaunchers: (x) => launchersApi.save(x),
-        validateAppLinks: dataDir ? (x) => checkAppLinks(x) : null,
-        applyAppLinks: (x) => { fs.mkdirSync(dataDir, { recursive: true }); fs.writeFileSync(path.join(dataDir, "app_links.json"), JSON.stringify(x, null, 1)); }
-      }, which);
-      log(`backup restored: ${r.done.join(", ") || "nothing"}${r.errors.length ? "; problems: " + r.errors.join(" | ") : ""}`);
+      const r = await doRestore(b, which);
       send(res, r.errors.length && !r.done.length ? 422 : 200, { ok: !r.errors.length, ...r });
     },
     "GET /api/extras": async (req, res) => send(res, 200, { ...extras().config, status: extras().status() }),
@@ -538,5 +552,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
   });
   server.on("error", (e) => warn(`builder web server could not start on port ${port}:`, e.message));
   server.listen(port, "0.0.0.0", () => log(`Smart Controls builder: ${builderUrls(port).join("  ")}`));
+  // for the integration's own setup screens (Integration Manager's backup step)
+  server.selfBackup = { make: buildBackup, restore: doRestore };
   return server;
 }

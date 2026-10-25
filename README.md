@@ -244,6 +244,8 @@ Point the remote's volume rocker and touch slider at something else for a moment
 
 Builder → **Backup** (top right) → **Download backup** saves one `.json` file with your smart controls, sliders and quick menus, state icons and level pictures, ↩ buttons and Controls, **plus the custom pictures** they use. It doesn't contain the integration's login to the remote.
 
+**Without the builder** (or with [Integration Manager](https://github.com/JackJPowell/uc-intg-manager)'s **Backup Config**): web configurator → Integrations → Remote Self-Control → Reconfigure → **Back up settings** shows the same settings as text to copy (the pictures stay on the remote and aren't in the text). **Restore settings from a backup** takes that text, or the builder's backup file's contents, and puts everything back.
+
 To restore, choose the file, tick the parts you want and press **Restore**. Every part is checked first; if one has a problem nothing is changed. Missing pictures are uploaded again, so it also works after a factory reset or on another remote (↩ buttons for activities that don't exist there are skipped).
 
 <img src="docs/images/builder-backup.png" alt="Backup and restore" width="760">
@@ -475,6 +477,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **0.9.8:** includes 0.8.8's backups with [Integration Manager](https://github.com/JackJPowell/uc-intg-manager): its **Backup Config** saves your settings (now with the Page Editor's app links) as text, and **Reconfigure → Restore settings from a backup** puts them back. Both choices are also in the integration's own setup.
 - **0.9.7:** Page Editor app links: an app the device already has in its own source list isn't added a second time (names compared loosely, e.g. YouTube / You Tube); the import says which were skipped. Buttons already on the remote that use a link from the list show "select source · <name>" right after the import, and a custom value that's in the list shows the app name.
 - **0.9.6:** Page Editor: the remote is drawn as big as the window allows and stays in view while the page scrolls; the pictures and settings columns take their full height (the page scrolls, not those windows). The Remote 3 / Remote Two choice only shows when the model couldn't be read from the remote. The builder's header is one row on the Page Editor tab.
 - **0.9.5:** Page Editor: built-in icons are drawn as icons. The integration reads the font, the character for each icon and the web configurator's name aliases from the remote's own web configurator (Font Awesome 6 Pro, light), and sends the browser only the remote's own icons.

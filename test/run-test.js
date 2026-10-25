@@ -48,7 +48,7 @@ const send = (msg, msg_data) => ws.send(JSON.stringify({ kind: "event", msg, msg
 
 // --- before setup
 let r = await req("get_driver_version");
-ok(r.msg === "driver_version" && r.msg_data.version.driver === "0.9.7", "driver_version 0.9.7");
+ok(r.msg === "driver_version" && r.msg_data.version.driver === "0.9.8", "driver_version 0.9.8");
 send("connect");
 await sleep(300);
 r = await req("get_device_state");
@@ -75,6 +75,53 @@ await sleep(1200);
 ok(events.some((e) => e.msg === "driver_setup_change" && e.msg_data.state === "OK"), "setup completes (state OK)");
 const saved = JSON.parse(fs.readFileSync(path.join(cfgDir, "self_control.json"), "utf8"));
 ok(saved.apiKey === "test-api-key-abc" && !("pin" in saved), "API key saved, PIN not stored");
+
+// --- Integration Manager's backup step (as uc-intg-manager's backup_service.py does it)
+{
+  const last = () => [...events].reverse().find((e) => e.msg === "driver_setup_change");
+  const setting = (ev, id) => (ev?.msg_data?.require_user_action?.input?.settings || []).find((x) => x.id === id);
+  events.length = 0;
+  await req("setup_driver", { reconfigure: true, setup_data: {} });
+  await sleep(300);
+  const choice = setting(last(), "choice")?.field?.dropdown?.value;
+  ok(last()?.msg_data.state === "WAIT_USER_ACTION" && choice === "self_control", "reconfigure page has a 'choice' dropdown (Integration Manager picks its first value)");
+  events.length = 0;
+  await req("set_driver_user_data", { input_values: { choice, action: "backup", backup_data: "[]" } });
+  await sleep(1100);
+  const bev = last();
+  const text = setting(bev, "backup_data")?.field?.textarea?.value;
+  ok(bev?.msg_data.state === "WAIT_USER_ACTION" && typeof text === "string" && text.length > 20, "backup answers WAIT_USER_ACTION with a backup_data textarea");
+  let bk = null;
+  try { bk = JSON.parse(text); } catch {}
+  ok(bk && bk.kind === "uc-self-control-backup" && bk.parts && bk.parts.smart && Object.keys(bk.pictures).length === 0, "backup text is the integration's backup, without picture data");
+  ok(!/test-api-key-abc|"pin"/.test(text), "backup text holds no API key or PIN");
+  await req("set_driver_user_data", { input_values: { backup_data: text } }); // the user closes the page
+  await sleep(1100);
+  ok(last()?.msg_data.state === "OK", "closing the backup page finishes setup");
+  // restore: changed rules come back
+  const rulesPath = path.join(cfgDir, "smart_rules.json");
+  const before = fs.existsSync(rulesPath) ? fs.readFileSync(rulesPath, "utf8") : null;
+  fs.writeFileSync(rulesPath, JSON.stringify({ buttons: [] }));
+  events.length = 0;
+  await req("setup_driver", { reconfigure: true, setup_data: {} });
+  await sleep(300);
+  await req("set_driver_user_data", { input_values: { choice: "self_control", action: "restore" } });
+  await sleep(1100);
+  ok(setting(last(), "backup_data")?.field?.textarea?.value === "", "restore asks for the backup text");
+  await req("set_driver_user_data", { input_values: { backup_data: "not json" } });
+  await sleep(1100);
+  ok(/not valid JSON/.test(JSON.stringify(setting(last(), "errors") || {})), "bad text is refused with a reason");
+  await req("set_driver_user_data", { input_values: { backup_data: text } });
+  await sleep(1100);
+  const res = JSON.stringify(setting(last(), "result") || {});
+  ok(/Restored: .*smart/.test(res), "restore reports what was restored: " + res.slice(0, 160));
+  const after = JSON.parse(fs.readFileSync(rulesPath, "utf8"));
+  ok(JSON.stringify(after) === JSON.stringify(bk.parts.smart), "smart controls are back as they were in the backup");
+  await req("set_driver_user_data", { input_values: {} });
+  await sleep(1100);
+  ok(last()?.msg_data.state === "OK", "closing the result finishes setup");
+  void before;
+}
 
 // --- entities
 r = await req("get_available_entities");

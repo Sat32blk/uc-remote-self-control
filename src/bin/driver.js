@@ -11,6 +11,7 @@ import * as uc from "@unfoldedcircle/integration-api";
 import { CoreClient, CoreError } from "./core.js";
 import { SmartEngine, validateRules, vCond } from "./smart.js";
 import { startWebServer, builderUrls } from "./web.js";
+import { checkBackup } from "./backup.js";
 import { listActivities, addTile, PAGE_NAME } from "./tile.js";
 import { ReturnTracker, RETURN_MARK, activityGroups } from "./returnbtn.js";
 import { StateIcons, validateIcons } from "./stateicons.js";
@@ -1136,9 +1137,15 @@ const PIN_PAGE = [
 ];
 
 // Setup flow state (one setup session at a time).
-let setupStage = "pin"; // "menu" | "pin" | "rules" | "tile" | "return"
+let setupStage = "pin"; // "menu" | "pin" | "rules" | "tile" | "return" | "backup" | "restore" | "restored"
 
 const menuPage = () => [
+  // Integration Manager's backup step picks the first item of a dropdown called "choice"
+  {
+    id: "choice",
+    label: { en: "Settings of" },
+    field: { dropdown: { value: "self_control", items: [{ id: "self_control", label: { en: "This remote" } }] } }
+  },
   {
     id: "builder",
     label: { en: "Smart Controls builder" },
@@ -1161,6 +1168,8 @@ const menuPage = () => [
           { id: "return", label: { en: "Return to previous activity: set up the ↩ button" } },
           { id: "tile", label: { en: "Add the Last Result tile to an activity" } },
           { id: "reset_rules", label: { en: "Reset Smart Controls to the defaults" } },
+          { id: "backup", label: { en: "Back up settings (as text to copy)" } },
+          { id: "restore", label: { en: "Restore settings from a backup" } },
           { id: "pin", label: { en: "Reconnect with the web-configurator PIN" } },
           { id: "done", label: { en: "Nothing, close" } }
         ]
@@ -1292,6 +1301,34 @@ function prettyRules(text) {
   }
 }
 
+// ---- backup / restore as text (also Integration Manager's "Backup Config") ----
+async function backupPage() {
+  const b = await webServer.selfBackup.make(false);
+  const n = (b.picturesOnRemote || []).length;
+  return new uc.RequestUserInput({ en: "Back up settings" }, [
+    {
+      id: "info",
+      label: { en: "Your settings" },
+      field: { label: { value: { en: "Smart Controls, quick menus and sliders, state icons, ↩ buttons, Controls, start pages, launchers and the Page Editor's app links. Copy the text and keep it, or let Integration Manager keep it. To put it back: Reconfigure → Restore settings from a backup." + (n ? `\n\nThe ${n} custom picture${n === 1 ? "" : "s"} these use stay on the remote and aren't in this text; the builder's Backup file includes them.` : "") } } }
+    },
+    { id: "backup_data", label: { en: "Backup" }, field: { textarea: { value: JSON.stringify(b) } } }
+  ]);
+}
+function restorePage(errors) {
+  const page = [];
+  if (errors && errors.length) page.push({ id: "errors", label: { en: "Not restored" }, field: { label: { value: { en: errors.map((e) => "- " + e).join("\n") } } } });
+  page.push({ id: "info", label: { en: "Restore settings" }, field: { label: { value: { en: "Paste a backup made with \"Back up settings\", Integration Manager or the builder's Backup. Everything in it replaces what's set up now." } } } });
+  page.push({ id: "backup_data", label: { en: "Backup" }, field: { textarea: { value: "" } } });
+  return new uc.RequestUserInput({ en: "Restore settings" }, page);
+}
+async function restoreFromText(text) {
+  let b;
+  try { b = JSON.parse(String(text || "").trim()); } catch { return { errors: ["That isn't backup text (not valid JSON)."] }; }
+  const bad = checkBackup(b);
+  if (bad) return { errors: [bad] };
+  return await webServer.selfBackup.restore(b);
+}
+
 async function setupHandler(msg) {
   if (msg instanceof uc.DriverSetupRequest) {
     log("setup started", msg.reconfigure ? "(reconfigure)" : "");
@@ -1310,6 +1347,19 @@ async function setupHandler(msg) {
         return new uc.RequestUserInput({ en: "Connect to this remote" }, PIN_PAGE);
       }
       if (v.action === "done") return new uc.SetupComplete();
+      if (v.action === "backup") {
+        try {
+          setupStage = "backup";
+          return await backupPage();
+        } catch (e) {
+          warn("backup failed:", e.message);
+          return new uc.SetupError(uc.IntegrationSetupError.Other);
+        }
+      }
+      if (v.action === "restore") {
+        setupStage = "restore";
+        return restorePage();
+      }
       if (v.action === "return") {
         setupStage = "return";
         return await returnPage();
@@ -1329,6 +1379,14 @@ async function setupHandler(msg) {
       }
       setupStage = "rules";
       return new uc.RequestUserInput({ en: "Edit Smart Controls" }, rulesPage(prettyRules(loadRulesText())));
+    }
+    if (setupStage === "backup" || setupStage === "restored") return new uc.SetupComplete();
+    if (setupStage === "restore") {
+      const r = await restoreFromText(v.backup_data);
+      if (!r.done?.length) return restorePage(r.errors?.length ? r.errors : ["Nothing to restore in that backup."]);
+      setupStage = "restored";
+      const lines = [`Restored: ${r.done.join(", ")}.`, ...(r.errors || []).map((e) => "Problem: " + e), ...(r.warnings || []).map((w) => "Note: " + w)];
+      return new uc.RequestUserInput({ en: "Settings restored" }, [{ id: "result", label: { en: "Done" }, field: { label: { value: { en: lines.join("\n") } } } }]);
     }
     if (setupStage === "return") {
       const acts = await listActivities(core).catch(() => []);
@@ -1531,7 +1589,7 @@ launchers = new Launchers({
 
 const CONTROL_NAMES = Object.fromEntries(LAYOUT.map(([, id, name]) => [id, name]));
 Object.assign(CONTROL_NAMES_ALL, CONTROL_NAMES);
-startWebServer({
+const webServer = startWebServer({
   port: BUILDER_PORT,
   pagePath: path.join(HERE, "web", "builder.html"),
   editorPath: path.join(HERE, "web", "editor.html"),

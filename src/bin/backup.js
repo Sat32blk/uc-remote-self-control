@@ -39,7 +39,10 @@ export async function makeBackup(src) {
   };
   const pictures = {};
   const missingIcons = [];
-  for (const id of iconsIn(parts).slice(0, MAX_ICONS)) {
+  const used = iconsIn(parts).slice(0, MAX_ICONS);
+  // without pictures (Integration Manager's backup text): they stay on the remote; only their names are kept
+  if (src.withPictures === false) return { kind: BACKUP_KIND, format: BACKUP_FORMAT, driverVersion: src.version || "", created: new Date().toISOString(), parts, pictures: {}, missingIcons: [], picturesOnRemote: used };
+  for (const id of used) {
     try {
       const buf = await src.downloadIcon(id);
       if (buf && buf.length) pictures[id] = Buffer.from(buf).toString("base64");
