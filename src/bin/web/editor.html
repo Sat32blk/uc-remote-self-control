@@ -27,7 +27,9 @@ h1{margin:0;font-size:24px}
 nav.tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--line2);margin:14px 0 16px}
 nav.tabs span{padding:9px 13px;font-weight:600;color:#9ca3af;cursor:not-allowed}
 nav.tabs span.on{color:var(--ink);border-bottom:3px solid var(--acc);cursor:default}
-.mode{display:flex;gap:6px;margin-bottom:14px}
+.mode{display:flex;flex-wrap:wrap;gap:6px}
+.edtop{position:sticky;top:0;z-index:30;background:var(--bg);margin:0 -4px 14px;padding:8px 4px 10px;border-bottom:1px solid var(--line);box-shadow:0 6px 12px -10px rgba(0,0,0,.35)}
+.edtop .edhead{margin-bottom:8px}
 .btn{padding:7px 12px;border:1px solid var(--line2);border-radius:8px;background:var(--field);cursor:pointer;color:var(--ink)}
 .btn:hover{border-color:#9ca3af}
 .btn.primary{background:var(--acc);border-color:var(--acc);color:var(--accfg);font-weight:600}
@@ -215,7 +217,7 @@ details.more summary{cursor:pointer;font-weight:600}
 .peright .row > label.f{flex:1 1 100%;min-width:0}
 .peright .row > label.f:has(input[type=number]){flex:0 0 auto}
 .peright input[type=number]{width:80px}
-.pecol{display:flex;flex-direction:column;gap:14px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding-bottom:2px}
+.pecol{display:flex;flex-direction:column;gap:14px;position:sticky;top:calc(var(--toph, 0px) + 12px);max-height:calc(100vh - var(--toph, 0px) - 24px);overflow:auto;padding-bottom:2px}
 .pecenter{display:flex;flex-direction:column;gap:14px}
 .peleft .palette{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
 .peleft .pics{max-height:none}
@@ -356,6 +358,7 @@ details.more summary{cursor:pointer;font-weight:600}
 </head>
 <body>
 <div class="wrap">
+  <div class="edtop" id="edtop">
   <header class="edhead">
     <div>
       <h1>Page Editor <span class="pill">Beta</span></h1>
@@ -367,8 +370,6 @@ details.more summary{cursor:pointer;font-weight:600}
       <a class="btn small" id="bk" href="/api/core/backup/latest" title="The full remote backup made before the first change">Last remote backup</a>
     </div>
   </header>
-  <div class="loading" id="loading"><p>Loading your activities, pages and pictures from the remote…</p></div>
-
   <div class="mode" role="group" aria-label="What to edit">
     <span class="dd" id="dd-act">
       <button class="btn sel" id="mode-pages" type="button" aria-haspopup="menu" aria-expanded="false">Activities: <b id="dd-label">Interface</b> ▾</button>
@@ -382,6 +383,8 @@ details.more summary{cursor:pointer;font-weight:600}
     <button class="btn" id="mode-macros" type="button">Macros</button>
     <button class="btn" id="mode-dev" type="button">Devices &amp; integrations</button>
   </div>
+  </div>
+  <div class="loading" id="loading"><p>Loading your activities, pages and pictures from the remote…</p></div>
 
   <!-- ================= ACTIVITY PAGES ================= -->
   <div id="view-pages">
@@ -407,7 +410,7 @@ details.more summary{cursor:pointer;font-weight:600}
     <div class="seqcols hidden" id="seqsub">
       <section class="card" id="seq-on" aria-label="Start sequence"></section>
       <section class="card" id="seq-off" aria-label="Off sequence"></section>
-      <div class="pecol" style="position:sticky;top:12px">
+      <div class="pecol">
         <section class="card" id="seq-set" aria-label="Sequence settings"></section>
         <section class="card" id="seq-devs" aria-label="Devices"></section>
         <section class="card">
@@ -585,7 +588,7 @@ details.more summary{cursor:pointer;font-weight:600}
     <div class="devcols">
       <section class="card" aria-label="Integrations"><h2>Integrations</h2><div style="height:8px"></div><div class="mlist" id="dv-intgs"></div></section>
       <div id="dv-main" style="display:flex;flex-direction:column;gap:16px"></div>
-      <div class="pecol" style="position:sticky;top:12px"><section class="card" id="dv-detail" aria-label="Device"></section></div>
+      <div class="pecol"><section class="card" id="dv-detail" aria-label="Device"></section></div>
     </div>
   </div>
 
@@ -2682,6 +2685,8 @@ function setTheme(t) {
   if (t) r.setAttribute("data-dark", ""); else r.removeAttribute("data-dark");
 }
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!themeWanted) setTheme(""); });
+// the bar at the top stays put; the side columns stick just below it
+{ const top = $("#edtop"), setH = () => document.documentElement.style.setProperty("--toph", top.offsetHeight + "px"); setH(); try { new ResizeObserver(setH).observe(top); } catch {} }
 // inside the builder's tab the builder's own title is enough
 if (window.top !== window) document.documentElement.classList.add("framed");
 const readTheme = () => { try { return localStorage.getItem("scb_theme") || ""; } catch { return ""; } };
