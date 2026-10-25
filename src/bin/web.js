@@ -37,7 +37,7 @@ const SESSION_MS = 12 * 60 * 60 * 1000;
 import { MAX_ICONS, MAX_DEVICES } from "./stateicons.js";
 import { makeBackup, restoreBackup, checkBackup } from "./backup.js";
 import { writeStats } from "./core.js";
-import { editorRoutes } from "./editor.js";
+import { editorRoutes, checkAppLinks } from "./editor.js";
 const MAX_RESTORE_BODY = 24 * 1024 * 1024; // a backup carries its pictures
 const MAX_BODY = 512 * 1024;
 
@@ -458,6 +458,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
         returnCfg: ret.cfg,
         starts: pagesApi ? pagesApi.starts() : null,
         launchers: launchersApi ? launchersApi.config() : null,
+        appLinks: (() => { try { return dataDir ? JSON.parse(fs.readFileSync(path.join(dataDir, "app_links.json"), "utf8")) : null; } catch { return null; } })(),
         downloadIcon: async (id) => (await core.download(`/resources/Icon/${encodeURIComponent(id)}`)).body
       });
       const day = b.created.slice(0, 10);
@@ -487,7 +488,9 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
         validateStarts: (x) => pagesApi.validate({ starts: x }),
         applyStarts: (x) => pagesApi.save(x),
         validateLaunchers: launchersApi ? (x) => launchersApi.validate({ launchers: x }) : null,
-        applyLaunchers: (x) => launchersApi.save(x)
+        applyLaunchers: (x) => launchersApi.save(x),
+        validateAppLinks: dataDir ? (x) => checkAppLinks(x) : null,
+        applyAppLinks: (x) => { fs.mkdirSync(dataDir, { recursive: true }); fs.writeFileSync(path.join(dataDir, "app_links.json"), JSON.stringify(x, null, 1)); }
       }, which);
       log(`backup restored: ${r.done.join(", ") || "nothing"}${r.errors.length ? "; problems: " + r.errors.join(" | ") : ""}`);
       send(res, r.errors.length && !r.done.length ? 422 : 200, { ok: !r.errors.length, ...r });

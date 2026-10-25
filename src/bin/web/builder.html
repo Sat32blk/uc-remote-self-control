@@ -2916,7 +2916,8 @@ const BACKUP_PARTS = [
   ["return", "↩ buttons", (x) => `${(x?.hosts || []).length} activity(ies)`],
   ["pages", "Start pages", (x) => `${(x?.starts || []).length} activity(ies)`],
   ["launchers", "Launchers", (x) => `${(x?.launchers || []).length} launcher(s)`],
-  ["controls", "Controls", (x) => `${(x?.controls || []).length} control(s)`]
+  ["controls", "Controls", (x) => `${(x?.controls || []).length} control(s)`],
+  ["applinks", "App links (Page Editor)", (x) => `${Object.values(x?.links || {}).reduce((n, l) => n + l.length, 0)} app link(s)`]
 ];
 $("#cleanup-start").addEventListener("click", () => {
   $("#cleanup-start").hidden = true; $("#cleanup-yes").hidden = false; $("#cleanup-no").hidden = false;

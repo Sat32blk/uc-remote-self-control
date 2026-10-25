@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { checkCoreCall } from "../src/bin/editor.js";
+import { checkCoreCall, parseAppLinks, checkAppLinks } from "../src/bin/editor.js";
 import { startWebServer } from "../src/bin/web.js";
 import { CoreClient } from "../src/bin/core.js";
 import { startMockEditorCore, calls } from "./mock-editor-core.js";
@@ -20,6 +20,17 @@ const refused = [["DELETE", "/activities"], ["DELETE", "/entities"], ["DELETE", 
   ["POST", "/auth/api_keys"], ["GET", "/auth/api_keys"], ["PATCH", "/cfg/device"], ["GET", "/activities/../auth/api_keys"], ["GET", "/activities//x"], ["POST", "/resources/Icon"], ["DELETE", "/intg/instances"],
   ["GET", "/activities?x=<script>"], ["TRACE", "/activities"], ["GET", "activities"], ["DELETE", "/intg/drivers/intg_manager_driver"], ["PATCH", "/intg/drivers/x"]];
 for (const [m, p] of refused) ok(checkCoreCall(m, p) !== null, `refused: ${m} ${p}`);
+
+// --- app links: "<command> = <name>", the command may contain "=" itself
+{
+  const r = parseAppLinks("market://launch?id=ar.tvplayer.tv = Tivimate\r\n\n# comment\nmarket://launch?id=com.imdbtv.livingroom  = freevee\nno separator here\na=b = c = d\n");
+  ok(r.links.length === 3 && r.links[0].cmd === "market://launch?id=ar.tvplayer.tv" && r.links[0].name === "Tivimate", "app link line read");
+  ok(r.links[1].cmd === "market://launch?id=com.imdbtv.livingroom" && r.links[1].name === "freevee", "extra spaces around = are fine");
+  ok(r.links[2].cmd === "a=b = c" && r.links[2].name === "d", "split at the last ' = '");
+  ok(r.errors.length === 1 && /line 5/.test(r.errors[0]), "a line without ' = ' is reported with its number");
+  ok(checkAppLinks({ "atv.main": r.links }) === null, "valid list accepted");
+  ok(checkAppLinks({ "atv.main": [{ cmd: "", name: "x" }] }) !== null && checkAppLinks([]) !== null && checkAppLinks({ "bad id!": [] }) !== null, "bad lists refused");
+}
 
 // --- over HTTP, with a fake remote
 const mock = await startMockEditorCore(0);
@@ -83,6 +94,12 @@ ok(r.status === 200 && r.body.id === "new_icon.png", "same name again: the remot
 r = await req("GET", "/api/editor/iconfont", undefined, true);
 ok(r.status === 200 && r.body.toString() === "wOF2-fake-icon-font" && r.headers.get("content-type") === "font/woff2", "built-in icon font found through the web configurator's style sheet (not the text font)");
 ok((await req("POST", "/api/core", { method: "GET", path: "/cfg/device/icon_mapping" })).body.data.home === "uE900", "icon names readable");
+// app links are kept by the integration
+r = await req("POST", "/api/editor/applinks", { links: { "atvdrv.main": [{ cmd: "market://launch?id=ar.tvplayer.tv", name: "Tivimate" }] } });
+ok(r.status === 200 && r.body.ok, "app links saved");
+r = await req("GET", "/api/editor/applinks");
+ok(r.body.links["atvdrv.main"][0].name === "Tivimate", "app links read back");
+ok((await req("POST", "/api/editor/applinks", { links: { "atvdrv.main": "nope" } })).status === 422, "bad app links refused");
 // backups
 r = await req("GET", "/api/core/backup/latest", undefined, true);
 ok(r.status === 404, "no backup yet");

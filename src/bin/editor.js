@@ -10,6 +10,7 @@
 //   GET  /api/core/backup/latest    downloads the newest of those backups
 //   GET  /api/editor/state          { onScreen } the activity on the remote's screen (if known)
 //   GET  /api/editor/iconfont       the remote's built-in icon font (from its web configurator)
+//   GET/POST /api/editor/applinks   app links per integration ("<command> = <name>"), kept on the remote
 //
 // Everything needs the builder login (web-configurator PIN), like the rest of the builder.
 
@@ -84,6 +85,40 @@ export async function findIconFont(origin, fetchText, fetchBin) {
   return { family: pick.family, url: pick.url, type, body: font.body };
 }
 
+/**
+ * App links for an integration (e.g. Android TV apps that aren't in its input list), from a text file:
+ * one per line, "<command> = <name shown>", e.g. "market://launch?id=ar.tvplayer.tv = Tivimate".
+ * The command may contain "=" itself: the line is split at the last " = ". Empty lines and # comments are skipped.
+ * Returns { links: [{ cmd, name }], errors: [string] }.
+ */
+export function parseAppLinks(text) {
+  const links = [], errors = [];
+  String(text || "").split(/\r?\n/).forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) return;
+    const m = /^(.*\S)\s+=\s+(.+)$/.exec(line);
+    if (!m) { errors.push(`line ${i + 1}: expected "<command> = <name>"`); return; }
+    const cmd = m[1].trim(), name = m[2].trim();
+    if (cmd.length > 255) errors.push(`line ${i + 1}: the command is longer than 255 characters`);
+    else if (name.length > 60) errors.push(`line ${i + 1}: the name is longer than 60 characters`);
+    else links.push({ cmd, name });
+  });
+  return { links, errors };
+}
+/** Checks a saved list: { [integration id]: [{ cmd, name }] }. */
+export function checkAppLinks(all) {
+  if (!all || typeof all !== "object" || Array.isArray(all)) return "a list per integration expected";
+  const ids = Object.keys(all);
+  if (ids.length > 50) return "too many integrations";
+  for (const id of ids) {
+    if (!/^[A-Za-z0-9_.\-:]{1,120}$/.test(id)) return `invalid integration id "${id}"`;
+    const l = all[id];
+    if (!Array.isArray(l) || l.length > 300) return `${id}: up to 300 app links`;
+    for (const x of l) if (!x || typeof x.cmd !== "string" || typeof x.name !== "string" || !x.cmd.trim() || !x.name.trim() || x.cmd.length > 255 || x.name.length > 60) return `${id}: each app link needs a command (≤ 255) and a name (≤ 60)`;
+  }
+  return null;
+}
+
 export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPath, send, readJson, log = () => {}, warn = () => {} }) {
   const backupDir = dataDir ? path.join(dataDir, "remote-backups") : null;
   let lastBackup = null; // { name, size, at }
@@ -118,6 +153,22 @@ export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPa
       if (!iconFont) return send(res, 404, { error: "The remote's icon font wasn't found." });
       res.writeHead(200, { "Content-Type": iconFont.type, "Cache-Control": "private, max-age=86400", "X-Font-Family": encodeURIComponent(iconFont.family) });
       res.end(iconFont.body);
+    },
+    // app links per integration (kept by this integration, on the remote)
+    "GET /api/editor/applinks": async (req, res) => {
+      let all = {};
+      try { all = JSON.parse(fs.readFileSync(path.join(dataDir, "app_links.json"), "utf8")); } catch {}
+      send(res, 200, { links: all });
+    },
+    "POST /api/editor/applinks": async (req, res) => {
+      const body = await readJson(req);
+      const why = checkAppLinks(body.links);
+      if (why) return send(res, 422, { ok: false, error: why });
+      const clean = Object.fromEntries(Object.entries(body.links).filter(([, l]) => l.length).map(([id, l]) => [id, l.map((x) => ({ cmd: x.cmd.trim(), name: x.name.trim() }))]));
+      fs.mkdirSync(dataDir, { recursive: true });
+      fs.writeFileSync(path.join(dataDir, "app_links.json"), JSON.stringify(clean, null, 1));
+      log(`page editor: app links saved (${Object.values(clean).reduce((n, l) => n + l.length, 0)})`);
+      send(res, 200, { ok: true, links: clean });
     },
     "GET /api/editor/state": async (req, res) => send(res, 200, { onScreen: onScreen() || null }),
     "POST /api/core": async (req, res) => {

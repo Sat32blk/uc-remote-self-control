@@ -34,6 +34,7 @@ export async function makeBackup(src) {
     controls: src.controls || null,
     pages: src.starts ? { starts: src.starts } : null,
     launchers: src.launchers ? { launchers: src.launchers } : null,
+    applinks: src.appLinks && Object.keys(src.appLinks).length ? { links: src.appLinks } : null,
     return: src.returnCfg ? { hosts: src.returnCfg.hosts || [], screen: src.returnCfg.screen, button: src.returnCfg.button, press: src.returnCfg.press, buttonScope: src.returnCfg.buttonScope, hostCfg: src.returnCfg.hostCfg || {} } : null
   };
   const pictures = {};
@@ -109,6 +110,11 @@ export async function restoreBackup(b, api, which = null) {
     const v = api.validateLaunchers(b.parts.launchers.launchers || []);
     if (v.errors.length) errors.push(...v.errors.map((e) => "Launchers: " + e));
     else plan.push(["launchers", () => api.applyLaunchers(v.launchers)]);
+  }
+  if (want("applinks") && api.validateAppLinks) {
+    const why = api.validateAppLinks(b.parts.applinks.links);
+    if (why) errors.push("App links: " + why);
+    else plan.push(["applinks", () => api.applyAppLinks(b.parts.applinks.links)]);
   }
   if (errors.length) return { errors, done: [], warnings: [] };
 

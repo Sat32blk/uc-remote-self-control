@@ -8,6 +8,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 export const calls = []; // every write: { m, p, b }
 
 export const TV = "tvdrv.main.media_player.TV1", ROKU = "rokudrv.main.ROKU1", AVR = "avrdrv.main.media_player.AVR1", SUB = "hass.main.switch.subwoofer";
+export const SHIELD = "atvdrv.main.SHIELD1";
 export const LAMP = "hass.main.light.lamp", TEMP = "hass.main.sensor.temp", APPS = "tvdrv.main.select.TV1.apps", IR = "uc.main.ir-receiver";
 export function makeState() {
   const st = {
@@ -15,6 +16,7 @@ export function makeState() {
       { entity_id: TV, entity_type: "media_player", integration_id: "tvdrv.main", name: { en: "Living Room TV" }, features: ["on_off", "volume", "volume_up_down", "mute_toggle", "select_source", "home", "dpad"], attributes: { state: "ON", source_list: ["HDMI 1", "HDMI 2", "HDMI 3"], volume: 12 } },
       { entity_id: ROKU, entity_type: "media_player", integration_id: "rokudrv.main", name: { en: "Living Room Roku" }, features: ["on_off", "play_pause", "home", "back", "dpad", "select_source"], attributes: { state: "PLAYING", source_list: ["Netflix", "YouTube", "Hulu"] } },
       { entity_id: AVR, entity_type: "media_player", integration_id: "avrdrv.main", name: { en: "Marantz Receiver" }, features: ["on_off", "volume", "volume_up_down", "mute_toggle", "select_source"], attributes: { state: "OFF", source_list: ["SHIELD", "MEDIA PLAYER", "TV AUDIO"] } },
+      { entity_id: SHIELD, entity_type: "media_player", integration_id: "atvdrv.main", name: { en: "SHIELD" }, features: ["on_off", "select_source", "home", "play_pause"], attributes: { state: "ON", source_list: ["Netflix", "YouTube"] } },
       { entity_id: SUB, entity_type: "switch", integration_id: "hass.main", name: { en: "Living Room Subwoofer" }, features: ["on_off", "toggle"], attributes: { state: "OFF" } },
       { entity_id: LAMP, entity_type: "light", integration_id: "hass.main", name: { en: "Table Lamp" }, features: ["on_off", "toggle", "dim"], attributes: { state: "UNAVAILABLE" } },
       { entity_id: TEMP, entity_type: "sensor", integration_id: "hass.main", name: { en: "Living Room Temperature" }, features: [], attributes: { state: "ON", value: 71, unit: "°F" } },
@@ -29,6 +31,7 @@ export function makeState() {
       { integration_id: "hass.main", driver_id: "hass", name: { en: "Home Assistant" }, enabled: true, device_state: "CONNECTED" },
       { integration_id: "tvdrv.main", driver_id: "tvdrv", name: { en: "TV" }, enabled: true, device_state: "CONNECTED" },
       { integration_id: "avrdrv.main", driver_id: "avrdrv", name: { en: "Receiver" }, enabled: true, device_state: "DISCONNECTED" },
+      { integration_id: "atvdrv.main", driver_id: "uc_androidtv_driver", name: { en: "Android TV" }, enabled: true, device_state: "CONNECTED" },
       { integration_id: "self_control.main", driver_id: "self_control", name: { en: "Remote Self-Control" }, enabled: true, device_state: "CONNECTED" },
       { integration_id: "intg_manager_driver.main", driver_id: "intg_manager_driver", name: { en: "Integration Manager" }, enabled: true, device_state: "CONNECTED" }
     ],

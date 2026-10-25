@@ -756,7 +756,39 @@ function addDevice(x) {
     } else if (p.type === "number") for (const [v, l] of presets(p)) regCmd(d, `${base} · ${base.includes(p.key) ? "" : p.key.replace(/_/g, " ") + " "}${l}`, { cmd_id: c.id, params: { [p.key]: v } });
   }
   for (const sc of x.simple || []) regCmd(d, sc, { cmd_id: sc });
+  d.srcCmd = (x.commands || []).find((c) => c.id.endsWith(".select_source"))?.id || null;
+  applyLinks(d);
   return d;
+}
+// ---- app links: apps an integration can open that aren't in its input list ("<command> = <name>") ----
+let APPLINKS = {}; // integration id -> [{ cmd, name }]
+/** Puts an integration's app links in its devices' command lists, as "select source · <name>". */
+function applyLinks(d) {
+  const links = APPLINKS[d.integration];
+  if (!links?.length || !d.srcCmd) return;
+  for (const l of links) {
+    let label = `select source · ${l.name}`;
+    const have = CMDS[`${d.id} · ${label}`];
+    if (have && have.params?.source !== l.cmd) label += " (app link)";
+    regCmd(d, label, { cmd_id: d.srcCmd, params: { source: l.cmd } });
+    const inp = (INPUTS[d.id] = INPUTS[d.id] || []);
+    const shown = label.slice("select source · ".length);
+    if (!inp.includes(shown)) inp.push(shown);
+  }
+}
+/** "<command> = <name>" per line; the command may contain "=" itself (split at the last " = "). */
+function parseAppLinks(text) {
+  const links = [], errors = [];
+  String(text || "").split(/\r?\n/).forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) return;
+    const m = /^(.*\S)\s+=\s+(.+)$/.exec(line);
+    if (!m) { errors.push(`line ${i + 1}: expected "<command> = <name>"`); return; }
+    const cmd = m[1].trim(), name = m[2].trim();
+    if (cmd.length > 255 || name.length > 60) errors.push(`line ${i + 1}: too long`);
+    else links.push({ cmd, name });
+  });
+  return { links, errors };
 }
 /** The key for a command found on the remote (added to the list if it isn't there yet). */
 function keyOf(c) {
@@ -938,6 +970,7 @@ async function loadAll() {
   if (cr.status === 401) throw new ApiError("Log in on the builder first (web-configurator PIN).", 401);
   if (!cr.ok) throw new ApiError((await cr.json().catch(() => ({}))).error || `HTTP ${cr.status}`, cr.status);
   const cat = await cr.json();
+  try { APPLINKS = (await (await fetch("/api/editor/applinks", { credentials: "same-origin" })).json()).links || {}; } catch { APPLINKS = {}; }
   OWN = cat.own || OWN;
   COPIES = cat.copies || {};
   for (const x of cat.devices || []) addDevice(x);
@@ -998,7 +1031,7 @@ async function loadAll() {
   // Integration Manager (a tool for installing integrations) isn't listed: "+ Add an integration" opens it instead
   const list = Array.isArray(intgs) ? intgs : [];
   MANAGER = list.find((i) => i.driver_id === MANAGER_DRIVER) || null;
-  INTG = list.filter((i) => i.driver_id !== MANAGER_DRIVER).map((i) => ({ id: i.integration_id, name: txt(i.name) || i.integration_id, enabled: i.enabled !== false, state: i.device_state || "UNKNOWN", ents: null }));
+  INTG = list.filter((i) => i.driver_id !== MANAGER_DRIVER).map((i) => ({ id: i.integration_id, driver: i.driver_id || "", name: txt(i.name) || i.integration_id, enabled: i.enabled !== false, state: i.device_state || "UNKNOWN", ents: null }));
   for (const i of INTG) i.status = !i.enabled ? "off" : /CONNECTED|ACTIVE|IDLE/.test(i.state) && !/DIS/.test(i.state) ? "ok" : "bad";
   dvIntg = INTG[0]?.id || null;
   // what's saved = what was read
@@ -2746,6 +2779,7 @@ function renderDevices() {
             el("button", { class: "btn small", type: "button", title: "Look again for devices the integration offers", on: { click: async () => { i.ents = null; await loadIntgEnts(i, true); renderDevices(); } } }, "Look for new devices"),
             el("a", { class: "btn small", href: configurator, target: "_blank", rel: "noopener", title: "An integration's setup (address, login, PIN) runs in the remote's web configurator" }, "Set up again ↗"))),
         i.status === "bad" ? el("p", { class: "warn", style: "margin-top:10px" }, `${i.name} isn't answering. Its ${added.length} device${added.length === 1 ? "" : "s"} can't be controlled until it reconnects; buttons and sequences using them will fail (see "When a command fails" on Activities › Start/Stop).`) : ""),
+      appLinksCard(i),
       el("section", { class: "card" },
         el("div", { class: "ic" }, el("h2", {}, `On the remote (${added.length})`), remBtn),
         el("p", { class: "hint", style: "margin:4px 0 8px" }, "Tick to remove. A device that's used somewhere asks again."),
@@ -2769,6 +2803,56 @@ function renderDevices() {
     el("h3", { style: "margin-top:14px" }, "Used in"),
     uses.length ? el("ul", { class: "uses" }, ...uses.map((u) => el("li", {}, u))) : el("p", { class: "hint" }, e.added ? "Not used anywhere yet." : "Add it first."),
     e.added ? el("div", { class: "row", style: "margin-top:12px" }, el("button", { class: "btn small", type: "button", on: { click: () => setMode("pages") } }, "Put it on a page →")) : "");
+}
+// ---- App links section (Android TV integrations, or any that already has links) ---------------------------
+const ANDROID_DRIVERS = /androidtv|android_tv|googletv|google_tv/i;
+let alPreview = null; // { intg, links, errors, file }
+function appLinksCard(i) {
+  const links = APPLINKS[i.id] || [];
+  if (!ANDROID_DRIVERS.test(i.driver) && !links.length) return "";
+  const save = async (next, okText) => {
+    const all = { ...APPLINKS, [i.id]: next };
+    if (!next.length) delete all[i.id];
+    try {
+      const r = await fetch("/api/editor/applinks", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ links: all }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      APPLINKS = j.links || all;
+      for (const d of DEVICES.filter((x) => x.integration === i.id)) applyLinks(d);
+      dvMsg = okText; dvErr = false;
+    } catch (e) { dvMsg = "App links not saved: " + e.message; dvErr = true; }
+    alPreview = null; renderDevices();
+  };
+  const file = el("input", { type: "file", accept: ".txt,text/plain", class: "hidden", on: { change: async (e) => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    const r = parseAppLinks(await f.text());
+    alPreview = { intg: i.id, file: f.name, ...r }; renderDevices();
+  } } });
+  const prev = alPreview && alPreview.intg === i.id ? alPreview : null;
+  const byCmd = new Map(links.map((l) => [l.cmd, l]));
+  const fresh = prev ? prev.links.filter((l) => !byCmd.has(l.cmd)).length : 0;
+  const renamed = prev ? prev.links.filter((l) => byCmd.has(l.cmd) && byCmd.get(l.cmd).name !== l.name).length : 0;
+  const download = () => {
+    const blob = new Blob([links.map((l) => `${l.cmd} = ${l.name}`).join("\n") + "\n"], { type: "text/plain" });
+    const a = el("a", { href: URL.createObjectURL(blob), download: `${i.name.replace(/[^A-Za-z0-9]+/g, "_")}_apps.txt` }); document.body.append(a); a.click(); a.remove();
+  };
+  return el("section", { class: "card", id: "applinks" },
+    el("div", { class: "ic" }, el("h2", {}, `App links (${links.length})`),
+      el("div", { class: "row", style: "gap:6px" },
+        el("label", { class: "btn small primary" }, "Load a text file…", file),
+        links.length ? el("button", { class: "btn small", type: "button", on: { click: download } }, "Download as text file") : "",
+        links.length ? el("button", { class: "btn small danger", type: "button", on: { click: (e) => { const b = e.currentTarget; if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "Click again to remove all"; return; } save([], "All app links removed."); } } }, "Remove all") : "")),
+    el("p", { class: "hint", style: "margin:4px 0 8px" }, `Apps ${i.name} can open that aren't in its input list. One per line: `, el("code", {}, "market://launch?id=ar.tvplayer.tv = Tivimate"),
+      `. They show by name in What it does, start/off steps and the guided setup ("select source · Tivimate"). Kept by this integration, on the remote (and in its Backup).`),
+    prev ? el("div", { class: "cp-custom", style: "border:1px solid var(--line);border-radius:8px" },
+      el("span", { style: "flex-basis:100%" }, el("b", {}, prev.file), `: ${prev.links.length} app link(s) found${links.length ? ` · ${fresh} new · ${renamed} renamed` : ""}${prev.errors.length ? ` · ${prev.errors.length} line(s) skipped` : ""}.`),
+      prev.errors.length ? el("span", { class: "hint", style: "flex-basis:100%" }, prev.errors.slice(0, 5).join("; ")) : "",
+      links.length ? el("button", { class: "btn small primary", type: "button", disabled: !prev.links.length, on: { click: () => { const m = new Map(links.map((l) => [l.cmd, { ...l }])); for (const l of prev.links) m.set(l.cmd, l); save([...m.values()].slice(0, 300), `${fresh} app link(s) added, ${renamed} renamed.`); } } }, "Add to the list") : "",
+      el("button", { class: "btn small" + (links.length ? "" : " primary"), type: "button", disabled: !prev.links.length, on: { click: () => save(prev.links.slice(0, 300), `${Math.min(300, prev.links.length)} app link(s) saved.`) } }, links.length ? "Replace the list" : "Use these"),
+      el("button", { class: "btn small", type: "button", on: { click: () => { alPreview = null; renderDevices(); } } }, "Cancel")) : "",
+    links.length ? el("div", { class: "elist", style: "max-height:260px;overflow:auto;margin-top:8px" }, ...links.map((l, k) => el("div", { class: "erow", style: "cursor:default" },
+      el("span", {}, el("b", {}, l.name)), el("span", { class: "t", style: "flex:1;min-width:0;overflow-wrap:anywhere;text-align:left" }, l.cmd),
+      el("button", { class: "btn small danger", type: "button", "aria-label": "Remove " + l.name, on: { click: () => save(links.filter((_, j) => j !== k), `${l.name} removed.`) } }, "✕")))) : el("p", { class: "hint" }, "None yet."));
 }
 $("#dv-q").addEventListener("input", (e) => { dvQ = e.target.value; renderDevices(); });
 // "+ Add an integration": Integration Manager's page when it's installed, else the web configurator's integrations
