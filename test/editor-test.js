@@ -92,7 +92,10 @@ r = await req("POST", "/api/core/upload", { type: "Icon", name: "new_icon.png", 
 ok(r.status === 200 && r.body.id === "new_icon.png", "same name again: the remote's copy is used");
 // the remote's built-in icon font, found in its web configurator
 r = await req("GET", "/api/editor/iconfont", undefined, true);
-ok(r.status === 200 && r.body.toString() === "wOF2-fake-icon-font" && r.headers.get("content-type") === "font/woff2", "built-in icon font found through the web configurator's style sheet (not the text font)");
+ok(r.status === 200 && r.body.toString() === "wOF2-fake-icon-font" && r.headers.get("content-type") === "font/woff2", "built-in icons: Font Awesome 6 Pro light from the web configurator, as it draws them");
+r = await req("GET", "/api/editor/iconmap");
+ok(r.status === 200 && r.body.glyphs.tv === "\ue901" && r.body.glyphs.home === "\ue900" && r.body.glyphs.play === "\ue903", "each of the remote's icons gets its character (escaped or as is in the style sheet)");
+ok(r.body.glyphs.light === "\ue902" && r.body.glyphs["hdmi-1"] === "\ue904" && r.body.missing === 0, "names that differ go through the configurator's alias table (light -> lightbulb, hdmi-1 -> hdmi)");
 ok((await req("POST", "/api/core", { method: "GET", path: "/cfg/device/icon_mapping" })).body.data.home === "uE900", "icon names readable");
 // app links are kept by the integration
 r = await req("POST", "/api/editor/applinks", { links: { "atvdrv.main": [{ cmd: "market://launch?id=ar.tvplayer.tv", name: "Tivimate" }] } });

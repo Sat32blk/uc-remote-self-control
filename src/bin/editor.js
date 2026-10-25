@@ -9,7 +9,8 @@
 //                                    was made in the last 30 minutes -> { ok, name, size, reused }
 //   GET  /api/core/backup/latest    downloads the newest of those backups
 //   GET  /api/editor/state          { onScreen } the activity on the remote's screen (if known)
-//   GET  /api/editor/iconfont       the remote's built-in icon font (from its web configurator)
+//   GET  /api/editor/iconfont       the font the web configurator draws the built-in "uc:" icons with
+//   GET  /api/editor/iconmap        { glyphs: uc icon name -> character in that font, missing }
 //   GET/POST /api/editor/applinks   app links per integration ("<command> = <name>"), kept on the remote
 //
 // Everything needs the builder login (web-configurator PIN), like the rest of the builder.
@@ -90,30 +91,53 @@ const sniff = (buf) => {
 };
 
 /**
- * The remote's built-in icon font (the "uc:" icons), found in its own web configurator: the configurator's
- * page links its style sheets, and one of their @font-face rules is the icon font. Returns
- * { family, url, type, body } or null. fetchText / fetchBin: (url) -> string / { type, body }.
+ * How the web configurator draws the remote's built-in "uc:" icons: as Font Awesome 6 Pro light icons
+ * (uc:tv -> class "fa-light fa-tv"), with an alias table for names that differ (uc:light-on -> lightbulb-on).
+ * Read from the remote's own web configurator: its page links one style sheet (the @font-face rules and
+ * ".fa-tv,.fa-television{--fa:"<char>"}" rules) and one script (the alias table).
+ * Returns { family, url, type, body, map: { name: char }, aliases: { ucName: faName } } or null.
+ * fetchText / fetchBin: (url) -> string / { body }.
  */
 export async function findIconFont(origin, fetchText, fetchBin) {
   const page = new URL("/configurator/", origin).href;
   const html = await fetchText(page);
   const sheets = [...html.matchAll(/<link[^>]+href="([^"]+\.css[^"]*)"/gi)].map((m) => new URL(m[1], page).href);
-  const faces = [];
+  const scripts = [...html.matchAll(/<script[^>]+src="([^"]+\.js[^"]*)"/gi)].map((m) => new URL(m[1], page).href);
+  const faces = [], map = {};
   for (const css of sheets.slice(0, 8)) {
     let text;
     try { text = await fetchText(css); } catch { continue; }
     for (const m of text.matchAll(/@font-face\s*\{([^}]*)\}/gi)) {
       const fam = (/font-family\s*:\s*["']?([^;"']+)/i.exec(m[1]) || [])[1] || "";
+      const weight = Number((/font-weight\s*:\s*(\d+)/i.exec(m[1]) || [])[1] || 400);
       const urls = [...m[1].matchAll(/url\(\s*["']?([^)"']+)["']?\s*\)/gi)].map((u) => new URL(u[1], css).href);
       const src = urls.find((u) => /\.woff2(\?|#|$)/i.test(u)) || urls.find((u) => /\.woff(\?|#|$)/i.test(u)) || urls.find((u) => /\.ttf(\?|#|$)/i.test(u));
-      if (src) faces.push({ family: fam.trim(), url: src });
+      if (src) faces.push({ family: fam.trim(), weight, url: src });
+    }
+    // ".fa-tv,.fa-television,.fa-tv-alt{--fa:"\f26c";…}" (the character may also be written as is)
+    for (const m of text.matchAll(/((?:\.fa-[a-z0-9-]+\s*,\s*)*\.fa-[a-z0-9-]+)\s*\{[^}]*?--fa\s*:\s*"(\\[0-9a-fA-F]{1,6}|[^"\\]{1,2})"/g)) {
+      const ch = m[2].startsWith("\\") ? String.fromCodePoint(parseInt(m[2].slice(1), 16)) : m[2];
+      for (const sel of m[1].split(",")) { const name = sel.trim().slice(4); if (name && !map[name]) map[name] = ch; }
     }
   }
-  const pick = faces.find((f) => /icon|^uc|ucr|remote/i.test(f.family)) || faces.find((f) => /icon/i.test(f.url));
+  // the light style (weight 300) of Font Awesome 6 Pro, as the configurator uses; else regular, else the free solid one
+  const fa = (w) => faces.find((f) => /font awesome 6 pro/i.test(f.family) && f.weight === w);
+  const pick = fa(300) || fa(400) || faces.find((f) => /font awesome/i.test(f.family)) || faces.find((f) => /icon|^uc|ucr|remote/i.test(f.family));
   if (!pick) return null;
+  // the alias table: an object literal starting with filter:"filter" and holding "light-on":"lightbulb-on" (the Pro one)
+  let aliases = {};
+  for (const js of scripts.slice(0, 3)) {
+    let text;
+    try { text = await fetchText(js); } catch { continue; }
+    const cands = [...text.matchAll(/\{filter:"filter",[^{}]{0,40000}\}/g)].map((m) => m[0]);
+    const obj = cands.find((c) => /"light-on":"lightbulb-on"/.test(c)) || cands[0];
+    if (!obj) continue;
+    for (const m of obj.matchAll(/(?:"([^"]+)"|([A-Za-z_$][\w$-]*))\s*:\s*"([^"]*)"/g)) aliases[m[1] || m[2]] = m[3];
+    break;
+  }
   const font = await fetchBin(pick.url);
   const type = /\.woff2/i.test(pick.url) ? "font/woff2" : /\.woff/i.test(pick.url) ? "font/woff" : "font/ttf";
-  return { family: pick.family, url: pick.url, type, body: font.body };
+  return { family: pick.family, url: pick.url, type, body: font.body, map, aliases };
 }
 
 /**
@@ -154,7 +178,23 @@ export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPa
   const backupDir = dataDir ? path.join(dataDir, "remote-backups") : null;
   let lastBackup = null; // { name, size, at }
   const notConnected = (res) => send(res, 503, { error: "The integration isn't connected to the remote." });
-  let iconFont = null, iconFontTried = 0;
+  let iconFont = null, iconFontTried = 0, iconFontLoading = null;
+  /** Finds the font once (tried again after 10 minutes if it wasn't found). */
+  const loadIconFont = (core) => {
+    if (iconFont || Date.now() - iconFontTried < 10 * 60 * 1000) return iconFontLoading || Promise.resolve();
+    iconFontTried = Date.now();
+    const origin = core.base.replace(/\/api$/, "");
+    const get = async (u) => { const r = await fetch(u, { signal: AbortSignal.timeout(15000) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r; };
+    iconFontLoading = (async () => {
+      try {
+        iconFont = await findIconFont(origin, async (u) => (await get(u)).text(), async (u) => ({ body: Buffer.from(await (await get(u)).arrayBuffer()) }));
+        if (iconFont) log(`page editor: built-in icons: ${iconFont.family} (${Math.round(iconFont.body.length / 1024)} KB), ${Object.keys(iconFont.map).length} names, ${Object.keys(iconFont.aliases).length} aliases`);
+        else warn("page editor: the web configurator's icon font wasn't found");
+      } catch (e) { warn("page editor: icon font:", e.message); }
+      iconFontLoading = null;
+    })();
+    return iconFontLoading;
+  };
 
   return {
     "GET /editor": async (req, res) => servePage(req, res, editorPath, { "X-Frame-Options": "SAMEORIGIN" }),
@@ -162,20 +202,24 @@ export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPa
     "GET /api/editor/iconfont": async (req, res) => {
       const core = getCore();
       if (!core) return notConnected(res);
-      if (!iconFont && Date.now() - iconFontTried > 10 * 60 * 1000) {
-        iconFontTried = Date.now();
-        const origin = core.base.replace(/\/api$/, "");
-        const get = async (u) => { const r = await fetch(u, { signal: AbortSignal.timeout(8000) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r; };
-        try {
-          iconFont = await findIconFont(origin, async (u) => (await get(u)).text(), async (u) => ({ body: Buffer.from(await (await get(u)).arrayBuffer()) }));
-          if (iconFont) log(`page editor: built-in icon font found (${iconFont.family}, ${Math.round(iconFont.body.length / 1024)} KB)`);
-          else warn("page editor: the web configurator's icon font wasn't found");
-        } catch (e) { warn("page editor: icon font:", e.message); }
-      }
+      await loadIconFont(core);
       if (!iconFont) return send(res, 404, { error: "The remote's icon font wasn't found." });
       res.writeHead(200, { "Content-Type": iconFont.type, "Cache-Control": "private, max-age=86400", "X-Font-Family": encodeURIComponent(iconFont.family) });
       res.end(iconFont.body);
     },
+    // which character each built-in icon is in that font, and the configurator's name aliases
+    "GET /api/editor/iconmap": async (req, res) => {
+      const core = getCore();
+      if (!core) return notConnected(res);
+      await loadIconFont(core);
+      if (!iconFont) return send(res, 404, { error: "The remote's icon font wasn't found." });
+      // only the remote's own icon names, each with its character (via the configurator's alias, like it does)
+      const names = Object.keys((await core.get("/cfg/device/icon_mapping").catch(() => null)) || {});
+      const glyphs = {};
+      for (const n of names) { const ch = iconFont.map[iconFont.aliases[n] || n] || iconFont.map[n]; if (ch) glyphs[n] = ch; }
+      send(res, 200, { family: iconFont.family, glyphs, missing: names.length - Object.keys(glyphs).length }, { "Cache-Control": "private, max-age=3600" });
+    },
+
     // app links per integration (kept by this integration, on the remote)
     "GET /api/editor/applinks": async (req, res) => {
       let all = {};
