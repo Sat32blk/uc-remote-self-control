@@ -98,7 +98,16 @@ input[type=number]{width:70px}
 .kp2 .r3row{display:grid;grid-template-columns:repeat(5,1fr);gap:2px}
 .hwlegend{display:flex;gap:14px;justify-content:center;font-size:12px;color:var(--mute);margin-top:6px}
 .hwlegend b{display:inline-block;width:8px;height:8px;border-radius:4px;background:#f59e0b;margin-right:5px}
-.dropmsg{min-height:20px;text-align:center;font-size:13px}
+.dropmsg{min-height:0;text-align:center;font-size:13px;margin:4px 0 0}
+.dropmsg:empty,#missingkeys:empty{display:none}
+#remotecard{padding-top:10px;padding-bottom:10px}
+/* inside the builder: one compact bar (section buttons left, status and backup right) */
+.framed .edtop{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:6px 4px}
+.framed .edtop .mode{order:1}
+.framed .edtop .edhead{order:2;margin:0 0 0 auto;align-items:center;gap:8px}
+.framed .edtop .edhead .sub{font-size:12px;margin:0}
+.framed #piccount{display:none}
+.framed .wrap{padding-bottom:4px}
 .grid{position:relative;display:grid;gap:6px}
 .cell{border:1.5px dashed #2a2a2e;border-radius:10px;background:#0d0d0f}
 .grid.drag .cell{border-color:#5b4a3a}
@@ -211,7 +220,13 @@ details.more summary{cursor:pointer;font-weight:600}
 .tb #savestatus{max-width:340px;text-align:right}
 .topgrid{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-start}
 .savebox{display:flex;flex-direction:column;gap:6px;align-items:flex-end;max-width:420px}
-.pe3{display:grid;grid-template-columns:minmax(260px,1fr) 390px minmax(300px,1fr);grid-template-rows:auto 1fr;gap:18px;align-items:start}
+.pe3{display:grid;grid-template-columns:minmax(260px,1fr) 390px minmax(300px,1fr);grid-template-rows:auto auto;gap:18px;align-items:stretch}
+/* the remote decides the height: the pictures column and the settings column take the same height and scroll inside */
+.pe3 .peleft,.pe3 .peright{contain:size;overflow:auto;position:static;max-height:none}
+.pe3 .peleft > .card{flex:1 1 auto;min-height:0;overflow:auto}
+.pe3 .peright > #insp{flex:1 0 auto}
+.stage{overflow:visible}
+#body{transform-origin:top center;align-self:flex-start;flex:none}
 .petop{grid-column:1 / 3;grid-row:1;margin-bottom:0}
 .peleft{grid-column:1;grid-row:2}
 .pecenter{grid-column:2;grid-row:2}
@@ -224,7 +239,7 @@ details.more summary{cursor:pointer;font-weight:600}
 .pecenter{display:flex;flex-direction:column;gap:14px}
 .peleft .palette{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
 .peleft .pics{max-height:none}
-@media (max-width:1150px){.pe3{grid-template-columns:1fr;grid-template-rows:none}.petop,.peleft,.pecenter,.peright{grid-column:1;grid-row:auto}.pecol{position:static;max-height:none}.petop{order:-2}.pecenter{order:-1}}
+@media (max-width:1150px){.pe3{grid-template-columns:1fr;grid-template-rows:none}.petop,.peleft,.pecenter,.peright{grid-column:1;grid-row:auto}.pecol{position:static;max-height:none}.pe3 .peleft,.pe3 .peright{contain:none;overflow:visible}.petop{order:-2}.pecenter{order:-1}}
 .fhead{display:flex;align-items:center;gap:8px}
 .fold .arrow{border:0;background:transparent;cursor:pointer;font-size:16px;line-height:1;color:var(--mute);width:24px;height:24px;border-radius:6px;transition:transform .15s}
 .fold .arrow:hover{background:var(--soft)}
@@ -510,8 +525,7 @@ details.more summary{cursor:pointer;font-weight:600}
         </div></div>
         <p class="hint" id="missingkeys" style="text-align:center"></p>
         <p class="dropmsg status" id="dropmsg" role="status"></p>
-        <p class="hint" style="text-align:center">Drag a picture or widget onto the screen, or an image file from your computer. Drag a button to move it. Click a button, a physical key or the touch slider to set what it does.</p>
-        <div class="hwlegend"><span><b></b>physical key with its own command in this activity</span></div>
+        <div class="hwlegend"><span><b></b>key with its own command here</span><span class="hint" title="Drag a picture or widget onto the screen, or an image file from your computer. Drag a button to move it. Click a button, a physical key or the touch slider to set what it does.">How it works ⓘ</span></div>
       </section>
       </div>
       <!-- right: settings of what you're working on -->
@@ -1104,7 +1118,8 @@ function cellFromEvent(e) {
     const it = e.target?.closest?.(".item");
     if (it) { const found = pg.items.find((i) => i.id === it.dataset.id); if (found) return { ...found.loc }; }
   }
-  const cw = (r.width + 6) / pg.grid.w, ch = (r.height + 6) / pg.grid.h;
+  const k = r.width / (g.offsetWidth || r.width); // the remote may be drawn smaller to fit the window
+  const cw = (r.width + 6 * k) / pg.grid.w, ch = (r.height + 6 * k) / pg.grid.h;
   return { x: Math.max(0, Math.min(pg.grid.w - 1, Math.floor((e.clientX - r.left) / cw))), y: Math.max(0, Math.min(pg.grid.h - 1, Math.floor((e.clientY - r.top) / ch))) };
 }
 const hasFiles = (e) => !!e.dataTransfer && [...(e.dataTransfer.types || [])].includes("Files");
@@ -2921,11 +2936,27 @@ $("#mode-home").addEventListener("click", () => setMode("home"));
 $("#mode-macros").addEventListener("click", () => setMode("macros"));
 $("#mode-dev").addEventListener("click", () => setMode("dev"));
 $("#sub-groups").addEventListener("click", () => { closeDD(); setMode("groups"); });
+/** Draws the remote small enough to be seen whole, without scrolling (not below 45 %). */
+function fitRemote() {
+  const body = $("#body"), stage = body?.parentElement;
+  if (!body || !stage) return;
+  body.style.transform = ""; stage.style.height = "";
+  if ($("#view-pages").classList.contains("hidden") || subView === "seq" || innerWidth <= 1150) return;
+  const natural = body.offsetHeight;
+  const card = $("#remotecard");
+  const other = card.offsetHeight - stage.offsetHeight; // model buttons and hints in the same card
+  const top = card.getBoundingClientRect().top + scrollY; // where the remote card starts on the page
+  const avail = innerHeight - top - other - 18;
+  const k = Math.max(0.4, Math.min(1, avail / natural));
+  if (k < 1) { body.style.transform = `scale(${k.toFixed(3)})`; stage.style.height = Math.ceil(natural * k + 12) + "px"; }
+}
+addEventListener("resize", () => requestAnimationFrame(fitRemote));
 function renderAll() {
   restoreNewActButton();
   if (!act()) { $("#grid").replaceChildren(el("p", { class: "hint", style: "color:#9ca3af;padding:10px" }, "No activities on the remote yet: make one with + New.")); renderPics(); renderChannels(); return; }
   renderPages(); renderActSettings(); renderGrid(); renderInspector(); renderPics(); renderChannels(); renderSave(); if (subView === "seq") renderSeq();
   setLib(LIB);
+  requestAnimationFrame(fitRemote);
 }
 // the theme is picked in the builder (top right) and shared with this page
 const GRIDDEF = { w: 4, h: 6 }, GRIDMAX = { w: 10, h: 12 };
@@ -2952,7 +2983,7 @@ renderPalette();
 (async () => {
   try {
     await loadAll();
-    $("#modelhint").textContent = modelKnown ? "Picked from your remote's model number." : "Your remote's model couldn't be read: pick it here.";
+    $("#modelhint").textContent = modelKnown ? "" : "Your remote's model couldn't be read: pick it here.";
     restoreNewActButton();
     renderAll();
   } catch (e) {

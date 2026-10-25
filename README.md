@@ -475,6 +475,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **0.9.4:** Page Editor: the whole remote is always in view (drawn smaller to fit the window), and the Pictures and settings columns are as tall as the remote, each scrolling inside. Inside the builder the editor fills the window, with one compact top bar.
 - **0.9.3 (beta):** Page Editor:
   - new widgets start at 1 × 1 (media widget 4 × 2);
   - **Custom value** for commands such as select source (e.g. an Android TV app link);

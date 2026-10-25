@@ -34,9 +34,12 @@
 .themepick { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .themepick select { min-height: 30px; padding: 3px 6px; font-size: 13px; }
 /* Page Editor tab: the editor runs in its own page, shown full width */
-body.wide .wrap { max-width: 1760px; }
+body.wide .wrap { max-width: 1760px; gap: 10px; }
+body.wide #tab-intro { display: none; }
+body.wide { padding-block-end: 8px; }
+body.wide header h1 { font-size: 20px; }
 #editor-app { padding: 0; max-width: none; }
-#editor-frame { width: 100%; height: calc(100vh - 150px); min-height: 640px; border: 0; border-radius: 12px; background: var(--bg); display: block; }
+#editor-frame { width: 100%; height: calc(100vh - 210px); min-height: 560px; border: 0; border-radius: 12px; background: var(--bg); display: block; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; }
@@ -2849,7 +2852,16 @@ function showTab(which) {
   if (which === "launch") loadLaunchers();
   document.body.classList.toggle("wide", which === "editor");
   if (which === "editor" && !$("#editor-frame").getAttribute("src")) $("#editor-frame").setAttribute("src", "/editor");
+  if (which === "editor") requestAnimationFrame(sizeEditor);
 }
+// the Page Editor fills the window below the builder's header and tabs (so the whole remote fits)
+function sizeEditor() {
+  const f = $("#editor-frame");
+  if (!f || $("#editor-app").hidden) return;
+  const top = f.getBoundingClientRect().top + scrollY;
+  f.style.height = Math.max(560, innerHeight - top - 10) + "px";
+}
+addEventListener("resize", sizeEditor);
 // ---- theme: one choice for the whole builder, the Page Editor included ----
 function applyTheme(t) {
   if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme");
