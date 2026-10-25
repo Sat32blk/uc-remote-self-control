@@ -37,7 +37,7 @@ const SESSION_MS = 12 * 60 * 60 * 1000;
 import { MAX_ICONS, MAX_DEVICES } from "./stateicons.js";
 import { makeBackup, restoreBackup, checkBackup } from "./backup.js";
 import { writeStats } from "./core.js";
-import { editorRoutes, checkAppLinks } from "./editor.js";
+import { editorRoutes, checkAppLinks, sendBody, servePage } from "./editor.js";
 const MAX_RESTORE_BODY = 24 * 1024 * 1024; // a backup carries its pictures
 const MAX_BODY = 512 * 1024;
 
@@ -150,10 +150,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
     return true;
   };
 
-  const send = (res, code, obj, headers = {}) => {
-    res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers });
-    res.end(JSON.stringify(obj));
-  };
+  const send = (res, code, obj, headers = {}) => sendBody(res.req, res, code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers }, JSON.stringify(obj));
 
   const readJson = (req, maxBody = MAX_BODY) =>
     new Promise((resolve, reject) => {
@@ -189,16 +186,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
   }
 
   const routes = {
-    "GET /": async (req, res) => {
-      let html;
-      try {
-        html = fs.readFileSync(pagePath, "utf8");
-      } catch {
-        return send(res, 500, { error: "builder page missing" });
-      }
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "DENY" });
-      res.end(html);
-    },
+    "GET /": async (req, res) => servePage(req, res, pagePath, { "X-Frame-Options": "DENY" }),
     "GET /api/session": async (req, res) => send(res, 200, { loggedIn: loggedIn(req), configured: !!getCore() }),
     "POST /api/login": async (req, res) => {
       const ip = req.socket.remoteAddress || "?";

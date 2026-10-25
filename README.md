@@ -285,12 +285,12 @@ Why it works this way: the remote only switches to an activity's screen when the
 
 Builder → **Page Editor** (the first tab). Nothing is written until you click a save button.
 
-- **Activities ▾ → Interface:** pick the activity and page. Drag a picture from **Icons**, **Channel icons** or **Local folder** (pictures on your computer, uploaded when you save) onto the screen, or click a picture and then a spot. Drag widgets (text button, sensor, select, media widget, number pad) from the right. Click a button to set **What it does**: pick a device (the activity's own come first) and then its command, or search with a few words (*roku netflix*); narrow it by kind (devices, activities, macros, this integration) or device. Click a **physical key** or the **touch slider** on the drawing to set them. Rename, duplicate, delete or make a new activity, set its activity group, prevent sleep and voice assistant in the top bar. Pages: add, rename, grid size, move, delete. **Save to remote**.
+- **Activities ▾ → Interface:** pick the activity and page. In **Pictures**, choose Icons on the remote, Built-in icons (the remote's own), Channel icons or Local folder (pictures on your computer, uploaded when you save), then drag one onto the screen, or click it and then a spot. Drag widgets (text button, sensor, select, media widget, number pad) from the right. Click a button to set **What it does**: pick a device (the activity's own come first) and then its command, or search with a few words (*roku netflix*); **Custom value** sends a typed source such as an app link; **Not added yet** adds a device your integrations offer straight from there; narrow it by kind (devices, activities, macros, this integration) or device. Click a **physical key** or the **touch slider** on the drawing to set them. Rename, duplicate, delete or make a new activity, set its activity group, prevent sleep and voice assistant in the top bar. Pages: add, rename, grid size, move, delete. **Save to remote**.
 - **Activities ▾ → Start/Stop:** the start and off sequences, readiness check and what happens when a command fails. **+ Add a device…**, or giving a button a command of a device that isn't in the sequences yet, opens a short **setup**: what kind of device it is (display, AV receiver, streaming device / player, amp / subwoofer, Home Assistant, other), then a few questions for that kind (input, app, turn off at the end), then a preview. Its steps go into the sequences in signal-flow order with recommended waits: on = display → 1.5 s → sources → 2 s → receiver + input → 3 s → amps; off = amps → 1 s → receiver → 1 s → display → 0.5 s → sources. Your other steps aren't moved.
 - **Activities ▾ → Activity groups:** what switching between activities of a group turns off, as one sentence, with the steps and a grid of every switch.
 - **Home screen:** your home pages ("groups") with their tiles and background pictures (the remote's own, or one from your computer).
 - **Macros:** steps, duplicate, delete (with where it's used), **Try it now**.
-- **Devices & integrations:** per integration what's on the remote and what it offers to add (**Add** on a device adds it at once; no save needed); add several, remove (asks again when a device is used), rename, enable / disable, reconnect. Setting up a new integration still happens in the web configurator.
+- **Devices & integrations:** per integration what's on the remote and what it offers to add; Android TV integrations also have **App links** (load a text file with one `market://launch?id=… = Name` per line, and the apps show by name when you pick commands) (**Add** on a device adds it at once; no save needed); add several, remove (asks again when a device is used), rename, enable / disable, reconnect. Setting up a new integration still happens in the web configurator.
 
 Good to know:
 
@@ -475,6 +475,17 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **0.9.3 (beta):** Page Editor:
+  - new widgets start at 1 × 1 (media widget 4 × 2);
+  - **Custom value** for commands such as select source (e.g. an Android TV app link);
+  - **App links** for Android TV integrations, loaded from a text file (`<command> = <name>`) and shown by name everywhere;
+  - the top bar stays in place while scrolling;
+  - one **Pictures** window with a selector, including the remote's **built-in icons**;
+  - **Not added yet** in What it does, to add devices your integrations offer straight from a button;
+  - **Smart** lists every Remote Self-Control entity, also the ones not added yet;
+  - Integration Manager isn't listed; **+ Add an integration** opens it, or the web configurator's Integrations page.
+
+  Faster: the builder and editor pages and larger answers are sent compressed (about a quarter of the size), and the editor reads everything from the remote in parallel. App links are part of the Backup.
 - **0.9.2:** Page Editor: **What it does** opens on a list of devices (this activity's first, then the rest) instead of the first 80 commands; click a device for all its commands, or type to search everything. It opens on the device of the button's current command.
 - **0.9.1:** Page Editor, Devices & integrations: every device an integration offers has its own **Add** button (added at once, no save needed), or tick several and **Add the N ticked**; the integration list shows how many devices each one offers; messages show at the top of the page; devices the remote lists with their full id are added correctly.
 - **0.9.0 (beta):** **Page Editor** (new first tab): activities on a picture of your Remote 3 / Remote Two with pages, pictures (Icons, Channel icons, Local folder), widgets, physical keys and touch slider; start and off sequences with a **guided setup** for new devices (display, receiver, streaming, amp, Home Assistant, other) that adds their steps in signal-flow order with recommended waits; activity settings; activity groups; macros; home screen with backgrounds; devices & integrations. Full remote backup before the first change (newest two kept on the remote). **Theme picker** for the whole builder: Automatic, Desktop, Dark mode, Remote style, Midnight blue, High contrast.

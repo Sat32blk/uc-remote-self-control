@@ -674,6 +674,18 @@ async function api(method, path, body) {
   return j.data;
 }
 const enc = encodeURIComponent;
+/** Runs at most n of the given jobs at a time. */
+function limiter(n) {
+  let active = 0;
+  const q = [];
+  const next = () => {
+    if (active >= n || !q.length) return;
+    active++;
+    const [fn, ok, ko] = q.shift();
+    Promise.resolve().then(fn).then(ok, ko).finally(() => { active--; next(); });
+  };
+  return (fn) => new Promise((ok, ko) => { q.push([fn, ok, ko]); next(); });
+}
 async function apiAll(path) {
   const out = [];
   for (let p = 1; p <= 30; p++) {
@@ -966,11 +978,26 @@ async function loadAll() {
   for (const k of Object.keys(PIC)) delete PIC[k];
   for (const k of Object.keys(SEQ)) delete SEQ[k];
   for (const k of Object.keys(ASET)) delete ASET[k];
-  const cr = await fetch("/api/editor/catalog", { credentials: "same-origin" });
+  // everything is asked for at once (at most 6 requests at a time to the remote), then read in order
+  const pool = limiter(6);
+  const one = (path) => pool(() => api("GET", path));
+  const all = (path) => pool(() => apiAll(path));
+  const catP = fetch("/api/editor/catalog", { credentials: "same-origin" });
+  const linksP = fetch("/api/editor/applinks", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({}));
+  const listsP = Promise.all([
+    all("/activities"), all("/resources/Icon").catch(() => []), all("/resources/TvChannelIcon").catch(() => []), all("/resources/BackgroundImage").catch(() => []),
+    all("/macros").catch(() => []), all("/activity_groups").catch(() => []), one("/profiles?active=true").catch(() => []), one("/intg/instances?limit=100").catch(() => []),
+    fetch("/api/editor/state", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({})), one("/cfg/device/icon_mapping").catch(() => null)]);
+  const actsFullP = listsP.then(([acts]) => Promise.all(acts.map((a) => one(`/activities/${enc(a.entity_id)}`).catch(() => null))));
+  const macFullP = listsP.then((l) => Promise.all(l[4].map((m) => one(`/macros/${enc(m.entity_id)}`).catch(() => null))));
+  const grpFullP = listsP.then((l) => Promise.all(l[5].map((g) => one(`/activity_groups/${enc(g.group_id)}`).catch(() => null))));
+  const homeP = listsP.then((l) => { const pr = Array.isArray(l[6]) && l[6][0] ? l[6][0].profile_id : null; return pr ? Promise.all([pr, one(`/profiles/${enc(pr)}/pages`).catch(() => []), one(`/profiles/${enc(pr)}/groups`).catch(() => [])]) : [null, [], []]; });
+  for (const x of [actsFullP, macFullP, grpFullP, homeP]) x.catch(() => {}); // read below; no unhandled rejections meanwhile
+  const cr = await catP;
   if (cr.status === 401) throw new ApiError("Log in on the builder first (web-configurator PIN).", 401);
   if (!cr.ok) throw new ApiError((await cr.json().catch(() => ({}))).error || `HTTP ${cr.status}`, cr.status);
   const cat = await cr.json();
-  try { APPLINKS = (await (await fetch("/api/editor/applinks", { credentials: "same-origin" })).json()).links || {}; } catch { APPLINKS = {}; }
+  APPLINKS = (await linksP).links || {};
   OWN = cat.own || OWN;
   COPIES = cat.copies || {};
   for (const x of cat.devices || []) addDevice(x);
@@ -980,11 +1007,7 @@ async function loadAll() {
   if (gl?.default?.width) Object.assign(GRIDDEF, { w: gl.default.width, h: gl.default.height });
   if (gl?.max?.width) Object.assign(GRIDMAX, { w: gl.max.width, h: gl.max.height });
   for (const d of DEVICES) if (d.icon && /^custom:/.test(d.icon)) USED_ELSEWHERE.add(d.icon);
-  const [acts, icons, chans, bgs, macros, groups, profiles, intgs, st] = await Promise.all([
-    apiAll("/activities"), apiAll("/resources/Icon").catch(() => []), apiAll("/resources/TvChannelIcon").catch(() => []), apiAll("/resources/BackgroundImage").catch(() => []),
-    apiAll("/macros").catch(() => []), apiAll("/activity_groups").catch(() => []), api("GET", "/profiles?active=true").catch(() => []), api("GET", "/intg/instances?limit=100").catch(() => []),
-    fetch("/api/editor/state", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({}))]);
-  const mapping = await api("GET", "/cfg/device/icon_mapping").catch(() => null);
+  const [, icons, chans, bgs, , , , intgs, st, mapping] = await listsP;
   HIDDEN_FRAMES = 0;
   for (const r of icons) {
     const p = { id: "custom:" + r.id, file: r.id, short: shortName(r.id), mono: "", bg: "#374151", src: imgUrl("Icon", r.id), size: r.size };
@@ -1003,16 +1026,16 @@ async function loadAll() {
   }
   for (const r of bgs) BGS.push({ id: "custom:" + r.id, file: r.id, name: r.id, css: `url("${imgUrl("BackgroundImage", r.id)}")` });
   // activities, in full (pages, keys, sequences)
-  const full = await Promise.all(acts.map((a) => api("GET", `/activities/${enc(a.entity_id)}`).catch(() => null)));
+  const full = await actsFullP;
   S.activities = full.filter(Boolean).map(activityIn).sort((a, b) => a.name.localeCompare(b.name));
   for (const a of full.filter(Boolean)) if (/^custom:/.test(a.icon || "")) USED_ELSEWHERE.add(a.icon);
   S.onScreen = st.onScreen || null;
   // home screen
-  PROFILE = Array.isArray(profiles) && profiles[0] ? profiles[0].profile_id : null;
+  const [prof, pages, hg] = await homeP;
+  PROFILE = prof;
   S.home = [];
   for (const k of Object.keys(HGROUPS)) delete HGROUPS[k];
   if (PROFILE) {
-    const [pages, hg] = await Promise.all([api("GET", `/profiles/${enc(PROFILE)}/pages`).catch(() => []), api("GET", `/profiles/${enc(PROFILE)}/groups`).catch(() => [])]);
     for (const g of hg || []) HGROUPS[g.group_id] = txt(g.name) || "Device group";
     for (const p of (pages || []).sort((a, b) => (a.pos || 0) - (b.pos || 0))) {
       HOMEBASE[p.page_id] = clone(p);
@@ -1021,10 +1044,10 @@ async function loadAll() {
     }
   }
   // macros and activity groups
-  const mfull = await Promise.all(macros.map((m) => api("GET", `/macros/${enc(m.entity_id)}`).catch(() => null)));
+  const mfull = await macFullP;
   MAC = mfull.filter(Boolean).map(macroIn).sort((a, b) => a.name.localeCompare(b.name));
   MACSAVED = JSON.stringify(MAC); macId = MAC[0]?.id || null;
-  const gfull = await Promise.all(groups.map((g) => api("GET", `/activity_groups/${enc(g.group_id)}`).catch(() => null)));
+  const gfull = await grpFullP;
   GRP = gfull.filter(Boolean).map((g) => ({ id: g.group_id, name: txt(g.name), members: (g.activities || []).map((a) => a.entity_id), off: g.options?.turn_off_unused_entities || "run_off_sequence", delay: g.options?.remove_turn_on_delays || "previous_cmd_skipped" }));
   GRPSAVED = JSON.stringify(GRP); grpId = GRP[0]?.id || null;
   // integrations

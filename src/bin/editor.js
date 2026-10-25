@@ -16,6 +16,37 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
+
+// ---- sending less over the remote's Wi-Fi: gzip for pages and larger answers ----
+const accepts = (req) => /\bgzip\b/.test(req?.headers?.["accept-encoding"] || "");
+/** Sends a body, gzipped when the browser accepts it and it's worth it. */
+export function sendBody(req, res, code, headers, body) {
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
+  if (buf.length > 1024 && accepts(req)) {
+    const gz = zlib.gzipSync(buf, { level: 6 });
+    res.writeHead(code, { ...headers, "Content-Encoding": "gzip", Vary: "Accept-Encoding", "Content-Length": gz.length });
+    return res.end(gz);
+  }
+  res.writeHead(code, { ...headers, "Content-Length": buf.length });
+  res.end(buf);
+}
+const pageCache = new Map(); // file -> { mtime, raw, gz }
+/** Serves an HTML page from disk; read and compressed once per change of the file. */
+export function servePage(req, res, file, extraHeaders = {}) {
+  let st;
+  try { st = fs.statSync(file); } catch { res.writeHead(500, { "Content-Type": "application/json" }); return res.end('{"error":"page missing"}'); }
+  let c = pageCache.get(file);
+  if (!c || c.mtime !== st.mtimeMs) {
+    const raw = fs.readFileSync(file);
+    c = { mtime: st.mtimeMs, raw, gz: zlib.gzipSync(raw, { level: 9 }) };
+    pageCache.set(file, c);
+  }
+  const headers = { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...extraHeaders };
+  if (accepts(req)) { res.writeHead(200, { ...headers, "Content-Encoding": "gzip", Vary: "Accept-Encoding", "Content-Length": c.gz.length }); return res.end(c.gz); }
+  res.writeHead(200, { ...headers, "Content-Length": c.raw.length });
+  res.end(c.raw);
+}
 
 // Paths the editor may use, and with which methods. Anything else is refused.
 const ALL = ["GET", "POST", "PATCH", "PUT", "DELETE"];
@@ -126,16 +157,7 @@ export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPa
   let iconFont = null, iconFontTried = 0;
 
   return {
-    "GET /editor": async (req, res) => {
-      let html;
-      try {
-        html = fs.readFileSync(editorPath, "utf8");
-      } catch {
-        return send(res, 500, { error: "editor page missing" });
-      }
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "SAMEORIGIN" });
-      res.end(html);
-    },
+    "GET /editor": async (req, res) => servePage(req, res, editorPath, { "X-Frame-Options": "SAMEORIGIN" }),
     // the remote's built-in icon font, so the editor can draw "uc:" icons like the remote does
     "GET /api/editor/iconfont": async (req, res) => {
       const core = getCore();
