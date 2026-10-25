@@ -22,6 +22,8 @@
 //   POST /api/extras       { sliders, menus } -> { ok, errors }                              (login)
 //   POST /api/extras/test  { id, value } (slider) | { id, option } (menu) -> { summary }     (login)
 //   GET  /api/icons, POST /api/icons, POST /api/icons/upload, GET /api/icons/image          (login)
+//   GET  /api/editor/catalog  every entity with its commands, the remote's model and key layout     (login)
+//   Page Editor pass-through and pictures: see editor.js                                          (login)
 //
 // Login uses the remote's web-configurator PIN, checked against the remote's own API.
 
@@ -35,6 +37,7 @@ const SESSION_MS = 12 * 60 * 60 * 1000;
 import { MAX_ICONS, MAX_DEVICES } from "./stateicons.js";
 import { makeBackup, restoreBackup, checkBackup } from "./backup.js";
 import { writeStats } from "./core.js";
+import { editorRoutes } from "./editor.js";
 const MAX_RESTORE_BODY = 24 * 1024 * 1024; // a backup carries its pictures
 const MAX_BODY = 512 * 1024;
 
@@ -125,14 +128,14 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
       const listAttr = ATTR_LISTS[k];
       values[k] = k === "state" ? STATES[type] || [] : listAttr && Array.isArray(attrs[listAttr]) ? attrs[listAttr] : typeof v === "boolean" ? ["true", "false"] : [];
     }
-    devices.push({ id: e.entity_id, name, type, integration: e.integration_id || "", current: Object.fromEntries(Object.entries(attrs).filter(([k, v]) => !Array.isArray(v) && k !== "media_image_url")), values, commands, simple });
+    devices.push({ id: e.entity_id, name, type, integration: e.integration_id || "", features, icon: e.icon || null, current: Object.fromEntries(Object.entries(attrs).filter(([k, v]) => !Array.isArray(v) && k !== "media_image_url")), values, commands, simple });
   }
   devices.sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
   activities.sort((a, b) => a.name.localeCompare(b.name));
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, cleanup = null, version = "", log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
   const sessions = new Map(); // token -> expiry
   const failures = new Map(); // ip -> [timestamps]
 
@@ -234,6 +237,15 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       const integrations = {};
       for (const i of instances || []) if (i?.integration_id) integrations[i.integration_id] = (typeof i.name === "string" ? i.name : i.name?.en || Object.values(i.name || {})[0]) || i.integration_id;
       send(res, 200, { ...cat, controls: controls(), settings, integrations, copies: launchersApi ? launchersApi.copies() : {} });
+    },
+    // ---- page editor: everything on the remote, its own integration's entities included ----
+    "GET /api/editor/catalog": async (req, res) => {
+      const core = getCore();
+      if (!core) return send(res, 503, { error: "The integration isn't set up yet. Run its setup in the web configurator first." });
+      const [entities, commands, system, layout, screen] = await Promise.all([fetchAll(core, "/entities"), core.get("/cfg/entity/commands"),
+        core.get("/system").catch(() => null), core.get("/cfg/device/button_layout").catch(() => null), core.get("/cfg/device/screen_layout").catch(() => null)]);
+      const cat = buildCatalog(entities, commands, null);
+      send(res, 200, { devices: cat.devices, model: String(system?.model_number || ""), buttonLayout: layout, screenLayout: screen, own: "self_control", version, copies: launchersApi ? launchersApi.copies() : {} });
     },
     "GET /api/rules": async (req, res) => {
       const r = loadRulesText();
@@ -517,6 +529,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       }
     }
   };
+  if (editorPath) Object.assign(routes, editorRoutes({ getCore, onScreen, dataDir, editorPath, send, readJson, log, warn }));
   const PUBLIC = new Set(["GET /", "GET /api/session", "POST /api/login", "POST /api/logout"]);
 
   const server = http.createServer(async (req, res) => {

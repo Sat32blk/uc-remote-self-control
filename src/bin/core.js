@@ -108,10 +108,15 @@ export class CoreClient {
    * An icon with the same name is kept (the remote never overwrites) and its id returned.
    */
   async uploadIcon(name, png) {
+    return this.uploadResource("Icon", name, png, "image/png");
+  }
+
+  /** Uploads a picture resource (Icon, TvChannelIcon, BackgroundImage). Same name already there: its id. */
+  async uploadResource(type, name, buf, mime = "image/png") {
     const form = new FormData();
-    form.append("file", new Blob([png], { type: "image/png" }), name);
+    form.append("file", new Blob([buf], { type: mime }), name);
     try {
-      const res = await this.request("POST", "/resources/Icon", form);
+      const res = await this.request("POST", `/resources/${type}`, form);
       const item = Array.isArray(res) ? res[0] : res;
       return item?.id || name;
     } catch (e) {
@@ -121,18 +126,19 @@ export class CoreClient {
   }
 
   /** Raw download (e.g. an icon image). Returns { type, body: Buffer }. */
-  async download(path) {
+  async download(path, timeoutMs = this.timeoutMs) {
     const headers = {};
     const auth = this.#authHeader();
     if (auth) headers.Authorization = auth;
     let res;
     try {
-      res = await fetch(this.base + path, { headers, signal: AbortSignal.timeout(this.timeoutMs) });
+      res = await fetch(this.base + path, { headers, signal: AbortSignal.timeout(timeoutMs) });
     } catch (e) {
       throw new CoreError(`GET ${path}: ${e.message}`, 0, "unreachable");
     }
     if (!res.ok) throw new CoreError(`GET ${path}: HTTP ${res.status}`, res.status, res.status === 401 ? "unauthorized" : "http");
-    return { type: res.headers.get("content-type") || "application/octet-stream", body: Buffer.from(await res.arrayBuffer()) };
+    const disp = /filename="?([^";]+)"?/.exec(res.headers.get("content-disposition") || "");
+    return { type: res.headers.get("content-type") || "application/octet-stream", body: Buffer.from(await res.arrayBuffer()), filename: disp ? disp[1] : null };
   }
 
   /** Creates an admin API key using the PIN. Returns the key string. */

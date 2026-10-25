@@ -1534,6 +1534,9 @@ Object.assign(CONTROL_NAMES_ALL, CONTROL_NAMES);
 startWebServer({
   port: BUILDER_PORT,
   pagePath: path.join(HERE, "web", "builder.html"),
+  editorPath: path.join(HERE, "web", "editor.html"),
+  dataDir: api.getConfigDirPath(),
+  onScreen: () => onScreen(),
   getCore: () => core,
   makePinClient: (pin) => new CoreClient(config?.address || "127.0.0.1", { pin }),
   smart: () => smart,

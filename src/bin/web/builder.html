@@ -17,6 +17,26 @@
   :root { --bg: #111418; --panel: #181c21; --inset: #20252c; --line: #2f3640; --fg: #e8eaed; --muted: #9aa3ad;
     --accent: #f2a541; --accent-ink: #111418; --accent-soft: #3a2a12; --danger: #ff7b72; --ok: #5bd28a; color-scheme: dark; }
 }
+:root[data-theme="light"] { --bg: #f4f5f7; --panel: #ffffff; --inset: #eef0f3; --line: #d6dae0; --fg: #1c2027; --muted: #5b6370;
+  --accent: #b86a00; --accent-ink: #ffffff; --accent-soft: #fbedd8; --danger: #b4231b; --ok: #1d7a3e; color-scheme: light; }
+:root[data-theme="dark"] { --bg: #111418; --panel: #181c21; --inset: #20252c; --line: #2f3640; --fg: #e8eaed; --muted: #9aa3ad;
+  --accent: #f2a541; --accent-ink: #111418; --accent-soft: #3a2a12; --danger: #ff7b72; --ok: #5bd28a; color-scheme: dark; }
+:root[data-theme="config"] { --bg: #000; --panel: #141416; --inset: #222225; --line: #34343a; --fg: #f4f4f5; --muted: #a1a1aa;
+  --accent: #f4f4f5; --accent-ink: #000; --accent-soft: #2c2c31; --danger: #fca5a5; --ok: #86efac; color-scheme: dark; }
+:root[data-theme="midnight"] { --bg: #0b1324; --panel: #111c33; --inset: #16233f; --line: #2e4470; --fg: #e8eefc; --muted: #9fb0d0;
+  --accent: #38bdf8; --accent-ink: #00131f; --accent-soft: #0c2a3a; --danger: #fda4af; --ok: #6ee7b7; color-scheme: dark; }
+:root[data-theme="contrast"] { --bg: #000; --panel: #000; --inset: #111; --line: #fff; --fg: #fff; --muted: #f0f0f0;
+  --accent: #ffd60a; --accent-ink: #000; --accent-soft: #332b00; --danger: #ff8080; --ok: #7cff7c; color-scheme: dark; }
+:root[data-theme="config"] button, :root[data-theme="config"] .btn { border-radius: 999px; }
+:root[data-theme="config"] .panel, :root[data-theme="config"] .card { border-radius: 18px; }
+:root[data-theme="contrast"] button, :root[data-theme="contrast"] .btn, :root[data-theme="contrast"] input, :root[data-theme="contrast"] select, :root[data-theme="contrast"] .panel, :root[data-theme="contrast"] .card { border-width: 2px; }
+:root[data-theme="contrast"] :focus-visible { outline: 3px solid #ffd60a !important; outline-offset: 2px; }
+.themepick { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.themepick select { min-height: 30px; padding: 3px 6px; font-size: 13px; }
+/* Page Editor tab: the editor runs in its own page, shown full width */
+body.wide .wrap { max-width: 1760px; }
+#editor-app { padding: 0; max-width: none; }
+#editor-frame { width: 100%; height: calc(100vh - 150px); min-height: 640px; border: 0; border-radius: 12px; background: var(--bg); display: block; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; }
@@ -186,11 +206,23 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
       <h1>Remote Self-Control Builder</h1>
       <p id="tab-intro">Conditional buttons for the Remote Self-Control integration. Each button checks your devices or the remote, then runs the first branch that matches.</p>
     </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+    <label class="themepick">Theme
+      <select id="theme" aria-label="Builder theme">
+        <option value="">Automatic</option>
+        <option value="light">Desktop</option>
+        <option value="dark">Dark mode</option>
+        <option value="config">Remote style</option>
+        <option value="midnight">Midnight blue</option>
+        <option value="contrast">High contrast</option>
+      </select>
+    </label>
     <div class="row" id="session-bar" hidden>
       <span class="badge" id="device-count"></span>
       <button class="small" id="reload" type="button">Reload devices</button>
       <button class="small" id="backup-open" type="button" aria-expanded="false" aria-controls="backup-panel">Backup</button>
       <button class="small" id="logout" type="button">Log out</button>
+    </div>
     </div>
   </header>
 
@@ -218,12 +250,17 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
   </section>
 
   <nav class="tabs" id="tabs" role="tablist" hidden>
+    <button type="button" role="tab" id="tab-editor" aria-selected="false" aria-controls="editor-app">Page Editor <span class="badge">beta</span></button>
     <button type="button" role="tab" id="tab-smart" aria-selected="true" aria-controls="app">Smart Controls</button>
     <button type="button" role="tab" id="tab-icons" aria-selected="false" aria-controls="icons-app">Icons &amp; Sliders</button>
     <button type="button" role="tab" id="tab-ret" aria-selected="false" aria-controls="ret-app">Return &amp; Pages ↩</button>
     <button type="button" role="tab" id="tab-ctl" aria-selected="false" aria-controls="ctl-app">Controls ⇅</button>
     <button type="button" role="tab" id="tab-launch" aria-selected="false" aria-controls="launch-app">Smart Launchers</button>
   </nav>
+
+  <section class="pane" id="editor-app" hidden aria-label="Page editor">
+    <iframe id="editor-frame" title="Page Editor"></iframe>
+  </section>
 
   <section class="pane split" id="app" hidden aria-label="Smart controls">
     <div class="pane-main">
@@ -2789,6 +2826,7 @@ async function loadExtras() {
 }
 
 const TABS = {
+  editor: { pane: "#editor-app", intro: "Edit your activities on a picture of your remote: pages, buttons and pictures, physical keys, start and off sequences, activity groups, macros, the home screen and your devices. Saved straight to the remote, after a full backup." },
   smart: { pane: "#app", intro: "Buttons and pop-up menus for the Remote Self-Control integration. A smart control checks your devices or the remote, then runs the first branch that matches; a quick menu runs the steps of the choice you pick." },
   ret: { pane: "#ret-app", intro: "A ↩ button in your activities that always opens the activity you used before, and start pages: the page an activity opens on, depending on your devices." },
   launch: { pane: "#launch-app", intro: "Smart launchers: one button that opens the activity your conditions pick, e.g. Watch ShieldTV if the Shield is on, otherwise Watch RokuTV." },
@@ -2797,7 +2835,7 @@ const TABS = {
 };
 function showTab(which) {
   if (which === "extras") which = "icons"; // older builder versions had a separate tab
-  if (!TABS[which]) which = "smart";
+  if (!TABS[which]) which = "editor";
   for (const [k, t] of Object.entries(TABS)) {
     $("#tab-" + k).setAttribute("aria-selected", String(k === which));
     $(t.pane).hidden = k !== which;
@@ -2809,7 +2847,16 @@ function showTab(which) {
   if (which === "ret") { renderRet(); loadStarts(); }
   if (which === "ctl") renderCtl();
   if (which === "launch") loadLaunchers();
+  document.body.classList.toggle("wide", which === "editor");
+  if (which === "editor" && !$("#editor-frame").getAttribute("src")) $("#editor-frame").setAttribute("src", "/editor");
 }
+// ---- theme: one choice for the whole builder, the Page Editor included ----
+function applyTheme(t) {
+  if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme");
+  try { $("#editor-frame")?.contentWindow?.postMessage({ type: "theme", theme: t }, location.origin); } catch {}
+}
+{ let t = ""; try { t = localStorage.getItem("scb_theme") || ""; } catch {} $("#theme").value = t; applyTheme(t); }
+$("#theme").addEventListener("change", (e) => { try { localStorage.setItem("scb_theme", e.target.value); } catch {} applyTheme(e.target.value); });
 for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () => showTab(k));
 
 // ---------------------------------------------------------------------------
@@ -2817,6 +2864,7 @@ for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () =
 // ---------------------------------------------------------------------------
 function showLogin(msg) {
   $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = ED.ret = ED.ctl = null; RET = null; CTL = null; STARTS = null; LAUNCH = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
+  $("#editor-app").hidden = true; $("#editor-frame").removeAttribute("src"); document.body.classList.remove("wide");
   $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
   $("#pin").focus();
 }
@@ -2839,8 +2887,8 @@ async function loadAll() {
   await Promise.all([loadExtras(), loadReturn(), loadControls(), loadSeen()]);
   startStates("smart"); startStates("icons"); startStates("ret"); startStates("launch");
   changed(true);
-  let tab = "smart";
-  try { tab = localStorage.getItem("scb_tab") || "smart"; } catch {}
+  let tab = "editor";
+  try { tab = localStorage.getItem("scb_tab") || "editor"; } catch {}
   showTab(tab);
 }
 $("#login").addEventListener("submit", async (e) => {

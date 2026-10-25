@@ -4,6 +4,7 @@
 
 A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that runs on the remote itself and lets the remote control **itself**:
 
+- **Page Editor (beta):** edit your activities on a picture of your Remote 3 or Remote Two: drag pictures and widgets onto pages, set what buttons and physical keys do, start and off sequences with a guided setup for new devices, activity groups, macros, the home screen and your devices. Saved straight to the remote, after a full remote backup.
 - **Remote settings as entities:** button backlight level and color, display brightness and timeout, sleep timeout, wake sensitivity, Wake on LAN, sound effects and volume, haptics. Use them in activities, macros, pages, buttons and the touch slider.
 - **Smart Controls:** buttons with if / else logic ("if the receiver is on, turn *it* up, otherwise the TV"), built in a browser page the integration serves itself.
 - **State icons:** make a button on a page change its icon with a device's state, like a green power icon while the receiver is on. Pick the button, drop in an image per state.
@@ -46,6 +47,7 @@ A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that 
   12. [Back up everything](#12-back-up-everything)
   13. [Jump to a page, and start pages](#13-jump-to-a-page-and-start-pages)
   14. [One button for whichever activity fits (smart launchers)](#14-one-button-for-whichever-activity-fits-smart-launchers)
+  15. [Edit your activities on a picture of your remote (Page Editor)](#15-edit-your-activities-on-a-picture-of-your-remote-page-editor)
 - [The builder](#the-builder)
 - [Entities](#entities)
 - [Rules reference](#rules-reference)
@@ -275,6 +277,28 @@ Why it works this way: the remote only switches to an activity's screen when the
 - A button on a page of the activity on screen is re-pointed when you leave it (changing a page you're looking at would jump to page 1). Physical buttons and home tiles change at once.
 - **Remove everything** and removing a launcher point its buttons back at the original activity and delete the copies. Launchers are part of the backup.
 
+### 15. Edit your activities on a picture of your remote (Page Editor)
+
+*Beta. It changes your activities, macros, home screen and devices directly. Before the first change of a visit, the integration saves a full backup of the remote (the same file as the web configurator's backup) and keeps the newest two on the remote: **Last remote backup** downloads it. Still keep your own backup from the web configurator.*
+
+![Page Editor](docs/images/page-editor.png)
+
+Builder → **Page Editor** (the first tab). Nothing is written until you click a save button.
+
+- **Activities ▾ → Interface:** pick the activity and page. Drag a picture from **Icons**, **Channel icons** or **Local folder** (pictures on your computer, uploaded when you save) onto the screen, or click a picture and then a spot. Drag widgets (text button, sensor, select, media widget, number pad) from the right. Click a button to set **What it does**: search with a few words (*roku netflix*) and narrow it by kind (devices, activities, macros, this integration) or device. Click a **physical key** or the **touch slider** on the drawing to set them. Rename, duplicate, delete or make a new activity, set its activity group, prevent sleep and voice assistant in the top bar. Pages: add, rename, grid size, move, delete. **Save to remote**.
+- **Activities ▾ → Start/Stop:** the start and off sequences, readiness check and what happens when a command fails. **+ Add a device…**, or giving a button a command of a device that isn't in the sequences yet, opens a short **setup**: what kind of device it is (display, AV receiver, streaming device / player, amp / subwoofer, Home Assistant, other), then a few questions for that kind (input, app, turn off at the end), then a preview. Its steps go into the sequences in signal-flow order with recommended waits: on = display → 1.5 s → sources → 2 s → receiver + input → 3 s → amps; off = amps → 1 s → receiver → 1 s → display → 0.5 s → sources. Your other steps aren't moved.
+- **Activities ▾ → Activity groups:** what switching between activities of a group turns off, as one sentence, with the steps and a grid of every switch.
+- **Home screen:** your home pages ("groups") with their tiles and background pictures (the remote's own, or one from your computer).
+- **Macros:** steps, duplicate, delete (with where it's used), **Try it now**.
+- **Devices & integrations:** per integration what's on the remote and what it offers to add; add, remove (asks again when a device is used), rename, enable / disable, reconnect. Setting up a new integration still happens in the web configurator.
+
+Good to know:
+
+- **Saving re-reads the pages first.** A button you didn't touch keeps whatever the remote has now, so a picture the integration (state icons, level pictures) or the web configurator changed meanwhile isn't overwritten. Only changed pages, keys and settings are written.
+- **The activity on the remote's screen:** its pages are saved once you leave it (changing a page you're looking at would jump to page 1). Keys, slider and settings save at once; **Save pages now anyway** doesn't wait.
+- Activities made by an integration are shown with 🔒 and can't be edited. The integration's own level-picture frames aren't listed in Icons.
+- The **Theme** picker (top right of the builder) applies to every tab: Automatic, Desktop, Dark mode, Remote style, Midnight blue, High contrast.
+
 ## The builder
 
 The integration serves its own builder page on your network, at `http://<remote-name>.local:10123/` or `http://<remote-ip>:10123/`. The exact addresses are shown in Integrations → Remote Self-Control → Configure.
@@ -289,6 +313,7 @@ The integration serves its own builder page on your network, at `http://<remote-
 - **Save** writes to the remote (everything is checked first; errors are listed in the editor). **Save & test** runs a smart control once and shows the result.
 - **Device states (live)** (Smart Controls and Icons & Sliders tabs): pick a device and see every value its integration reports, updated every 2 seconds, with all values seen so far. Tick *Keep collecting in the background* to gather values that only show up now and then (an audio format, an app name). It sits to the right of the editor. Click a value field in the editor, then a value in the panel to fill it in (a condition also gets that device and attribute); in a state icon a clicked value is added as a state, and *use* points a slider at a number. Values seen are also offered in the value lists of state icons and conditions.
 - **Backup** (top right) saves and restores everything you set up, with its pictures (walkthrough 12). **Rules text** exports and imports the smart controls alone as JSON, for sharing.
+- **Theme** (top right): Automatic (follows your system), Desktop, Dark mode, Remote style, Midnight blue or High contrast, for every tab including the Page Editor.
 - Works on phones and in dark mode, and needs no internet: everything is served by the remote.
 
 | Dark mode | Phone |
@@ -389,6 +414,7 @@ For lists, `option` can also be `next` / `previous` (wraps around) or `up` / `do
 - The builder requires the web-configurator PIN. The PIN is checked against the remote and never stored. A session lasts 12 hours (HttpOnly, SameSite=Strict cookie).
 - After 5 wrong PINs from one address, logins are blocked for 5 minutes.
 - The builder is plain HTTP on your local network, like the web configurator itself. Don't forward port 10123 to the internet.
+- The **Page Editor** reaches the remote's API through the builder (same login). It only lets through what the editor needs: activities, activity groups, macros, the home screen, pictures, entities and integrations. API keys, system commands (reboot, update, power), the remote's settings and deleting whole collections are refused. Its remote backups stay on the remote (newest two).
 - The integration holds an admin API key for the remote. Removing the integration does not revoke it: list keys with `GET /api/auth/api_keys` and delete with `DELETE /api/auth/api_keys/{id}`.
 
 ## Configuration
@@ -415,6 +441,8 @@ src/bin/core.js                         REST client for the remote's Core API
 src/bin/smart.js                        Smart Controls: validation and engine
 src/bin/web.js                          builder web server and device catalog
 src/bin/web/builder.html                builder page (no external files; works offline)
+src/bin/web/editor.html                 Page Editor (shown in the builder's first tab)
+src/bin/editor.js                       Page Editor: Core API pass-through (allow list), pictures, remote backups
 src/bin/tile.js                         puts the Last Result tile on an activity page
 src/bin/returnbtn.js                    return to previous activity (tracking + ↩ buttons)
 src/bin/stateicons.js                   state icons (watch devices, switch button looks)
@@ -434,7 +462,7 @@ Tests (Node 22):
 ```
 npm install                 # dev dependency: ws
 (cd src/bin && npm install)
-npm test                    # builder page, settings, Smart Controls, return, state icons, sliders & menus, Controls, device states, events
+npm test                    # builder page, settings, Smart Controls, return, state icons, sliders & menus, Controls, device states, events, launchers, Page Editor
 ```
 
 Build the install archive:
@@ -446,6 +474,8 @@ Build the install archive:
 Built on the [Integration API](https://github.com/unfoldedcircle/integration-node-library) and the [Core REST API](https://github.com/unfoldedcircle/core-api) by Unfolded Circle.
 
 ## Changes
+
+- **0.9.0 (beta):** **Page Editor** (new first tab): activities on a picture of your Remote 3 / Remote Two with pages, pictures (Icons, Channel icons, Local folder), widgets, physical keys and touch slider; start and off sequences with a **guided setup** for new devices (display, receiver, streaming, amp, Home Assistant, other) that adds their steps in signal-flow order with recommended waits; activity settings; activity groups; macros; home screen with backgrounds; devices & integrations. Full remote backup before the first change (newest two kept on the remote). **Theme picker** for the whole builder: Automatic, Desktop, Dark mode, Remote style, Midnight blue, High contrast.
 
 - **0.8.7:** smart launchers: extra steps after the activity starts are optional and no longer described as "the app".
 - **0.8.6:** the builder tab is called **Smart Launchers**.
