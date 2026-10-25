@@ -14,11 +14,11 @@ const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fails++
 // --- the allow list
 const allowed = [["GET", "/activities?limit=100&page=1"], ["PATCH", "/activities/uc.main.x/ui/pages/p1"], ["DELETE", "/activities/uc.main.x/buttons/MUTE/short_press"], ["PATCH", "/activities/uc.main.x/ui/pages"],
   ["POST", "/macros"], ["DELETE", "/macros/uc.main.m"], ["PATCH", "/activity_groups/g1"], ["PATCH", "/profiles/p/pages/h1"], ["GET", "/resources/Icon?limit=100&page=1"], ["DELETE", "/resources/Icon/a.png"],
-  ["DELETE", "/entities/hass.main.light.x"], ["PUT", "/entities/uc.main.m/command"], ["POST", "/intg/instances/hass.main/entities"], ["PUT", "/intg/instances/hass.main?cmd=CONNECT"], ["GET", "/system"], ["GET", "/cfg/device/screen_layout"]];
+  ["DELETE", "/entities/hass.main.light.x"], ["PUT", "/entities/uc.main.m/command"], ["POST", "/intg/instances/hass.main/entities"], ["PUT", "/intg/instances/hass.main?cmd=CONNECT"], ["GET", "/system"], ["GET", "/cfg/device/screen_layout"], ["GET", "/intg/drivers/intg_manager_driver"]];
 for (const [m, p] of allowed) ok(checkCoreCall(m, p) === null, `allowed: ${m} ${p}`);
 const refused = [["DELETE", "/activities"], ["DELETE", "/entities"], ["DELETE", "/resources/Icon"], ["DELETE", "/macros"], ["POST", "/system"], ["GET", "/system/backup/export"], ["PUT", "/system/power"],
   ["POST", "/auth/api_keys"], ["GET", "/auth/api_keys"], ["PATCH", "/cfg/device"], ["GET", "/activities/../auth/api_keys"], ["GET", "/activities//x"], ["POST", "/resources/Icon"], ["DELETE", "/intg/instances"],
-  ["GET", "/activities?x=<script>"], ["TRACE", "/activities"], ["GET", "activities"]];
+  ["GET", "/activities?x=<script>"], ["TRACE", "/activities"], ["GET", "activities"], ["DELETE", "/intg/drivers/intg_manager_driver"], ["PATCH", "/intg/drivers/x"]];
 for (const [m, p] of refused) ok(checkCoreCall(m, p) !== null, `refused: ${m} ${p}`);
 
 // --- over HTTP, with a fake remote

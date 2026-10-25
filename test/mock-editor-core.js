@@ -27,8 +27,10 @@ export function makeState() {
     intg: [
       { integration_id: "hass.main", driver_id: "hass", name: { en: "Home Assistant" }, enabled: true, device_state: "CONNECTED" },
       { integration_id: "tvdrv.main", driver_id: "tvdrv", name: { en: "TV" }, enabled: true, device_state: "CONNECTED" },
-      { integration_id: "avrdrv.main", driver_id: "avrdrv", name: { en: "Receiver" }, enabled: true, device_state: "DISCONNECTED" }
+      { integration_id: "avrdrv.main", driver_id: "avrdrv", name: { en: "Receiver" }, enabled: true, device_state: "DISCONNECTED" },
+      { integration_id: "intg_manager_driver.main", driver_id: "intg_manager_driver", name: { en: "Integration Manager" }, enabled: true, device_state: "CONNECTED" }
     ],
+    drivers: { intg_manager_driver: { driver_id: "intg_manager_driver", name: { en: "Integration Manager" }, version: "3.1.0", driver_url: "ws://192.168.1.77:9090" } },
     activities: {
       "uc.main.watch": { name: { en: "Watch Roku" }, state: "OFF", entity_ids: [TV, ROKU, LAMP],
         sequences: { on: [{ type: "command", command: { entity_id: TV, cmd_id: "media_player.on" } }, { type: "delay", delay: 1500 }, { type: "command", command: { entity_id: ROKU, cmd_id: "media_player.on" } }, { type: "command", command: { entity_id: TV, cmd_id: "media_player.select_source", params: { source: "HDMI 2" } } }],
@@ -241,6 +243,7 @@ export function startMockEditorCore(port = 0) {
         }
         // integrations
         if (p === "/intg/instances" && M === "GET") return send(200, clone(S.intg));
+        if ((m = /^\/intg\/drivers\/([^/]+)$/.exec(p)) && M === "GET") return S.drivers[m[1]] ? send(200, clone(S.drivers[m[1]])) : send(404, { message: "no driver" });
         if ((m = /^\/intg\/instances\/([^/]+)$/.exec(p))) {
           const i = S.intg.find((x) => x.integration_id === m[1]);
           if (!i) return send(404, { message: "nf" });

@@ -597,7 +597,7 @@ details.more summary{cursor:pointer;font-weight:600}
       <div class="tb">
         <span class="grp"><span class="lab">Find a device</span><input type="search" id="dv-q" placeholder="name, e.g. lamp, roku" style="width:240px"></span>
         <span class="hint" id="dv-sum"></span>
-        <span class="grp save"><button class="btn small" id="dv-addintg" type="button">+ Add an integration</button></span>
+        <span class="grp save"><button class="btn small" id="dv-addintg" type="button" title="Opens Integration Manager if it's installed, otherwise the web configurator's Integrations page">+ Add an integration ↗</button></span>
       </div>
       <div id="dv-add" class="hidden" style="margin-top:10px"></div>
     </section>
@@ -995,7 +995,10 @@ async function loadAll() {
   GRP = gfull.filter(Boolean).map((g) => ({ id: g.group_id, name: txt(g.name), members: (g.activities || []).map((a) => a.entity_id), off: g.options?.turn_off_unused_entities || "run_off_sequence", delay: g.options?.remove_turn_on_delays || "previous_cmd_skipped" }));
   GRPSAVED = JSON.stringify(GRP); grpId = GRP[0]?.id || null;
   // integrations
-  INTG = (Array.isArray(intgs) ? intgs : []).map((i) => ({ id: i.integration_id, name: txt(i.name) || i.integration_id, enabled: i.enabled !== false, state: i.device_state || "UNKNOWN", ents: null }));
+  // Integration Manager (a tool for installing integrations) isn't listed: "+ Add an integration" opens it instead
+  const list = Array.isArray(intgs) ? intgs : [];
+  MANAGER = list.find((i) => i.driver_id === MANAGER_DRIVER) || null;
+  INTG = list.filter((i) => i.driver_id !== MANAGER_DRIVER).map((i) => ({ id: i.integration_id, name: txt(i.name) || i.integration_id, enabled: i.enabled !== false, state: i.device_state || "UNKNOWN", ents: null }));
   for (const i of INTG) i.status = !i.enabled ? "off" : /CONNECTED|ACTIVE|IDLE/.test(i.state) && !/DIS/.test(i.state) ? "ok" : "bad";
   dvIntg = INTG[0]?.id || null;
   // what's saved = what was read
@@ -2696,7 +2699,7 @@ function renderDevices() {
         : el("button", { class: "btn small primary", type: "button", disabled: e.intg.status !== "ok", title: e.intg.status !== "ok" ? "Connect or enable the integration first" : "Add it to the remote now", on: { click: (ev) => { ev.stopPropagation(); addEnts(e.intg, [e]); } } }, "Add"));
   };
   const main = $("#dv-main");
-  const configurator = `http://${location.hostname}/configurator/`;
+  const configurator = configuratorIntegrations();
   if (q) {
     const hits = all.filter((e) => (e.name + " " + e.type + " " + e.intg.name).toLowerCase().includes(q));
     main.replaceChildren(dvMsg ? el("p", { class: dvErr ? "warn" : "status ok", id: "dv-status", role: "status", style: "margin:0" }, dvMsg) : "", el("section", { class: "card" }, el("h2", {}, `Search: ${hits.length} found`), el("p", { class: "hint", style: "margin:4px 0 8px" }, "Devices on the remote, and what the integrations you opened offer."),
@@ -2749,11 +2752,29 @@ function renderDevices() {
     e.added ? el("div", { class: "row", style: "margin-top:12px" }, el("button", { class: "btn small", type: "button", on: { click: () => setMode("pages") } }, "Put it on a page →")) : "");
 }
 $("#dv-q").addEventListener("input", (e) => { dvQ = e.target.value; renderDevices(); });
-$("#dv-addintg").addEventListener("click", () => {
+// "+ Add an integration": Integration Manager's page when it's installed, else the web configurator's integrations
+const MANAGER_DRIVER = "intg_manager_driver", MANAGER_PORT = 9999;
+let MANAGER = null;
+const configuratorIntegrations = () => `http://${location.hostname}/configurator/#/integrations`;
+async function managerUrl() {
+  // it serves its page on port 9999 of the machine it runs on: the remote, or the computer an external driver runs on
+  let host = location.hostname;
+  try {
+    const d = await api("GET", `/intg/drivers/${MANAGER_DRIVER}`);
+    const u = d?.driver_url ? new URL(String(d.driver_url).replace(/^ws/i, "http")) : null;
+    if (u && u.hostname && !/^(localhost|127\.0\.0\.1|::1|\[::1\])$/.test(u.hostname)) host = u.hostname;
+  } catch {}
+  return `http://${host}:${MANAGER_PORT}/`;
+}
+$("#dv-addintg").addEventListener("click", async () => {
+  const w = window.open("about:blank", "_blank"); // opened right away so the browser doesn't block it
+  const url = MANAGER ? await managerUrl() : configuratorIntegrations();
+  if (w) { try { w.opener = null; } catch {} w.location.href = url; }
+  else location.href = url;
   const box = $("#dv-add");
-  box.classList.toggle("hidden");
-  box.replaceChildren(el("p", { class: "hint" }, "Setting up a new integration runs its own steps (address, login, PIN). That happens in the remote's web configurator: ",
-    el("a", { href: `http://${location.hostname}/configurator/`, target: "_blank", rel: "noopener" }, "open it ↗"), ". Its devices then show up here to add."));
+  box.classList.remove("hidden");
+  box.replaceChildren(el("p", { class: "hint" }, MANAGER ? "Integration Manager opened in a new tab: install or update integrations there. " : "The web configurator's Integrations page opened in a new tab: add the integration there. ",
+    el("a", { href: url, target: "_blank", rel: "noopener" }, "Open it again ↗"), " Then click Reload from remote here: its devices show up to add."));
 });
 
 const MODES = ["pages", "macros", "groups", "home", "dev"];

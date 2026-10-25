@@ -27,6 +27,7 @@ export const ALLOW = [
   [/^\/resources\/(Icon|TvChannelIcon|BackgroundImage)(\/[^/?#]+)?$/, ["GET", "DELETE"]],
   [new RegExp(`^/entities(/${ID}(/command)?)?$`), ["GET", "PATCH", "PUT", "DELETE"]],
   [new RegExp(`^/intg(/instances(/${ID}(/entities)?)?|/discover|/drivers)?$`), ["GET", "POST", "PATCH", "PUT", "DELETE"]],
+  [new RegExp(`^/intg/drivers/${ID}$`), ["GET"]],
   [/^\/cfg\/(device(\/(button_layout|screen_layout|icon_mapping))?|entity\/commands)$/, ["GET"]],
   [/^\/system$/, ["GET"]],
   [/^\/pub\/version$/, ["GET"]]
