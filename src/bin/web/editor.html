@@ -264,6 +264,9 @@ details.more summary{cursor:pointer;font-weight:600}
 .cp-list button{border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;padding:7px 10px;cursor:pointer;font-size:13px;color:var(--ink)}
 .cp-list button:hover{background:var(--soft)}
 .cp-list button.on{background:var(--accbg);font-weight:600}
+.cp-list .cp-group{position:sticky;top:0;background:var(--soft);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);padding:5px 10px;border-bottom:1px solid var(--line)}
+.cp-list button.cp-dev{display:flex;justify-content:space-between;gap:8px}
+.cp-list button.cp-back{color:var(--acc);font-weight:600}
 .opt2{display:flex;gap:8px;align-items:flex-start;margin-top:10px;font-size:14px;cursor:pointer}
 .opt2 input{margin-top:3px;accent-color:var(--acc)}
 #seq-set .fdiv{margin-top:10px}
@@ -1625,10 +1628,14 @@ let cpOpen = null; // which picker is open
 function cmdPicker(key, opts, value, onPick) {
   const wrap = el("div", { class: "cp" });
   const cur = opts.find(([v]) => v === (value || ""));
-  const st = { q: "", kind: "all", dev: "" };
+  // opens on the device of the current command, else on the list of devices (this activity's first)
+  const st = { q: "", kind: "all", dev: devOfKey(value) || "" };
   const head = el("button", { type: "button", class: "cp-cur", "aria-expanded": String(cpOpen === key), on: { click: () => { cpOpen = cpOpen === key ? null : key; draw(); if (cpOpen === key) panel.querySelector("input")?.focus(); } } },
     el("span", {}, cur ? cur[1] : "Nothing"), el("span", { class: "hint" }, cpOpen === key ? "▴" : "Change ▾"));
   const panel = el("div", { class: "cp-panel" });
+  const inAct = new Set(act()?.devices || []);
+  const devKind = (d) => kindOfDev(d);
+  const option = (v, t) => el("button", { type: "button", role: "option", "aria-selected": String(v === (value || "")), class: v === (value || "") ? "on" : "", on: { click: () => { cpOpen = null; onPick(v); } } }, t);
   function draw() {
     head.setAttribute("aria-expanded", String(cpOpen === key));
     head.lastChild.textContent = cpOpen === key ? "▴" : "Change ▾";
@@ -1636,14 +1643,41 @@ function cmdPicker(key, opts, value, onPick) {
     if (cpOpen !== key) return;
     const q = st.q.trim().toLowerCase();
     const words = q.split(/\s+/).filter(Boolean);
-    const list = opts.filter(([v, t]) => (st.kind === "all" || cpKind(v) === st.kind) && (!st.dev || st.kind !== "dev" || v.startsWith(st.dev + " · ")) && words.every((w) => t.toLowerCase().includes(w)));
-    const search = el("input", { type: "search", placeholder: "Search, e.g. volume, netflix, lamp", value: st.q, "aria-label": "Search commands", on: { input: (e) => { st.q = e.target.value; const pos = e.target.selectionStart; draw(); const i = panel.querySelector("input"); i.focus(); i.setSelectionRange(pos, pos); } } });
-    const chips = el("div", { class: "cp-chips" }, ...CP_KINDS.map(([k, t]) => el("button", { type: "button", class: "chip2" + (st.kind === k ? " on" : ""), on: { click: () => { st.kind = k; if (k !== "dev") st.dev = ""; draw(); } } }, t)));
-    const devs = st.kind === "dev" ? sel([["", "All devices"], ...DEVICES.filter((d) => d.cmds?.length && kindOfDev(d) === "dev").map((d) => [d.id, d.name])], st.dev, (v) => { st.dev = v; draw(); }, "Device") : "";
-    const res = el("div", { class: "cp-list", role: "listbox" }, ...list.slice(0, 80).map(([v, t]) => el("button", { type: "button", role: "option", "aria-selected": String(v === (value || "")), class: v === (value || "") ? "on" : "",
-      on: { click: () => { cpOpen = null; onPick(v); } } }, t)));
-    if (!list.length) res.append(el("p", { class: "hint", style: "padding:6px" }, "Nothing matches."));
-    panel.replaceChildren(search, chips, devs ? el("div", { style: "margin-top:6px" }, devs) : "", res, list.length > 80 ? el("p", { class: "hint" }, `${list.length - 80} more: narrow it down.`) : "");
+    const search = el("input", { type: "search", placeholder: "Search, e.g. shield netflix, volume, lamp", value: st.q, "aria-label": "Search commands", on: { input: (e) => { st.q = e.target.value; const pos = e.target.selectionStart; draw(); const i = panel.querySelector("input"); i.focus(); i.setSelectionRange(pos, pos); } } });
+    const chips = el("div", { class: "cp-chips" }, ...CP_KINDS.map(([k, t]) => el("button", { type: "button", class: "chip2" + (st.kind === k ? " on" : ""), on: { click: () => { st.kind = k; st.dev = ""; if (k === "none") { cpOpen = null; onPick(""); return; } draw(); } } }, t)));
+    const res = el("div", { class: "cp-list", role: "listbox" });
+    let more = 0;
+    const kindOk = (v) => st.kind === "all" || cpKind(v) === st.kind;
+    if (st.dev) {
+      // one device: all its commands
+      const d = DEV[st.dev];
+      const list = opts.filter(([v, t]) => v.startsWith(st.dev + " · ") && words.every((w) => t.toLowerCase().includes(w)));
+      res.append(el("button", { type: "button", class: "cp-back", on: { click: () => { st.dev = ""; draw(); } } }, "← All devices"),
+        el("div", { class: "cp-group" }, d?.name || st.dev));
+      for (const [v, t] of list.slice(0, 400)) res.append(option(v, t.slice((d?.name || "").length + 3) || t));
+      more = Math.max(0, list.length - 400);
+      if (!list.length) res.append(el("p", { class: "hint", style: "padding:6px" }, "No command matches."));
+    } else if (words.length) {
+      // searching: commands of every device, this activity's devices first
+      const list = opts.filter(([v, t]) => v && kindOk(v) && words.every((w) => t.toLowerCase().includes(w)))
+        .sort((a, b) => Number(!inAct.has(devOfKey(a[0]))) - Number(!inAct.has(devOfKey(b[0]))));
+      for (const [v, t] of list.slice(0, 120)) res.append(option(v, t));
+      more = Math.max(0, list.length - 120);
+      if (!list.length) res.append(el("p", { class: "hint", style: "padding:6px" }, "Nothing matches."));
+    } else {
+      // nothing typed: pick a device first
+      const devs = DEVICES.filter((d) => d.cmds?.length && (st.kind === "all" || devKind(d) === st.kind));
+      const mine = devs.filter((d) => inAct.has(d.id)), others = devs.filter((d) => !inAct.has(d.id));
+      const devBtn = (d) => el("button", { type: "button", class: "cp-dev", on: { click: () => { if (d.cmds.length === 1) { cpOpen = null; onPick(`${d.id} · ${d.cmds[0]}`); return; } st.dev = d.id; draw(); } } },
+        el("span", {}, d.name), el("span", { class: "hint" }, `${d.type.replace("_", " ")} · ${d.cmds.length} ›`));
+      if (st.kind === "all") res.append(option("", (opts.find(([v]) => v === "") || ["", "Nothing"])[1]));
+      if (mine.length) res.append(el("div", { class: "cp-group" }, `In ${act()?.name || "this activity"}`), ...mine.map(devBtn));
+      if (others.length) res.append(el("div", { class: "cp-group" }, mine.length ? "Other devices" : "Devices"), ...others.map(devBtn));
+      if (!devs.length) res.append(el("p", { class: "hint", style: "padding:6px" }, "Nothing of this kind on the remote."));
+    }
+    panel.replaceChildren(search, chips, res, more ? el("p", { class: "hint" }, `${more} more: type a few more letters.`) : "");
+    const on = res.querySelector("button.on");
+    if (on) res.scrollTop = Math.max(0, on.offsetTop - res.clientHeight / 2);
   }
   draw();
   wrap.append(head, panel);
