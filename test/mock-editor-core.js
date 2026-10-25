@@ -22,12 +22,14 @@ export function makeState() {
       { entity_id: IR, entity_type: "remote", integration_id: "uc.main", name: { en: "Receiver IR" }, features: ["send_cmd"], options: { simple_commands: ["POWER_ON", "POWER_OFF", "INPUT_HDMI_1"] }, attributes: { state: "ON" } },
       { entity_id: "self_control.main.haptic", entity_type: "switch", integration_id: "self_control.main", name: { en: "Haptic" }, features: ["on_off"], attributes: { state: "ON" } }
     ],
-    available: { "hass.main": [{ entity_id: "light.porch", entity_type: "light", integration_id: "hass.main", name: { en: "Porch Light" }, features: ["on_off"] },
+    available: { "self_control.main": [{ entity_id: "smart_test2", entity_type: "button", integration_id: "self_control.main", name: { en: "test2" }, features: ["press"] }],
+      "hass.main": [{ entity_id: "light.porch", entity_type: "light", integration_id: "hass.main", name: { en: "Porch Light" }, features: ["on_off"] },
       { entity_id: "hass.main.switch.fan", entity_type: "switch", integration_id: "hass.main", name: { en: "Bedroom Fan" }, features: ["on_off"] }] },
     intg: [
       { integration_id: "hass.main", driver_id: "hass", name: { en: "Home Assistant" }, enabled: true, device_state: "CONNECTED" },
       { integration_id: "tvdrv.main", driver_id: "tvdrv", name: { en: "TV" }, enabled: true, device_state: "CONNECTED" },
       { integration_id: "avrdrv.main", driver_id: "avrdrv", name: { en: "Receiver" }, enabled: true, device_state: "DISCONNECTED" },
+      { integration_id: "self_control.main", driver_id: "self_control", name: { en: "Remote Self-Control" }, enabled: true, device_state: "CONNECTED" },
       { integration_id: "intg_manager_driver.main", driver_id: "intg_manager_driver", name: { en: "Integration Manager" }, enabled: true, device_state: "CONNECTED" }
     ],
     drivers: { intg_manager_driver: { driver_id: "intg_manager_driver", name: { en: "Integration Manager" }, version: "3.1.0", driver_url: "ws://192.168.1.77:9090" } },
@@ -88,7 +90,7 @@ const CMDS = [
   { id: "select.select_option", cmd_id: "select_option", name: { en: "Select" }, params: [{ param: "option", type: "string" }] },
   ...["on", "off", "send_cmd"].map((c) => ({ id: "remote." + c, cmd_id: c, name: { en: c } })),
   { id: "activity.start", cmd_id: "start", name: { en: "start" } }, { id: "activity.off", cmd_id: "off", name: { en: "off" } },
-  { id: "macro.run", cmd_id: "run", name: { en: "run" } }
+  { id: "macro.run", cmd_id: "run", name: { en: "run" } }, { id: "button.push", cmd_id: "push", name: { en: "push" } }
 ];
 function entityList() {
   const out = S.entities.map(clone);

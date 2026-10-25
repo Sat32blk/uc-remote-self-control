@@ -1699,6 +1699,19 @@ function cmdPicker(key, opts, value, onPick) {
   const panel = el("div", { class: "cp-panel" });
   const inAct = new Set(act()?.devices || []);
   const devKind = (d) => kindOfDev(d);
+  // Smart: also what this integration offers but isn't on the remote yet (new smart controls, menus, sliders…)
+  const ownIntg = () => INTG.find((i) => String(i.id).startsWith(OWN));
+  const ownOffers = () => {
+    const i = ownIntg();
+    if (!i) return [];
+    if (!i.ents && !st.ownLoading) { st.ownLoading = true; loadIntgEnts(i).catch(() => {}).then(() => { st.ownLoading = false; if (cpOpen === key) draw(); }); }
+    return (i.ents || []).filter((e) => !e.added).map((e) => ({ ...e, intg: i }));
+  };
+  const offerRow = (e) => el("button", { type: "button", class: "cp-dev", disabled: !!st.adding, title: "Not on the remote yet: click to add it, then pick what it does", on: { click: async () => {
+    st.adding = e.id; st.msg = `Adding ${e.name}…`; st.msgErr = false; draw();
+    try { const id = await addOffer(e); st.dev = id; st.msg = ""; st.q = ""; } catch (err) { st.msg = `${e.name} couldn't be added: ${err.message}`; st.msgErr = true; }
+    st.adding = null; draw();
+  } } }, el("span", {}, "＋ ", e.name), el("span", { class: "hint" }, `${String(e.type).replace("_", " ")} · not on the remote yet`));
   const option = (v, t) => el("button", { type: "button", role: "option", "aria-selected": String(v === (value || "")), class: v === (value || "") ? "on" : "", on: { click: () => { cpOpen = null; onPick(v); } } }, t);
   function draw() {
     head.setAttribute("aria-expanded", String(cpOpen === key));
@@ -1752,7 +1765,9 @@ function cmdPicker(key, opts, value, onPick) {
         .sort((a, b) => Number(!inAct.has(devOfKey(a[0]))) - Number(!inAct.has(devOfKey(b[0]))));
       for (const [v, t] of list.slice(0, 120)) res.append(option(v, t));
       more = Math.max(0, list.length - 120);
-      if (!list.length) res.append(el("p", { class: "hint", style: "padding:6px" }, "Nothing matches."));
+      const offs = st.kind === "all" || st.kind === "smart" ? ownOffers().filter((e) => words.every((w) => `${e.name} ${e.type}`.toLowerCase().includes(w))) : [];
+      if (offs.length) res.append(el("div", { class: "cp-group" }, "This integration · not on the remote yet"), ...offs.map(offerRow));
+      if (!list.length && !offs.length) res.append(el("p", { class: "hint", style: "padding:6px" }, "Nothing matches."));
     } else {
       // nothing typed: pick a device first
       const devs = DEVICES.filter((d) => d.cmds?.length && (st.kind === "all" || devKind(d) === st.kind));
@@ -1761,8 +1776,12 @@ function cmdPicker(key, opts, value, onPick) {
         el("span", {}, d.name), el("span", { class: "hint" }, `${d.type.replace("_", " ")} · ${d.cmds.length} ›`));
       if (st.kind === "all") res.append(option("", (opts.find(([v]) => v === "") || ["", "Nothing"])[1]));
       if (mine.length) res.append(el("div", { class: "cp-group" }, `In ${act()?.name || "this activity"}`), ...mine.map(devBtn));
-      if (others.length) res.append(el("div", { class: "cp-group" }, mine.length ? "Other devices" : "Devices"), ...others.map(devBtn));
-      if (!devs.length) res.append(el("p", { class: "hint", style: "padding:6px" }, "Nothing of this kind on the remote."));
+      if (others.length) res.append(el("div", { class: "cp-group" }, st.kind === "smart" ? (mine.length ? "Other Remote Self-Control entities" : "Remote Self-Control entities on the remote") : mine.length ? "Other devices" : "Devices"), ...others.map(devBtn));
+      const offs = st.kind === "smart" ? ownOffers() : [];
+      if (st.msg) res.append(el("p", { class: st.msgErr ? "warn" : "hint", style: "margin:6px" }, st.msg));
+      if (offs.length) res.append(el("div", { class: "cp-group" }, "Not on the remote yet (click to add)"), ...offs.map(offerRow));
+      if (st.kind === "smart" && st.ownLoading) res.append(el("p", { class: "hint", style: "padding:6px" }, "Asking this integration what else it offers…"));
+      if (!devs.length && !offs.length && !st.ownLoading) res.append(el("p", { class: "hint", style: "padding:6px" }, "Nothing of this kind on the remote."));
     }
     panel.replaceChildren(search, chips, res, more ? el("p", { class: "hint" }, `${more} more: type a few more letters.`) : "");
     const on = res.querySelector("button.on");
