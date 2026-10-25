@@ -781,7 +781,7 @@ function addDevice(x) {
     if (p.type !== "number" && p.type !== "bool" && p.type !== "boolean") (d.custom = d.custom || []).push({ cmd_id: c.id, key: p.key, base, label: p.label || p.key });
     if (Array.isArray(p.list) && p.list.length) {
       for (const v of p.list.slice(0, 300)) regCmd(d, `${base} · ${v}`, { cmd_id: c.id, params: { [p.key]: v } });
-      if (c.id.endsWith(".select_source") && (d.type === "media_player" || d.type === "remote")) INPUTS[d.id] = p.list.slice(0, 300).map(String);
+      if (c.id.endsWith(".select_source") && (d.type === "media_player" || d.type === "remote")) { INPUTS[d.id] = p.list.slice(0, 300).map(String); d.ownSources = INPUTS[d.id].slice(); }
       if (c.id === "select.select_option") d.options = p.list.map(String);
     } else if (p.type === "number") for (const [v, l] of presets(p)) regCmd(d, `${base} · ${base.includes(p.key) ? "" : p.key.replace(/_/g, " ") + " "}${l}`, { cmd_id: c.id, params: { [p.key]: v } });
   }
@@ -792,20 +792,29 @@ function addDevice(x) {
 }
 // ---- app links: apps an integration can open that aren't in its input list ("<command> = <name>") ----
 let APPLINKS = {}; // integration id -> [{ cmd, name }]
-/** Puts an integration's app links in its devices' command lists, as "select source · <name>". */
+/** Names compared loosely: "YouTube", "Youtube" and "You Tube" are the same app. */
+const appKey = (n) => String(n || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+/** Is this app link one the device already has in its own source list (same name, or the same value)? */
+function linkOnDevice(d, l) {
+  const own = d.ownSources || [];
+  return own.some((x) => x === l.cmd || appKey(x) === appKey(l.name));
+}
+/** Puts an integration's app links in its devices' command lists, as "select source · <name>".
+ *  Apps the device already has (in its own source list) are skipped: only its own entry is shown. */
 function applyLinks(d) {
   const links = APPLINKS[d.integration];
   if (!links?.length || !d.srcCmd) return;
   for (const l of links) {
-    let label = `select source · ${l.name}`;
-    const have = CMDS[`${d.id} · ${label}`];
-    if (have && have.params?.source !== l.cmd) label += " (app link)";
+    if (linkOnDevice(d, l)) continue;
+    const label = `select source · ${l.name}`;
+    if (CMDS[`${d.id} · ${label}`]) continue; // two links with the same name: the first one counts
     regCmd(d, label, { cmd_id: d.srcCmd, params: { source: l.cmd } });
     const inp = (INPUTS[d.id] = INPUTS[d.id] || []);
-    const shown = label.slice("select source · ".length);
-    if (!inp.includes(shown)) inp.push(shown);
+    if (!inp.includes(l.name)) inp.push(l.name);
   }
 }
+/** The app link for a source value on this device, if the value is one of the links. */
+const linkFor = (d, value) => (APPLINKS[d?.integration] || []).find((l) => l.cmd === value) || null;
 /** "<command> = <name>" per line; the command may contain "=" itself (split at the last " = "). */
 function parseAppLinks(text) {
   const links = [], errors = [];
@@ -827,14 +836,21 @@ function keyOf(c) {
   const k = CMDIDX[`${c.entity_id}|${cmd.cmd_id}|${stable(cmd.params || {})}`];
   if (k) return k;
   const d = DEV[c.entity_id] || addDevice({ id: c.entity_id, name: c.entity_id.split(".").pop() + " (not on the remote any more)", type: "?" });
-  const label = cmdBase(cmd.cmd_id) + (cmd.params ? " · " + Object.values(cmd.params).map((v) => (typeof v === "object" ? JSON.stringify(v) : v)).join(", ") : "");
+  const link = cmd.params && Object.keys(cmd.params).length === 1 && cmd.params.source !== undefined ? linkFor(d, cmd.params.source) : null;
+  let label = cmdBase(cmd.cmd_id) + (cmd.params ? " · " + Object.values(cmd.params).map((v) => (typeof v === "object" ? JSON.stringify(v) : v)).join(", ") : "");
+  if (link) { label = `${cmdBase(cmd.cmd_id)} · ${link.name}`; if (CMDS[`${d.id} · ${label}`]) label += " (app link)"; }
   return regCmd(d, label, cmd);
 }
 /** A command with a value typed in (custom source, app link…): added to the device's list and returned as a key. */
 function customCmd(d, c, value) {
   const v = String(value).trim();
   if (!v) return null;
-  return regCmd(d, `${c.base} · ${v}`, { cmd_id: c.cmd_id, params: { [c.key]: v } });
+  const have = CMDIDX[`${d.id}|${c.cmd_id}|${stable({ [c.key]: v })}`];
+  if (have) return have;
+  const link = c.key === "source" ? linkFor(d, v) : null;
+  let label = `${c.base} · ${link ? link.name : v}`;
+  if (link && CMDS[`${d.id} · ${label}`]) label += " (app link)";
+  return regCmd(d, label, { cmd_id: c.cmd_id, params: { [c.key]: v } });
 }
 /** A small form: a text field and a button, for one of the device's custom-value commands. */
 function customForm(d, onDone, placeholderCmd) {
@@ -2875,8 +2891,17 @@ function appLinksCard(i) {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
       APPLINKS = j.links || all;
-      for (const d of DEVICES.filter((x) => x.integration === i.id)) applyLinks(d);
       dvMsg = okText; dvErr = false;
+      // buttons already on the remote that use these links were read before the names were known:
+      // read everything again so they show "select source · <name>" too, with no second entry
+      if (!remoteRefuses()) {
+        const keep = dvIntg, msg = dvMsg;
+        alPreview = null;
+        await busy(async () => { await loadAll(); dvIntg = keep; renderAll(); setMode("dev"); });
+        dvMsg = msg; dvErr = false; renderDevices(); return;
+      }
+      for (const d of DEVICES.filter((x) => x.integration === i.id)) applyLinks(d);
+      dvMsg = okText + " Buttons already on the remote show the app names after you save or undo your other changes and reload.";
     } catch (e) { dvMsg = "App links not saved: " + e.message; dvErr = true; }
     alPreview = null; renderDevices();
   };
@@ -2889,6 +2914,11 @@ function appLinksCard(i) {
   const byCmd = new Map(links.map((l) => [l.cmd, l]));
   const fresh = prev ? prev.links.filter((l) => !byCmd.has(l.cmd)).length : 0;
   const renamed = prev ? prev.links.filter((l) => byCmd.has(l.cmd) && byCmd.get(l.cmd).name !== l.name).length : 0;
+  // apps every device of this integration already has: not added a second time
+  const devs = DEVICES.filter((x) => x.integration === i.id && x.srcCmd);
+  const already = (l) => devs.length > 0 && devs.every((d) => linkOnDevice(d, l));
+  const devNames = devs.map((d) => d.name).join(", ") || i.name;
+  const prevAlready = prev ? prev.links.filter(already) : [];
   const download = () => {
     const blob = new Blob([links.map((l) => `${l.cmd} = ${l.name}`).join("\n") + "\n"], { type: "text/plain" });
     const a = el("a", { href: URL.createObjectURL(blob), download: `${i.name.replace(/[^A-Za-z0-9]+/g, "_")}_apps.txt` }); document.body.append(a); a.click(); a.remove();
@@ -2904,11 +2934,12 @@ function appLinksCard(i) {
     prev ? el("div", { class: "cp-custom", style: "border:1px solid var(--line);border-radius:8px" },
       el("span", { style: "flex-basis:100%" }, el("b", {}, prev.file), `: ${prev.links.length} app link(s) found${links.length ? ` · ${fresh} new · ${renamed} renamed` : ""}${prev.errors.length ? ` · ${prev.errors.length} line(s) skipped` : ""}.`),
       prev.errors.length ? el("span", { class: "hint", style: "flex-basis:100%" }, prev.errors.slice(0, 5).join("; ")) : "",
+      prevAlready.length ? el("span", { class: "hint", style: "flex-basis:100%" }, `${prevAlready.length} already on ${devNames}, skipped (only its own entry shows): ${prevAlready.map((l) => l.name).join(", ")}.`) : "",
       links.length ? el("button", { class: "btn small primary", type: "button", disabled: !prev.links.length, on: { click: () => { const m = new Map(links.map((l) => [l.cmd, { ...l }])); for (const l of prev.links) m.set(l.cmd, l); save([...m.values()].slice(0, 300), `${fresh} app link(s) added, ${renamed} renamed.`); } } }, "Add to the list") : "",
       el("button", { class: "btn small" + (links.length ? "" : " primary"), type: "button", disabled: !prev.links.length, on: { click: () => save(prev.links.slice(0, 300), `${Math.min(300, prev.links.length)} app link(s) saved.`) } }, links.length ? "Replace the list" : "Use these"),
       el("button", { class: "btn small", type: "button", on: { click: () => { alPreview = null; renderDevices(); } } }, "Cancel")) : "",
     links.length ? el("div", { class: "elist", style: "max-height:260px;overflow:auto;margin-top:8px" }, ...links.map((l, k) => el("div", { class: "erow", style: "cursor:default" },
-      el("span", {}, el("b", {}, l.name)), el("span", { class: "t", style: "flex:1;min-width:0;overflow-wrap:anywhere;text-align:left" }, l.cmd),
+      el("span", {}, el("b", {}, l.name), already(l) ? el("span", { class: "hint" }, ` · already on ${devNames}, skipped`) : ""), el("span", { class: "t", style: "flex:1;min-width:0;overflow-wrap:anywhere;text-align:left" }, l.cmd),
       el("button", { class: "btn small danger", type: "button", "aria-label": "Remove " + l.name, on: { click: () => save(links.filter((_, j) => j !== k), `${l.name} removed.`) } }, "✕")))) : el("p", { class: "hint" }, "None yet."));
 }
 $("#dv-q").addEventListener("input", (e) => { dvQ = e.target.value; renderDevices(); });
