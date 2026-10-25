@@ -290,7 +290,7 @@ Builder → **Page Editor** (the first tab). Nothing is written until you click 
 - **Activities ▾ → Activity groups:** what switching between activities of a group turns off, as one sentence, with the steps and a grid of every switch.
 - **Home screen:** your home pages ("groups") with their tiles and background pictures (the remote's own, or one from your computer).
 - **Macros:** steps, duplicate, delete (with where it's used), **Try it now**.
-- **Devices & integrations:** per integration what's on the remote and what it offers to add; add, remove (asks again when a device is used), rename, enable / disable, reconnect. Setting up a new integration still happens in the web configurator.
+- **Devices & integrations:** per integration what's on the remote and what it offers to add (**Add** on a device adds it at once; no save needed); add several, remove (asks again when a device is used), rename, enable / disable, reconnect. Setting up a new integration still happens in the web configurator.
 
 Good to know:
 
@@ -475,6 +475,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **0.9.1:** Page Editor, Devices & integrations: every device an integration offers has its own **Add** button (added at once, no save needed), or tick several and **Add the N ticked**; the integration list shows how many devices each one offers; messages show at the top of the page; devices the remote lists with their full id are added correctly.
 - **0.9.0 (beta):** **Page Editor** (new first tab): activities on a picture of your Remote 3 / Remote Two with pages, pictures (Icons, Channel icons, Local folder), widgets, physical keys and touch slider; start and off sequences with a **guided setup** for new devices (display, receiver, streaming, amp, Home Assistant, other) that adds their steps in signal-flow order with recommended waits; activity settings; activity groups; macros; home screen with backgrounds; devices & integrations. Full remote backup before the first change (newest two kept on the remote). **Theme picker** for the whole builder: Automatic, Desktop, Dark mode, Remote style, Midnight blue, High contrast.
 
 - **0.8.7:** smart launchers: extra steps after the activity starts are optional and no longer described as "the app".

@@ -21,7 +21,8 @@ export function makeState() {
       { entity_id: IR, entity_type: "remote", integration_id: "uc.main", name: { en: "Receiver IR" }, features: ["send_cmd"], options: { simple_commands: ["POWER_ON", "POWER_OFF", "INPUT_HDMI_1"] }, attributes: { state: "ON" } },
       { entity_id: "self_control.main.haptic", entity_type: "switch", integration_id: "self_control.main", name: { en: "Haptic" }, features: ["on_off"], attributes: { state: "ON" } }
     ],
-    available: { "hass.main": [{ entity_id: "light.porch", entity_type: "light", integration_id: "hass.main", name: { en: "Porch Light" }, features: ["on_off"] }] },
+    available: { "hass.main": [{ entity_id: "light.porch", entity_type: "light", integration_id: "hass.main", name: { en: "Porch Light" }, features: ["on_off"] },
+      { entity_id: "hass.main.switch.fan", entity_type: "switch", integration_id: "hass.main", name: { en: "Bedroom Fan" }, features: ["on_off"] }] },
     intg: [
       { integration_id: "hass.main", driver_id: "hass", name: { en: "Home Assistant" }, enabled: true, device_state: "CONNECTED" },
       { integration_id: "tvdrv.main", driver_id: "tvdrv", name: { en: "TV" }, enabled: true, device_state: "CONNECTED" },
@@ -244,7 +245,12 @@ export function startMockEditorCore(port = 0) {
           const list = S.available[m[1]] || [];
           if (M === "GET") return send(200, page(list, q));
           if (M === "POST") {
-            for (const id of body) { const k = list.findIndex((e) => e.entity_id === id); if (k >= 0) { const e = list.splice(k, 1)[0]; S.entities.push({ ...e, entity_id: `${m[1]}.${e.entity_id}`, attributes: { state: "OFF" } }); } }
+            for (const id of body) {
+              const k = list.findIndex((e) => e.entity_id === id || e.entity_id === `${m[1]}.${id}`);
+              if (k < 0) return send(400, { message: "unknown entity " + id });
+              const e = list.splice(k, 1)[0];
+              S.entities.push({ ...e, entity_id: e.entity_id.startsWith(m[1] + ".") ? e.entity_id : `${m[1]}.${e.entity_id}`, attributes: { state: "OFF" } });
+            }
             return send(201, body);
           }
         }
