@@ -79,6 +79,10 @@ r = await req("POST", "/api/core/upload", { type: "Icon", name: "new_icon.png", 
 ok(r.status === 200 && r.body.id === "new_icon.png", "icon uploaded");
 r = await req("POST", "/api/core/upload", { type: "Icon", name: "new_icon.png", data: png });
 ok(r.status === 200 && r.body.id === "new_icon.png", "same name again: the remote's copy is used");
+// the remote's built-in icon font, found in its web configurator
+r = await req("GET", "/api/editor/iconfont", undefined, true);
+ok(r.status === 200 && r.body.toString() === "wOF2-fake-icon-font" && r.headers.get("content-type") === "font/woff2", "built-in icon font found through the web configurator's style sheet (not the text font)");
+ok((await req("POST", "/api/core", { method: "GET", path: "/cfg/device/icon_mapping" })).body.data.home === "uE900", "icon names readable");
 // backups
 r = await req("GET", "/api/core/backup/latest", undefined, true);
 ok(r.status === 404, "no backup yet");

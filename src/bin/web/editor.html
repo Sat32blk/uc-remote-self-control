@@ -19,6 +19,9 @@ a.btn{text-decoration:none;display:inline-block}
 .loading.hidden{display:none}
 .loading .err{color:var(--err)}
 .busy{opacity:.6;pointer-events:none}
+.thumb.glyph,.tt.glyph{font-family:ucicons;color:#fff;display:flex;align-items:center;justify-content:center;line-height:1}
+.tt.glyph{font-size:28px}
+.libhead select{font-size:14px;padding:4px 6px;max-width:230px}
 .thumb.uc,.tt.uc{font-size:10px;line-height:1.1;word-break:break-all;padding:2px}
 header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:10px}
 h1{margin:0;font-size:24px}
@@ -424,28 +427,17 @@ details.more summary{cursor:pointer;font-weight:600}
 
       <!-- left: what you can put on the page -->
       <div class="pecol peleft">
-      <section class="card fold" aria-label="On this computer">
-        <div class="fhead"><button type="button" class="arrow" aria-expanded="true" aria-label="Collapse On this computer">▾</button><h2>Local folder</h2>
-          <span style="margin-left:auto;display:flex;gap:6px">
-            <label class="btn small">Browse folder…<input type="file" id="dir" webkitdirectory directory multiple class="hidden"></label>
-            <label class="btn small">Pick files…<input type="file" id="files" accept="image/*" multiple class="hidden"></label>
-          </span></div>
-        <div class="cbody">
-          <p class="hint" id="local-info" style="margin:8px 0">Browse a folder of pictures on your computer, then drag one onto the remote. Nothing is uploaded until you use a picture and save.</p>
-          <div class="row" id="local-tools" style="display:none">
-            <label class="f" style="flex:1 1 160px">Search<input type="search" id="lq" placeholder="file or folder name"></label>
-            <label class="f">Folder<select id="lfolder"></select></label>
-          </div>
-          <div style="height:8px"></div>
-          <div class="dotlegend" id="local-legend" style="display:none"><span><i style="background:#2563eb"></i>same name already on the remote</span><span><i style="background:#f59e0b"></i>over 32 KB: shrunk</span></div>
-          <div style="height:6px"></div>
-          <div class="pics" id="localpics"></div>
-          <p class="hint" id="local-more" style="margin-top:6px"></p>
-        </div>
-      </section>
-      <section class="card fold" aria-label="Icons">
-        <div class="fhead"><button type="button" class="arrow" aria-expanded="true" aria-label="Collapse Icons">▾</button><h2>Icons</h2><span class="hint" style="margin-left:auto" id="icons-count">on the remote</span></div>
-        <div class="cbody">
+      <section class="card" aria-label="Pictures" id="libcard">
+        <div class="fhead libhead"><h2>Pictures</h2>
+          <select id="libsel" aria-label="Which pictures">
+            <option value="icons">Icons on the remote</option>
+            <option value="builtin">Built-in icons</option>
+            <option value="ch">Channel icons</option>
+            <option value="local">Local folder (this computer)</option>
+          </select>
+          <span class="hint" style="margin-left:auto" id="lib-count"></span></div>
+
+        <div class="lib" data-lib="icons">
         <div style="height:10px"></div>
         <div class="row">
           <label class="f" style="flex:1 1 180px">Search<input type="search" id="q" placeholder="netflix, hdmi, light…"></label>
@@ -456,18 +448,42 @@ details.more summary{cursor:pointer;font-weight:600}
         <div style="height:6px"></div>
         <div class="selbar" id="sel-icons"></div>
         <div class="pics" id="pics"></div>
-        <p class="note" style="margin-top:8px">"Not on any page" = found on no activity page, device picture or home screen. Pictures the integration makes itself (level frames) aren't listed.</p>
+        <p class="note" style="margin-top:8px">"Not on any page" = found on no activity page, device picture or home screen. Pictures the integration makes itself (level frames) aren't listed. <span id="icons-count"></span></p>
         </div>
-      </section>
-      <section class="card fold" aria-label="Channel icons">
-        <div class="fhead"><button type="button" class="arrow" aria-expanded="true" aria-label="Collapse Channel icons">▾</button><h2>Channel icons</h2><span class="hint" style="margin-left:auto" id="ch-count"></span></div>
-        <div class="cbody">
+
+        <div class="lib hidden" data-lib="builtin">
+          <p class="hint" style="margin:8px 0" id="bi-info">The remote's own icons (white on the button). Drag one onto the screen, or click it and then a spot.</p>
+          <label class="f">Search<input type="search" id="biq" placeholder="tv, home, light, play…"></label>
+          <div style="height:8px"></div>
+          <div class="pics" id="bipics"></div>
+          <p class="hint" id="bi-more" style="margin-top:6px"></p>
+        </div>
+
+        <div class="lib hidden" data-lib="ch">
           <p class="hint" style="margin:8px 0" id="ch-info">TV channel logos kept separately on the remote (up to 256).</p>
           <label class="btn small" style="margin-bottom:8px">Upload channel logos…<input type="file" id="chfiles" accept="image/png,image/jpeg" multiple class="hidden"></label>
           <label class="f">Search<input type="search" id="chq" placeholder="channel name"></label>
           <div style="height:8px"></div>
           <div class="selbar" id="sel-ch"></div>
           <div class="pics" id="chpics"></div>
+          <span id="ch-count" class="hidden"></span>
+        </div>
+
+        <div class="lib hidden" data-lib="local">
+          <div class="row" style="margin-top:10px;gap:6px">
+            <label class="btn small">Browse folder…<input type="file" id="dir" webkitdirectory directory multiple class="hidden"></label>
+            <label class="btn small">Pick files…<input type="file" id="files" accept="image/*" multiple class="hidden"></label>
+          </div>
+          <p class="hint" id="local-info" style="margin:8px 0">Browse a folder of pictures on your computer, then drag one onto the remote. Nothing is uploaded until you use a picture and save.</p>
+          <div class="row" id="local-tools" style="display:none">
+            <label class="f" style="flex:1 1 160px">Search<input type="search" id="lq" placeholder="file or folder name"></label>
+            <label class="f">Folder<select id="lfolder"></select></label>
+          </div>
+          <div style="height:8px"></div>
+          <div class="dotlegend" id="local-legend" style="display:none"><span><i style="background:#2563eb"></i>same name already on the remote</span><span><i style="background:#f59e0b"></i>over 32 KB: shrunk</span></div>
+          <div style="height:6px"></div>
+          <div class="pics" id="localpics"></div>
+          <p class="hint" id="local-more" style="margin-top:6px"></p>
         </div>
       </section>
       </div>
@@ -791,9 +807,15 @@ const USED_ELSEWHERE = new Set(); // pictures of devices and activities (home sc
 const isFrame = (id) => /^(lv_|si_|smart_|ret_)/.test(id);
 const shortName = (id) => String(id).replace(/^(custom|ctv|uc):/, "").replace(/\.[a-z0-9]+$/i, "").replace(/__.*$/, "").replace(/[_-]+/g, " ").trim().slice(0, 22) || String(id);
 /** Any icon id, also built-in "uc:" font icons (shown as their name) and pictures no longer on the remote. */
+// the remote's built-in icons ("uc:<name>"): name -> character in the remote's icon font
+const UCICONS = []; // [{ name, ch }]
+const UCMAP = {};
+let ICONFONT = false; // the font could be loaded from the remote: draw the real icons, else show their names
+const ucChar = (v) => { const t = String(v || ""); if (t.length === 1) return t; const m = /^\\?u([0-9a-f]{4,5})$/i.exec(t); return m ? String.fromCodePoint(parseInt(m[1], 16)) : ""; };
 function picOf(id) {
   if (!id) return null;
   if (PIC[id]) return PIC[id];
+  if (String(id).startsWith("uc:") && UCMAP[id.slice(3)]) return { id, short: id.slice(3), glyph: UCMAP[id.slice(3)], uc: true, bg: "#2b2f36" };
   const name = String(id).replace(/^(custom|ctv|uc):/, "");
   return { id, short: name, mono: id.startsWith("uc:") ? name.slice(0, 10) : "?", bg: id.startsWith("uc:") ? "#2b2f36" : "#7f1d1d", uc: id.startsWith("uc:"), missing: !id.startsWith("uc:") };
 }
@@ -929,6 +951,7 @@ async function loadAll() {
     apiAll("/activities"), apiAll("/resources/Icon").catch(() => []), apiAll("/resources/TvChannelIcon").catch(() => []), apiAll("/resources/BackgroundImage").catch(() => []),
     apiAll("/macros").catch(() => []), apiAll("/activity_groups").catch(() => []), api("GET", "/profiles?active=true").catch(() => []), api("GET", "/intg/instances?limit=100").catch(() => []),
     fetch("/api/editor/state", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({}))]);
+  const mapping = await api("GET", "/cfg/device/icon_mapping").catch(() => null);
   HIDDEN_FRAMES = 0;
   for (const r of icons) {
     const p = { id: "custom:" + r.id, file: r.id, short: shortName(r.id), mono: "", bg: "#374151", src: imgUrl("Icon", r.id), size: r.size };
@@ -938,6 +961,13 @@ async function loadAll() {
   }
   PICS.sort((a, b) => a.short.localeCompare(b.short));
   for (const r of chans) { const c = { id: "ctv:" + r.id, file: r.id, short: shortName(r.id), mono: "", bg: "#111827", src: imgUrl("TvChannelIcon", r.id), channel: true }; CHANNELS.push(c); PIC[c.id] = c; }
+  UCICONS.length = 0;
+  for (const k of Object.keys(UCMAP)) delete UCMAP[k];
+  for (const [name, v] of Object.entries(mapping || {})) { const ch = ucChar(v); if (ch) { UCICONS.push({ name, ch }); UCMAP[name] = ch; } }
+  UCICONS.sort((a, b) => a.name.localeCompare(b.name));
+  if (UCICONS.length && !ICONFONT) {
+    try { const f = new FontFace("ucicons", "url(/api/editor/iconfont)"); f.load().then((x) => { document.fonts.add(x); ICONFONT = true; renderAll(); }).catch(() => {}); } catch {}
+  }
   for (const r of bgs) BGS.push({ id: "custom:" + r.id, file: r.id, name: r.id, css: `url("${imgUrl("BackgroundImage", r.id)}")` });
   // activities, in full (pages, keys, sequences)
   const full = await Promise.all(acts.map((a) => api("GET", `/activities/${enc(a.entity_id)}`).catch(() => null)));
@@ -1097,6 +1127,7 @@ const pos = (l) => `column ${l.x + 1}, row ${l.y + 1}`;
 /** A picture that fills its tile (the library shows as many tiles across as the page is wide). */
 function tileThumb(p) {
   if (p?.src) return el("img", { class: "tt", src: p.src, alt: "", loading: "lazy" });
+  if (p?.glyph && ICONFONT) return el("span", { class: "tt glyph", style: "background:#2b2f36" }, p.glyph);
   if (p?.uc) return el("span", { class: "tt uc", style: "background:#2b2f36" }, p.short);
   return el("span", { class: "tt", style: `background:${p?.bg || "#374151"}` }, p?.mono || "?");
 }
@@ -1104,6 +1135,7 @@ const sdot = (cls, title) => el("span", { class: "sdot " + cls, title, "aria-lab
 function picThumb(p, size) {
   if (p?.src) return el("img", { src: p.src, alt: "", style: `width:${size}px;height:${size}px;border-radius:9px;object-fit:contain` });
   if (!p) return el("span", { class: "thumb", style: `width:${size}px;height:${size}px;background:#374151` }, "?");
+  if (p.glyph && ICONFONT) return el("span", { class: "thumb glyph", title: "Built-in icon: " + p.short, style: `width:${size}px;height:${size}px;background:${p.bg};font-size:${Math.round(size * 0.55)}px` }, p.glyph);
   if (p.uc || p.missing) return el("span", { class: "thumb uc", title: p.missing ? "This picture isn't on the remote any more" : "Built-in icon", style: `width:${size}px;height:${size}px;background:${p.bg};font-size:${Math.max(8, Math.round(size / 5))}px` }, p.short.slice(0, 14));
   return el("span", { class: "thumb", style: `width:${size}px;height:${size}px;background:${p.bg};font-size:${Math.round(size / 3.2)}px` }, p.mono);
 }
@@ -1862,6 +1894,38 @@ function renderChannels() {
   if (!list.length) $("#chpics").append(el("p", { class: "hint" }, "No channel icons match."));
 }
 $("#chq").addEventListener("input", (e) => { chq = e.target.value; renderChannels(); });
+// ---- one picture window: pick which pictures to work with ----------------------------------------
+let LIB = "icons";
+try { LIB = localStorage.getItem("pe_lib") || "icons"; } catch {}
+function setLib(v) {
+  LIB = ["icons", "builtin", "ch", "local"].includes(v) ? v : "icons";
+  try { localStorage.setItem("pe_lib", LIB); } catch {}
+  $("#libsel").value = LIB;
+  for (const x of document.querySelectorAll("#libcard .lib")) x.classList.toggle("hidden", x.dataset.lib !== LIB);
+  renderLibCount();
+  if (LIB === "builtin") renderBuiltin();
+}
+function renderLibCount() {
+  const n = { icons: PICS.filter((x) => !x.local).length, builtin: UCICONS.length, ch: CHANNELS.length, local: LOCAL.length }[LIB];
+  $("#lib-count").textContent = LIB === "local" ? (n ? `${n} found` : "") : `${n} on the remote`;
+  for (const o of $("#libsel").options) o.textContent = { icons: `Icons on the remote (${PICS.filter((x) => !x.local).length})`, builtin: `Built-in icons (${UCICONS.length})`, ch: `Channel icons (${CHANNELS.length})`, local: "Local folder (this computer)" }[o.value];
+}
+$("#libsel").addEventListener("change", (e) => setLib(e.target.value));
+let biq = "";
+function renderBuiltin() {
+  const q = biq.trim().toLowerCase();
+  const list = UCICONS.filter((x) => !q || x.name.includes(q));
+  const shown = list.slice(0, 400);
+  $("#bi-info").textContent = !UCICONS.length ? "The remote didn't list its built-in icons." : ICONFONT ? "The remote's own icons (white on the button). Drag one onto the screen, or click it and then a spot." : "The remote's own icons, by name (its icon font couldn't be loaded here; on the remote they show as icons). Drag one onto the screen, or click it and then a spot.";
+  $("#bipics").replaceChildren(...shown.map((x) => {
+    const id = "uc:" + x.name, p = picOf(id);
+    return el("div", { class: "pic" + (picked === id ? " on" : ""), draggable: "true", title: id, role: "button", tabindex: "0", "aria-pressed": String(picked === id),
+      on: { dragstart: (e) => startDrag(e, { kind: "pic", id }), dragend: endDrag, click: () => { picked = picked === id ? null : id; renderBuiltin(); dropMsg(picked ? "Now click an empty spot or an icon button on the remote." : ""); }, keydown: (e) => { if (e.key === "Enter") { picked = id; renderBuiltin(); } } } },
+      tileThumb(p), el("span", { class: "nm" }, x.name));
+  }));
+  $("#bi-more").textContent = list.length > shown.length ? `Showing ${shown.length} of ${list.length}: search to narrow it down.` : !list.length && UCICONS.length ? "No icons match." : "";
+}
+$("#biq").addEventListener("input", (e) => { biq = e.target.value; renderBuiltin(); });
 $("#chfiles").addEventListener("change", async (e) => {
   const files = [...e.target.files]; e.target.value = "";
   if (!files.length || !(await ensureBackup())) return;
@@ -1929,6 +1993,7 @@ async function upload(type, name, data) {
   return j.id;
 }
 function renderLocal() {
+  renderLibCount();
   const folders = [...new Set(LOCAL.map((x) => x.folder))].sort();
   $("#lfolder").replaceChildren(el("option", { value: "" }, `All folders (${folders.length})`), ...folders.map((f) => el("option", { value: f, selected: f === lfolder }, f)));
   const q = lquery.trim().toLowerCase();
@@ -2671,6 +2736,7 @@ function renderAll() {
   restoreNewActButton();
   if (!act()) { $("#grid").replaceChildren(el("p", { class: "hint", style: "color:#9ca3af;padding:10px" }, "No activities on the remote yet: make one with + New.")); renderPics(); renderChannels(); return; }
   renderPages(); renderActSettings(); renderGrid(); renderInspector(); renderPics(); renderChannels(); renderSave(); if (subView === "seq") renderSeq();
+  setLib(LIB);
 }
 // the theme is picked in the builder (top right) and shared with this page
 const GRIDDEF = { w: 4, h: 6 }, GRIDMAX = { w: 10, h: 12 };

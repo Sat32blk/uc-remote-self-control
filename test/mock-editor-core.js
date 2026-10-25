@@ -2,6 +2,7 @@
 // sequences, macros, activity groups, home screen, pictures, integrations. Placeholder ids only.
 import http from "node:http";
 import zlib from "node:zlib";
+import fs from "node:fs";
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 export const calls = []; // every write: { m, p, b }
@@ -113,6 +114,10 @@ export function startMockEditorCore(port = 0) {
       if (/json/.test(req.headers["content-type"] || "")) try { body = JSON.parse(raw.toString() || "null"); } catch { body = null; }
       const send = (code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(obj === undefined ? "" : JSON.stringify(obj)); };
       const bin = (type, buf, extra = {}) => { res.writeHead(200, { "Content-Type": type, ...extra }); res.end(buf); };
+      // the web configurator's page, style sheet and icon font (public, like on the remote)
+      if (u.pathname === "/configurator/") { res.writeHead(200, { "Content-Type": "text/html" }); return res.end('<html><head><link rel="stylesheet" crossorigin href="/configurator/assets/css/index-AbC123.css"></head><body></body></html>'); }
+      if (u.pathname === "/configurator/assets/css/index-AbC123.css") { res.writeHead(200, { "Content-Type": "text/css" }); return res.end('@font-face{font-family:Inter;src:url(../fonts/inter.woff2) format("woff2")}@font-face{font-family:"uc-icons";src:url(../fonts/uc-icons.woff2?v=2) format("woff2"),url(../fonts/uc-icons.ttf) format("truetype")}body{font-family:Inter}'); }
+      if (u.pathname === "/configurator/assets/fonts/uc-icons.woff2") { res.writeHead(200, { "Content-Type": "font/woff2" }); return res.end(process.env.MOCK_ICON_FONT ? fs.readFileSync(process.env.MOCK_ICON_FONT) : Buffer.from("wOF2-fake-icon-font")); }
       if (!req.headers.authorization) return send(401, { message: "no auth" });
       if (/^Basic /.test(req.headers.authorization)) { const pin = Buffer.from(req.headers.authorization.slice(6), "base64").toString().split(":")[1]; if (pin !== "1234") return send(401, { message: "bad pin" }); }
       if (M !== "GET") calls.push({ m: M, p: p + (u.search || ""), b: body ?? (raw.length ? `<${raw.length} bytes>` : undefined) });
@@ -123,6 +128,7 @@ export function startMockEditorCore(port = 0) {
         if (p === "/cfg/device/button_layout") return send(200, { type: "keypad", grid: { width: 3, height: 9 }, buttons: [] });
         if (p === "/cfg/device/screen_layout") return send(200, { grid: { default: { width: 4, height: 6 }, min: { width: 1, height: 1 }, max: { width: 10, height: 12 } } });
         if (p === "/cfg/entity/commands") return send(200, CMDS);
+        if (p === "/cfg/device/icon_mapping") return send(200, { home: "uE900", tv: "uE901", light: "uE902", play: "uE903", "hdmi-1": "uE904" });
         if (p === "/system/backup/export") return bin("application/zip", Buffer.from("PK-fake-backup"), { "Content-Disposition": 'attachment; filename="UCR3_backup.zip"' });
         // entities
         if (p === "/entities" && M === "GET") {

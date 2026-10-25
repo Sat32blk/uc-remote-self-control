@@ -9,6 +9,7 @@
 //                                    was made in the last 30 minutes -> { ok, name, size, reused }
 //   GET  /api/core/backup/latest    downloads the newest of those backups
 //   GET  /api/editor/state          { onScreen } the activity on the remote's screen (if known)
+//   GET  /api/editor/iconfont       the remote's built-in icon font (from its web configurator)
 //
 // Everything needs the builder login (web-configurator PIN), like the rest of the builder.
 
@@ -55,10 +56,38 @@ const sniff = (buf) => {
   return null;
 };
 
+/**
+ * The remote's built-in icon font (the "uc:" icons), found in its own web configurator: the configurator's
+ * page links its style sheets, and one of their @font-face rules is the icon font. Returns
+ * { family, url, type, body } or null. fetchText / fetchBin: (url) -> string / { type, body }.
+ */
+export async function findIconFont(origin, fetchText, fetchBin) {
+  const page = new URL("/configurator/", origin).href;
+  const html = await fetchText(page);
+  const sheets = [...html.matchAll(/<link[^>]+href="([^"]+\.css[^"]*)"/gi)].map((m) => new URL(m[1], page).href);
+  const faces = [];
+  for (const css of sheets.slice(0, 8)) {
+    let text;
+    try { text = await fetchText(css); } catch { continue; }
+    for (const m of text.matchAll(/@font-face\s*\{([^}]*)\}/gi)) {
+      const fam = (/font-family\s*:\s*["']?([^;"']+)/i.exec(m[1]) || [])[1] || "";
+      const urls = [...m[1].matchAll(/url\(\s*["']?([^)"']+)["']?\s*\)/gi)].map((u) => new URL(u[1], css).href);
+      const src = urls.find((u) => /\.woff2(\?|#|$)/i.test(u)) || urls.find((u) => /\.woff(\?|#|$)/i.test(u)) || urls.find((u) => /\.ttf(\?|#|$)/i.test(u));
+      if (src) faces.push({ family: fam.trim(), url: src });
+    }
+  }
+  const pick = faces.find((f) => /icon|^uc|ucr|remote/i.test(f.family)) || faces.find((f) => /icon/i.test(f.url));
+  if (!pick) return null;
+  const font = await fetchBin(pick.url);
+  const type = /\.woff2/i.test(pick.url) ? "font/woff2" : /\.woff/i.test(pick.url) ? "font/woff" : "font/ttf";
+  return { family: pick.family, url: pick.url, type, body: font.body };
+}
+
 export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPath, send, readJson, log = () => {}, warn = () => {} }) {
   const backupDir = dataDir ? path.join(dataDir, "remote-backups") : null;
   let lastBackup = null; // { name, size, at }
   const notConnected = (res) => send(res, 503, { error: "The integration isn't connected to the remote." });
+  let iconFont = null, iconFontTried = 0;
 
   return {
     "GET /editor": async (req, res) => {
@@ -70,6 +99,24 @@ export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPa
       }
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "SAMEORIGIN" });
       res.end(html);
+    },
+    // the remote's built-in icon font, so the editor can draw "uc:" icons like the remote does
+    "GET /api/editor/iconfont": async (req, res) => {
+      const core = getCore();
+      if (!core) return notConnected(res);
+      if (!iconFont && Date.now() - iconFontTried > 10 * 60 * 1000) {
+        iconFontTried = Date.now();
+        const origin = core.base.replace(/\/api$/, "");
+        const get = async (u) => { const r = await fetch(u, { signal: AbortSignal.timeout(8000) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r; };
+        try {
+          iconFont = await findIconFont(origin, async (u) => (await get(u)).text(), async (u) => ({ body: Buffer.from(await (await get(u)).arrayBuffer()) }));
+          if (iconFont) log(`page editor: built-in icon font found (${iconFont.family}, ${Math.round(iconFont.body.length / 1024)} KB)`);
+          else warn("page editor: the web configurator's icon font wasn't found");
+        } catch (e) { warn("page editor: icon font:", e.message); }
+      }
+      if (!iconFont) return send(res, 404, { error: "The remote's icon font wasn't found." });
+      res.writeHead(200, { "Content-Type": iconFont.type, "Cache-Control": "private, max-age=86400", "X-Font-Family": encodeURIComponent(iconFont.family) });
+      res.end(iconFont.body);
     },
     "GET /api/editor/state": async (req, res) => send(res, 200, { onScreen: onScreen() || null }),
     "POST /api/core": async (req, res) => {
