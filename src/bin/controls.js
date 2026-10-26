@@ -154,7 +154,7 @@ export class Controls {
   }
 
   async write(t, v) {
-    if (t.type === "display") return this.patchSection("display", { brightness: Math.max(1, v), auto_brightness: false });
+    if (t.type === "display") return this.patchSection("display", { brightness: Math.max(10, v), auto_brightness: false }); // 10 %: still readable
     if (t.type === "backlight") return this.patchSection("button", { brightness: v });
     if (t.type === "slider") {
       const x = this.extras(); const s = x?.slider(t.id);

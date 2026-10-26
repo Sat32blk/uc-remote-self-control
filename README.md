@@ -263,7 +263,7 @@ The integration follows the remote's own events, so it also sees you reopen an a
 
 1. Integrations → Remote Self-Control → add **Display Brightness** (and/or **Button Backlight**).
 2. In an activity's user-interface settings, set the **touch slider** to **Display Brightness**.
-3. Slide to set the screen brightness. It turns display auto brightness off; *off* means the dimmest level.
+3. Slide to set the screen brightness. It turns display auto brightness off; *off* means 10 %, the dimmest level that's still readable.
 
 ### 8. A power icon that turns green when the receiver is on
 
@@ -426,7 +426,7 @@ Grouped by area in the web configurator.
 | Group | Entity | Type | What it controls |
 |---|---|---|---|
 | **Remote Display** | Display Brightness Level | select | 10 % … 100 % (turns display auto brightness off) |
-| | Display Brightness | light | brightness for the **touch slider**; off = dimmest |
+| | Display Brightness | light | brightness for the **touch slider**; off = dimmest readable (10 %) |
 | | Display Timeout | select | 5 s … 60 s |
 | | Display Auto Brightness | switch | display follows the light sensor |
 | **Remote Buttons** | Button Backlight Level | select | Off, 10 % … 100 % |
@@ -565,6 +565,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.0.1:** Page Editor: an activity only counts as on the remote's screen while it is on and the remote's screen is on (asleep, docked or with every activity off, pages are saved right away; "On screen now" says so). The screen is never set below 10 % by the integration: Display Brightness "off" / toggle, its touch slider and Controls stop at 10 % instead of an unreadable 1 %.
 - **1.0.0:** first 1.0 release, with everything from 0.9.0–0.9.10: the **Page Editor** (activities, pages, pictures including the remote's built-in icons, widgets, keys, start and off sequences with a guided setup, activity groups, home screen, macros, devices and integrations, Android TV app links), the theme picker, and backups with [Integration Manager](https://github.com/JackJPowell/uc-intg-manager) (from 0.8.8). New README with pictures of every part.
 <details><summary>Earlier versions</summary>
 

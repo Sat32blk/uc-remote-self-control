@@ -48,7 +48,7 @@ const send = (msg, msg_data) => ws.send(JSON.stringify({ kind: "event", msg, msg
 
 // --- before setup
 let r = await req("get_driver_version");
-ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.0.0", "driver_version 1.0.0");
+ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.0.1", "driver_version 1.0.1");
 send("connect");
 await sleep(300);
 r = await req("get_device_state");
@@ -179,7 +179,7 @@ ok(code === 200 && patches.at(-1).body.auto_brightness === true && patches.at(-1
 code = await cmd("display_brightness", "light", "on", { brightness: 64 });
 ok(code === 200 && JSON.stringify(patches.at(-1)) === JSON.stringify({ section: "display", body: { brightness: 25, auto_brightness: false } }), "display light brightness 64/255 -> 25 %, auto off: " + JSON.stringify(patches.at(-1)));
 code = await cmd("display_brightness", "light", "off");
-ok(code === 200 && patches.at(-1).body.brightness === 1, "display light off -> dimmest (1 %)");
+ok(code === 200 && patches.at(-1).body.brightness === 10, "display light off -> dimmest readable (10 %)");
 code = await cmd("display_brightness", "light", "on");
 ok(code === 200 && patches.at(-1).body.brightness === 25, "display light on -> back to last level 25 %");
 code = await cmd("display_brightness", "light", "on", { brightness: 255 });

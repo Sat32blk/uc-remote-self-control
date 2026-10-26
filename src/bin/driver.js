@@ -65,6 +65,8 @@ let connected = false;
 let standby = false;
 let lastBacklight = 50; // last non-zero backlight %, for "on"
 let lastDisplay = 50; // last display brightness %, for "on"
+// never dimmer than this from the integration (the Display Brightness Level list's lowest step): 1 % is unreadable
+const MIN_SCREEN = 10;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -371,10 +373,10 @@ async function displayCmd(entity, rawCmd, rawParams = {}) {
   return run(`display ${rawCmd}`, async () => {
     const cur = cache?.display?.brightness ?? 50;
     let level;
-    if (cmd === "off" || (cmd === "toggle" && cur > 1)) {
-      level = 1; // the screen can't switch off from here: "off" = dimmest
+    if (cmd === "off" || (cmd === "toggle" && cur > MIN_SCREEN)) {
+      level = MIN_SCREEN; // the screen can't switch off from here: "off" = dimmest that's still readable
     } else if (cmd === "on" || cmd === "toggle") {
-      level = params.brightness !== undefined ? Math.max(1, toPct(params.brightness)) : cur > 1 ? cur : lastDisplay;
+      level = params.brightness !== undefined ? Math.max(MIN_SCREEN, toPct(params.brightness)) : cur > MIN_SCREEN ? cur : lastDisplay;
     } else {
       throw new CoreError(`unsupported command ${cmd}`, 400, "http");
     }
@@ -915,7 +917,7 @@ function publishStates() {
   if (!cache) return;
   const states = computeStates(cache);
   if ((cache.button?.brightness ?? 0) > 0) lastBacklight = cache.button.brightness;
-  if ((cache.display?.brightness ?? 0) > 1) lastDisplay = cache.display.brightness;
+  if ((cache.display?.brightness ?? 0) > MIN_SCREEN) lastDisplay = cache.display.brightness;
   for (const [id, attrs] of Object.entries(states)) {
     const e = Object.values(entities).find((x) => x.id === id);
     if (!e) continue;
