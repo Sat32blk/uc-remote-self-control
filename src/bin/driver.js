@@ -65,8 +65,8 @@ let connected = false;
 let standby = false;
 let lastBacklight = 50; // last non-zero backlight %, for "on"
 let lastDisplay = 50; // last display brightness %, for "on"
-// never dimmer than this from the integration (the Display Brightness Level list's lowest step): 1 % is unreadable
-const MIN_SCREEN = 10;
+// the dimmest the integration sets the screen to ("off" = dimmest; the screen can't switch off from here)
+const MIN_SCREEN = 1;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -374,7 +374,7 @@ async function displayCmd(entity, rawCmd, rawParams = {}) {
     const cur = cache?.display?.brightness ?? 50;
     let level;
     if (cmd === "off" || (cmd === "toggle" && cur > MIN_SCREEN)) {
-      level = MIN_SCREEN; // the screen can't switch off from here: "off" = dimmest that's still readable
+      level = MIN_SCREEN; // the screen can't switch off from here: "off" = dimmest
     } else if (cmd === "on" || cmd === "toggle") {
       level = params.brightness !== undefined ? Math.max(MIN_SCREEN, toPct(params.brightness)) : cur > MIN_SCREEN ? cur : lastDisplay;
     } else {
