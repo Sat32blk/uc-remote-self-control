@@ -134,6 +134,7 @@ export function startMockEditorCore(port = 0) {
       try {
         if (p === "/cfg/device" && M === "GET") return send(200, {});
         if (p === "/system") return send(200, { model_number: "ucr3-r3", model_name: "Remote 3" });
+        if (p === "/system/power") return send(200, { power_mode: S.power || "NORMAL", battery: {} });
         if (p === "/cfg/device/button_layout") return send(200, { type: "keypad", grid: { width: 3, height: 9 }, buttons: [] });
         if (p === "/cfg/device/screen_layout") return send(200, { grid: { default: { width: 4, height: 6 }, min: { width: 1, height: 1 }, max: { width: 10, height: 12 } } });
         if (p === "/cfg/entity/commands") return send(200, CMDS);

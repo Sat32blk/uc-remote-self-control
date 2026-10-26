@@ -1091,7 +1091,7 @@ async function loadAll() {
   const full = await actsFullP;
   S.activities = full.filter(Boolean).map(activityIn).sort((a, b) => a.name.localeCompare(b.name));
   for (const a of full.filter(Boolean)) if (/^custom:/.test(a.icon || "")) USED_ELSEWHERE.add(a.icon);
-  S.onScreen = st.onScreen || null;
+  S.onScreen = st.onScreen || null; S.screen = st.screen || "";
   // home screen
   const [prof, pages, hg] = await homeP;
   PROFILE = prof;
@@ -1678,7 +1678,7 @@ function g_listeners() {
 function renderPages() {
   const a = act();
   $("#act").replaceChildren(...S.activities.map((x) => el("option", { value: x.id, selected: x.id === actId }, x.name + (x.editable ? "" : " 🔒"))));
-  $("#onscreen").textContent = S.activities.find((x) => x.id === S.onScreen)?.name || "none or not known";
+  $("#onscreen").textContent = S.activities.find((x) => x.id === S.onScreen)?.name || (S.screen === "off" ? "nothing (the remote's screen is off)" : "none or not known");
   if (!a.pages.some((p) => p.id === pageId)) pageId = a.pages[0]?.id;
   $("#pagetabs").replaceChildren(...a.pages.map((p, i) => el("span", { class: "ptab" + (p.id === pageId ? " on" : ""), on: { click: () => { pageId = p.id; selId = null; renderAll(); } } },
     `${i + 1} · ${p.name || "(no name)"}`)), el("button", { class: "btn small", type: "button", on: { click: addPage } }, "+ Add page"));
@@ -2342,7 +2342,7 @@ let pendingTimer = null;
 function watchPending() {
   if (pendingTimer || !PENDING.size) return;
   pendingTimer = setInterval(async () => {
-    try { S.onScreen = (await (await fetch("/api/editor/state", { credentials: "same-origin" })).json()).onScreen || null; } catch { return; }
+    try { { const j = await (await fetch("/api/editor/state", { credentials: "same-origin" })).json(); S.onScreen = j.onScreen || null; S.screen = j.screen || ""; } } catch { return; }
     if (![...PENDING].some((id) => id !== S.onScreen)) return;
     clearInterval(pendingTimer); pendingTimer = null;
     saveAll(false);
@@ -2351,7 +2351,7 @@ function watchPending() {
 let saving = false;
 async function saveAll(force) {
   if (saving) return;
-  try { S.onScreen = (await (await fetch("/api/editor/state", { credentials: "same-origin" })).json()).onScreen || null; } catch {}
+  try { { const j = await (await fetch("/api/editor/state", { credentials: "same-origin" })).json(); S.onScreen = j.onScreen || null; S.screen = j.screen || ""; } } catch {}
   const c = changedPages();
   if (!c.length && !groupsDirty()) return;
   if (!(await ensureBackup())) return;

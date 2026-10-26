@@ -7,6 +7,7 @@ import { checkCoreCall, parseAppLinks, checkAppLinks } from "../src/bin/editor.j
 import { startWebServer } from "../src/bin/web.js";
 import { CoreClient } from "../src/bin/core.js";
 import { startMockEditorCore, calls } from "./mock-editor-core.js";
+import * as MOCK from "./mock-editor-core.js";
 
 let fails = 0;
 const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fails++; };
@@ -70,8 +71,18 @@ ok(r.status === 200 && calls.some((c) => c.m === "PATCH" && c.p === "/activities
 r = await req("GET", "/api/editor/catalog");
 ok(r.status === 200 && r.body.model === "ucr3-r3" && r.body.devices.some((d) => d.id === "self_control.main.haptic") && r.body.devices.some((d) => d.type === "activity"), "catalog: the integration's own entities and activities included, model read");
 ok(r.body.devices.find((d) => d.type === "remote")?.simple.includes("POWER_ON"), "catalog: simple commands");
+MOCK.S.activities["uc.main.watch"].state = "ON";
 r = await req("GET", "/api/editor/state");
-ok(r.body.onScreen === "uc.main.watch", "on-screen activity reported");
+ok(r.body.onScreen === "uc.main.watch" && r.body.screen === "on", "on-screen activity reported");
+MOCK.S.activities["uc.main.watch"].state = "OFF";
+await new Promise((r) => setTimeout(r, 3100));
+r = await req("GET", "/api/editor/state");
+ok(r.body.onScreen === null, "an activity that is off isn't on screen");
+MOCK.S.power = "LOW_POWER"; MOCK.S.activities["uc.main.watch"].state = "ON";
+await new Promise((r) => setTimeout(r, 3100));
+r = await req("GET", "/api/editor/state");
+ok(r.body.onScreen === null && r.body.screen === "off", "nothing is on screen while the remote's screen is off");
+MOCK.S.power = "NORMAL"; MOCK.S.activities["uc.main.watch"].state = "OFF";
 // pictures
 r = await req("GET", "/api/core/image?type=Icon&id=netflix.png", undefined, true);
 ok(r.status === 200 && r.body.readUInt32BE(0) === 0x89504e47, "picture download");

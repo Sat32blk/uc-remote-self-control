@@ -8,7 +8,7 @@
 //   POST /api/core/backup           saves a full remote backup on the remote (kept: last 2), unless one
 //                                    was made in the last 30 minutes -> { ok, name, size, reused }
 //   GET  /api/core/backup/latest    downloads the newest of those backups
-//   GET  /api/editor/state          { onScreen } the activity on the remote's screen (if known)
+//   GET  /api/editor/state          { onScreen, screen } the activity on the remote's screen (none while the screen is off)
 //   GET  /api/editor/iconfont       the font the web configurator draws the built-in "uc:" icons with
 //   GET  /api/editor/iconmap        { glyphs: uc icon name -> character in that font, missing }
 //   GET/POST /api/editor/applinks   app links per integration ("<command> = <name>"), kept on the remote
@@ -175,6 +175,19 @@ export function checkAppLinks(all) {
 }
 
 export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPath, send, readJson, log = () => {}, warn = () => {} }) {
+  let power = { at: 0, state: "unknown" };
+  /** "on" | "off" | "unknown": the remote's power mode (GET /system/power), read at most every 3 s. */
+  async function screenState() {
+    if (Date.now() - power.at < 3000) return power.state;
+    let state = "unknown";
+    try {
+      const p = await getCore()?.get("/system/power");
+      const mode = String(p?.power_mode || p?.mode || "").toUpperCase();
+      if (mode) state = mode === "NORMAL" ? "on" : "off";
+    } catch {}
+    power = { at: Date.now(), state };
+    return state;
+  }
   const backupDir = dataDir ? path.join(dataDir, "remote-backups") : null;
   let lastBackup = null; // { name, size, at }
   const notConnected = (res) => send(res, 503, { error: "The integration isn't connected to the remote." });
@@ -236,7 +249,21 @@ export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPa
       log(`page editor: app links saved (${Object.values(clean).reduce((n, l) => n + l.length, 0)})`);
       send(res, 200, { ok: true, links: clean });
     },
-    "GET /api/editor/state": async (req, res) => send(res, 200, { onScreen: onScreen() || null }),
+    "GET /api/editor/state": async (req, res) => {
+      // an activity is only "on screen" while the remote's screen is on: asleep, docked or dimmed off
+      // (power mode IDLE / LOW_POWER / SUSPEND) nothing is shown, so its pages can be saved right away
+      const screen = await screenState();
+      let id = screen === "off" ? null : onScreen() || null;
+      // and only while that activity is actually on: one that has been turned off isn't on screen
+      if (id) {
+        try {
+          const a = await getCore()?.get(`/activities/${encodeURIComponent(id)}`);
+          const st = String(a?.attributes?.state || a?.state || "").toUpperCase();
+          if (st && !["ON", "RUNNING"].includes(st)) id = null;
+        } catch {}
+      }
+      send(res, 200, { onScreen: id, screen, lastOpened: onScreen() || null });
+    },
     "POST /api/core": async (req, res) => {
       const body = await readJson(req);
       const core = getCore();
