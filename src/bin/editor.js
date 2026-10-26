@@ -5,8 +5,8 @@
 //   POST /api/core                  { method, path, body } -> { status, data }   only the paths in ALLOW
 //   GET  /api/core/image?type=&id=  a picture (Icon, TvChannelIcon, BackgroundImage)
 //   POST /api/core/upload           { type, name, data (base64) } -> { id }
-//   POST /api/core/backup           saves a full remote backup on the remote (kept: last 2), unless one
-//                                    was made in the last 30 minutes -> { ok, name, size, reused }
+//   POST /api/core/backup           saves a copy of what the editor can change (activities, groups, macros,
+//                                    home screen; kept: last 2), unless one was made in the last 30 minutes
 //   GET  /api/core/backup/latest    downloads the newest of those backups
 //   GET  /api/editor/state          { onScreen, screen } the activity on the remote's screen (none while the screen is off)
 //   GET  /api/editor/iconfont       the font the web configurator draws the built-in "uc:" icons with
@@ -307,28 +307,51 @@ export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPa
       log(`page editor: uploaded ${type} ${id}`);
       send(res, 200, { id });
     },
+    // A copy of what the Page Editor can change (activities with pages, keys and sequences, activity groups, macros,
+    // the home screen, the entity list and the picture names), kept with the integration (newest two).
+    // Not the remote's full backup (GET /system/backup/export): that stops every integration while it runs,
+    // this one included, so it can't be made from here; and it would disconnect your devices each time.
     "POST /api/core/backup": async (req, res) => {
       const body = await readJson(req);
       const core = getCore();
       if (!core) return notConnected(res);
       if (!backupDir) return send(res, 500, { error: "no place to keep backups" });
       if (!body.force && lastBackup && Date.now() - lastBackup.at < 30 * 60 * 1000) return send(res, 200, { ok: true, reused: true, ...lastBackup });
-      let file;
+      const all = async (p) => { const out = []; for (let page = 1; page <= 50; page++) { const part = await core.get(`${p}${p.includes("?") ? "&" : "?"}limit=100&page=${page}`); const list = Array.isArray(part) ? part : []; out.push(...list); if (list.length < 100) break; } return out; };
+      let copy;
       try {
-        file = await core.download("/system/backup/export", 120000);
+        const acts = await all("/activities");
+        const macros = await all("/macros");
+        copy = {
+          kind: "uc-self-control-page-editor-copy", format: 1, created: new Date().toISOString(),
+          note: "What the Page Editor can change, as the remote had it before your first change. Not a full remote backup: keep one from the web configurator too.",
+          activities: await Promise.all(acts.map((x) => core.get(`/activities/${encodeURIComponent(x.entity_id)}`).catch(() => x))),
+          activityGroups: await all("/activity_groups").catch(() => []),
+          macros: await Promise.all(macros.map((x) => core.get(`/macros/${encodeURIComponent(x.entity_id)}`).catch(() => x))),
+          profiles: await core.get("/profiles").catch(() => null),
+          entities: (await all("/entities")).map((e) => ({ entity_id: e.entity_id, entity_type: e.entity_type, integration_id: e.integration_id, name: e.name, icon: e.icon })),
+          icons: (await all("/resources/Icon").catch(() => [])).map((r) => r.id || r.resource_id || r.name)
+        };
+        const prof = copy.profiles && (Array.isArray(copy.profiles) ? copy.profiles : copy.profiles.profiles || []);
+        copy.homePages = {};
+        for (const pr of prof || []) {
+          const id = pr.profile_id || pr.id;
+          if (!id) continue;
+          copy.homePages[id] = { pages: await core.get(`/profiles/${encodeURIComponent(id)}/pages`).catch(() => null), groups: await core.get(`/profiles/${encodeURIComponent(id)}/groups`).catch(() => null) };
+        }
       } catch (e) {
-        warn("page editor: remote backup failed:", e.message);
+        warn("page editor: copy before changes failed:", e.message);
         return send(res, 502, { ok: false, error: e.message });
       }
+      const buf = Buffer.from(JSON.stringify(copy, null, 1));
       fs.mkdirSync(backupDir, { recursive: true });
-      const ext = (/\.([A-Za-z0-9.]{1,12})$/.exec(file.filename || "") || [])[1] || (/zip/.test(file.type) ? "zip" : "bin");
-      const name = `remote-backup-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.${ext.replace(/[^A-Za-z0-9.]/g, "")}`;
-      fs.writeFileSync(path.join(backupDir, name), file.body);
-      // keep the newest two: the remote has little room
+      const name = `remote-backup-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.json`;
+      fs.writeFileSync(path.join(backupDir, name), buf);
+      // keep the newest two
       const old = fs.readdirSync(backupDir).filter((f) => /^remote-backup-/.test(f)).sort().reverse().slice(2);
       for (const f of old) try { fs.unlinkSync(path.join(backupDir, f)); } catch {}
-      lastBackup = { name, size: file.body.length, at: Date.now() };
-      log(`page editor: remote backup saved (${Math.round(file.body.length / 1024)} KB)`);
+      lastBackup = { name, size: buf.length, at: Date.now() };
+      log(`page editor: copy before changes saved (${Math.round(buf.length / 1024)} KB)`);
       send(res, 200, { ok: true, reused: false, ...lastBackup });
     },
     "GET /api/core/backup/latest": async (req, res) => {

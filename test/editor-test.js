@@ -118,14 +118,16 @@ ok((await req("POST", "/api/editor/applinks", { links: { "atvdrv.main": "nope" }
 r = await req("GET", "/api/core/backup/latest", undefined, true);
 ok(r.status === 404, "no backup yet");
 r = await req("POST", "/api/core/backup", {});
-ok(r.status === 200 && r.body.ok && !r.body.reused && /\.zip$/.test(r.body.name), "full remote backup made");
+ok(r.status === 200 && r.body.ok && !r.body.reused && /\.json$/.test(r.body.name), "copy before changes made (no full export: it would stop every integration)");
+ok(!calls.some((c) => /backup\/export/.test(c.p)), "the remote's full export isn't called");
 r = await req("POST", "/api/core/backup", {});
 ok(r.status === 200 && r.body.reused, "a second one within 30 minutes isn't needed");
 for (let i = 0; i < 3; i++) { await new Promise((x) => setTimeout(x, 1100)); await req("POST", "/api/core/backup", { force: true }); }
 const kept = fs.readdirSync(path.join(dataDir, "remote-backups"));
 ok(kept.length === 2, `only the newest two backups are kept (${kept.length})`);
 r = await req("GET", "/api/core/backup/latest", undefined, true);
-ok(r.status === 200 && r.body.toString() === "PK-fake-backup" && /attachment/.test(r.headers.get("content-disposition")), "newest backup downloads");
+{ let j = null; try { j = JSON.parse(r.body.toString()); } catch {}
+  ok(r.status === 200 && j?.kind === "uc-self-control-page-editor-copy" && j.activities.some((a) => a.entity_id === "uc.main.watch" && a.options?.user_interface?.pages?.length) && j.macros.length && Array.isArray(j.entities) && /attachment/.test(r.headers.get("content-disposition")), "newest copy downloads, with full activities and macros"); }
 
 srv.close(); mock.close();
 fs.rmSync(dataDir, { recursive: true, force: true });

@@ -406,7 +406,7 @@ details.more summary{cursor:pointer;font-weight:600}
     <div class="row" style="gap:6px;align-items:center">
       <span class="status" id="piccount"></span>
       <button class="btn small" id="reload" type="button" title="Read everything from the remote again (changes not saved are lost)">Reload from remote</button>
-      <a class="btn small" id="bk" href="/api/core/backup/latest" title="The full remote backup made before the first change">Last remote backup</a>
+      <a class="btn small" id="bk" href="/api/core/backup/latest" title="A copy of your activities, macros and home screen, made before the first change of this visit (not a full remote backup)">Last copy before changes</a>
     </div>
   </header>
   <div class="mode" role="group" aria-label="What to edit">
@@ -705,7 +705,7 @@ const nid = (p) => p + (seq++);
 
 // =============================================================================================
 // The remote: everything is read through the builder's pass-through (/api/core) and written back
-// only when you save. Before the first change a full remote backup is made (kept on the remote).
+// only when you save. Before the first change a copy of what the editor can change is kept (newest two).
 // =============================================================================================
 class ApiError extends Error { constructor(m, status) { super(m); this.status = status; } }
 async function api(method, path, body) {
@@ -747,7 +747,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 const stable = (o) => JSON.stringify(o, Object.keys(o || {}).sort());
 const imgUrl = (type, id) => `/api/core/image?type=${type}&id=${enc(id)}`;
 
-// one full remote backup before the first change (the integration keeps the newest two on the remote)
+// one copy of activities, macros and home screen before the first change (the integration keeps the newest two)
 let backupDone = false;
 async function ensureBackup() {
   if (backupDone) return true;
@@ -758,7 +758,7 @@ async function ensureBackup() {
   if (r && r.ok) { backupDone = true; $("#bk").classList.remove("hidden"); return true; }
   let why = "";
   try { why = (await r.json()).error || ""; } catch {}
-  if (confirm(`The remote's full backup could not be made${why ? ` (${why})` : ""}.\n\nSave the changes anyway, without a backup?`)) { backupDone = true; return true; }
+  if (confirm(`A copy of your activities before the changes could not be made${why ? ` (${why})` : ""}.\n\nSave the changes anyway, without a backup?`)) { backupDone = true; return true; }
   return false;
 }
 
@@ -2242,7 +2242,7 @@ for (const sec of document.querySelectorAll(".fold")) {
 
 
 // ---------------------------------------------------------------------------------------------
-// Save: only what changed, after a full remote backup. Pages are re-read first and merged: a button
+// Save: only what changed, after that copy. Pages are re-read first and merged: a button
 // you didn't touch keeps whatever the remote has now (e.g. a picture the integration just changed).
 // ---------------------------------------------------------------------------------------------
 const LOG = [];

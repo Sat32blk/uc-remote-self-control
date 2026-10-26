@@ -9,7 +9,7 @@ Everything runs on the remote and is set up in a browser page the integration se
 ![The Page Editor: pictures on the left, the remote in the middle, what the selected button does on the right](docs/images/page-editor.png)
 
 > [!WARNING]
-> **Back up your remote's configuration in the web configurator before installing.** The integration changes your remote's settings, activities, pages, button mappings and more. The Page Editor also saves a full remote backup before its first change of a visit, but keep your own. Tested on one Remote 3 so far.
+> **Back up your remote's configuration in the web configurator before installing.** The integration changes your remote's settings, activities, pages, button mappings and more. The Page Editor keeps a copy of your activities, macros and home screen before its first change of a visit, but that's not a full backup. Tested on one Remote 3 so far.
 
 > Community project, not affiliated with Unfolded Circle. MIT licensed. It works through the remote's local Core REST API.
 
@@ -27,7 +27,7 @@ Everything runs on the remote and is set up in a browser page the integration se
 
 ### Page Editor
 
-The builder's first tab shows your Remote 3 or Remote Two (picked from the remote's model number) and lets you edit what's on it. Nothing is written until you press a save button, and the integration saves a full remote backup before the first change of each visit (**Last remote backup** downloads it).
+The builder's first tab shows your Remote 3 or Remote Two (picked from the remote's model number) and lets you edit what's on it. Nothing is written until you press a save button, and the integration keeps a copy of your activities, macros and home screen from before the first change of each visit (**Last copy before changes** downloads it). It isn't a full remote backup: the remote stops every integration while it makes one, so make that in the web configurator.
 
 #### Activities and pages
 
@@ -565,6 +565,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.0.7:** Page Editor: no more full remote backup before the first change. The remote stops every integration while it makes one, this one included, so it failed ("backup failed") and disconnected your devices meanwhile. Instead the integration keeps a copy of your activities (pages, keys, sequences), activity groups, macros and home screen: **Last copy before changes**. Keep making full backups in the web configurator.
 - **1.0.6:** Page Editor, **Level pictures & state icons**: pictures nothing uses any more can be deleted (Select… → Delete). Ones still used by a level picture, state icon or ↩ button in the builder, or shown on a page, are kept and marked, so a level picture never loses a frame.
 - **1.0.5:** Page Editor: a fifth picture list, **Level pictures & state icons**, shows the pictures this integration made (the 11 frames of each level picture, state-icon and ↩ pictures). Drag them onto the screen like any picture.
 - **1.0.4:** Page Editor: a sensor, select or media widget whose device isn't on the remote any more (e.g. removed from Home Assistant) is outlined in red, and left out when its page is saved, with a note saying which one. The remote refuses to save a page that still has one ("Invalid sensor configuration").
