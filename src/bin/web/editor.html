@@ -469,6 +469,7 @@ details.more summary{cursor:pointer;font-weight:600}
             <option value="icons">Icons on the remote</option>
             <option value="builtin">Built-in icons</option>
             <option value="ch">Channel icons</option>
+            <option value="made">Level pictures &amp; state icons (this integration)</option>
             <option value="local">Local folder (this computer)</option>
           </select>
           <span class="hint" style="margin-left:auto" id="lib-count"></span></div>
@@ -484,7 +485,7 @@ details.more summary{cursor:pointer;font-weight:600}
         <div style="height:6px"></div>
         <div class="selbar" id="sel-icons"></div>
         <div class="pics" id="pics"></div>
-        <p class="note" style="margin-top:8px">"Not on any page" = found on no activity page, device picture or home screen. Pictures the integration makes itself (level frames) aren't listed. <span id="icons-count"></span></p>
+        <p class="note" style="margin-top:8px">"Not on any page" = found on no activity page, device picture or home screen. Pictures this integration makes (level pictures, state icons) are in their own list: "Level pictures &amp; state icons". <span id="icons-count"></span></p>
         </div>
 
         <div class="lib hidden" data-lib="builtin">
@@ -493,6 +494,13 @@ details.more summary{cursor:pointer;font-weight:600}
           <div style="height:8px"></div>
           <div class="pics" id="bipics"></div>
           <p class="hint" id="bi-more" style="margin-top:6px"></p>
+        </div>
+
+        <div class="lib hidden" data-lib="made">
+          <p class="hint" style="margin:8px 0" id="made-info"></p>
+          <label class="f">Search<input type="search" id="madeq" placeholder="arc, bar, battery…"></label>
+          <div style="height:8px"></div>
+          <div class="pics" id="madepics"></div>
         </div>
 
         <div class="lib hidden" data-lib="ch">
@@ -897,7 +905,8 @@ const HW = {
 // ---------------------------------------------------------------------------------------------
 const PICS = [];
 const PIC = {};
-let HIDDEN_FRAMES = 0; // the integration's own level-picture frames: never offered
+let HIDDEN_FRAMES = 0; // the integration's own pictures (level-picture frames, state icons, ↩): in their own list
+const MADE = []; // those pictures
 const USED_ELSEWHERE = new Set(); // pictures of devices and activities (home screen tiles)
 const isFrame = (id) => /^(lv_|si_|smart_|ret_)/.test(id);
 const shortName = (id) => String(id).replace(/^(custom|ctv|uc):/, "").replace(/\.[a-z0-9]+$/i, "").replace(/__.*$/, "").replace(/[_-]+/g, " ").trim().slice(0, 22) || String(id);
@@ -1074,11 +1083,11 @@ async function loadAll() {
   if (gl?.max?.width) Object.assign(GRIDMAX, { w: gl.max.width, h: gl.max.height });
   for (const d of DEVICES) if (d.icon && /^custom:/.test(d.icon)) USED_ELSEWHERE.add(d.icon);
   const [, icons, chans, bgs, , , , intgs, st, mapping] = await listsP;
-  HIDDEN_FRAMES = 0;
+  HIDDEN_FRAMES = 0; MADE.length = 0;
   for (const r of icons) {
     const p = { id: "custom:" + r.id, file: r.id, short: shortName(r.id), mono: "", bg: "#374151", src: imgUrl("Icon", r.id), size: r.size };
     PIC[p.id] = p;
-    if (isFrame(r.id)) HIDDEN_FRAMES++; // shown on the page, not offered in the library
+    if (isFrame(r.id)) { HIDDEN_FRAMES++; MADE.push(p); } // in their own list, safe from "Select… Delete"
     else PICS.push(p);
   }
   PICS.sort((a, b) => a.short.localeCompare(b.short));
@@ -1997,9 +2006,22 @@ function renderPics() {
   if (!list.length) $("#pics").append(el("p", { class: "hint" }, "No pictures match."));
   const free = PICS.filter((p) => !used.has(p.id)).length;
   $("#icons-count").textContent = `${PICS.filter((x) => !x.local).length} on the remote`;
-  $("#piccount").textContent = `${free} picture${free === 1 ? "" : "s"} not on any page${HIDDEN_FRAMES ? ` · ${HIDDEN_FRAMES} made by the integration (hidden)` : ""}`;
+  $("#piccount").textContent = `${free} picture${free === 1 ? "" : "s"} not on any page${HIDDEN_FRAMES ? ` · ${HIDDEN_FRAMES} made by this integration (see "Level pictures & state icons")` : ""}`;
 }
 $("#q").addEventListener("input", (e) => { query = e.target.value; renderPics(); });
+// ---- the integration's own pictures: level-picture frames (lv_), state icons (si_), ↩ pictures (ret_) ----
+let madeq = "";
+const MADE_KIND = (f) => f.startsWith("lv_") ? "level picture" : f.startsWith("si_") ? "state icon" : f.startsWith("ret_") ? "↩ button" : "this integration";
+function renderMade() {
+  const q = madeq.trim().toLowerCase();
+  const list = MADE.filter((p) => !q || p.file.toLowerCase().includes(q)).sort((a, b) => a.file.localeCompare(b.file));
+  $("#made-info").textContent = MADE.length ? "Pictures this integration made: the frames of level pictures (one per 10 %), state-icon and ↩ pictures. Drag one onto the screen like any picture. They're changed and deleted in the builder's Icons & Sliders and Return tabs, so they can't be deleted here." : "This integration hasn't made any pictures yet (level pictures and state icons are made in the builder's Icons & Sliders tab).";
+  $("#madepics").replaceChildren(...list.slice(0, 400).map((p) => el("div", { class: "pic" + (picked === p.id ? " on" : ""), draggable: "true", title: `${p.file} (${MADE_KIND(p.file)})`, role: "button", tabindex: "0", "aria-pressed": String(picked === p.id),
+    on: { dragstart: (e) => startDrag(e, { kind: "pic", id: p.id }), dragend: endDrag, click: () => { picked = picked === p.id ? null : p.id; renderMade(); msg(picked ? "Now click an empty spot or an icon button on the page." : "", ""); }, keydown: (e) => { if (e.key === "Enter") { picked = p.id; renderMade(); } } } },
+    tileThumb(p), el("span", { class: "nm" }, p.file.replace(/^(lv|si|ret|smart)_/, "").replace(/\.png$/, "").replace(/_/g, " ")))));
+  if (!list.length && MADE.length) $("#madepics").append(el("p", { class: "hint" }, "No pictures match."));
+}
+$("#madeq").addEventListener("input", (e) => { madeq = e.target.value; renderMade(); });
 // ---- selecting several pictures and deleting them from the remote ----------------------------------
 const SELM = { icons: false, ch: false }, SELS = { icons: new Set(), ch: new Set() };
 function selBar(key, visibleIds, rerender) {
@@ -2080,18 +2102,19 @@ function fitPictures(off) {
   if (over > 0) pics.style.maxHeight = Math.max(120, pics.offsetHeight - over - 4) + "px";
 }
 function setLib(v) {
-  LIB = ["icons", "builtin", "ch", "local"].includes(v) ? v : "icons";
+  LIB = ["icons", "builtin", "ch", "local", "made"].includes(v) ? v : "icons";
   try { localStorage.setItem("pe_lib", LIB); } catch {}
   $("#libsel").value = LIB;
   for (const x of document.querySelectorAll("#libcard .lib")) x.classList.toggle("hidden", x.dataset.lib !== LIB);
   renderLibCount();
   if (LIB === "builtin") renderBuiltin();
+  if (LIB === "made") renderMade();
   requestAnimationFrame(() => fitPictures());
 }
 function renderLibCount() {
-  const n = { icons: PICS.filter((x) => !x.local).length, builtin: UCICONS.length, ch: CHANNELS.length, local: LOCAL.length }[LIB];
+  const n = { icons: PICS.filter((x) => !x.local).length, builtin: UCICONS.length, ch: CHANNELS.length, local: LOCAL.length, made: MADE.length }[LIB];
   $("#lib-count").textContent = LIB === "local" ? (n ? `${n} found` : "") : `${n} on the remote`;
-  for (const o of $("#libsel").options) o.textContent = { icons: `Icons on the remote (${PICS.filter((x) => !x.local).length})`, builtin: `Built-in icons (${UCICONS.length})`, ch: `Channel icons (${CHANNELS.length})`, local: "Local folder (this computer)" }[o.value];
+  for (const o of $("#libsel").options) o.textContent = { icons: `Icons on the remote (${PICS.filter((x) => !x.local).length})`, builtin: `Built-in icons (${UCICONS.length})`, ch: `Channel icons (${CHANNELS.length})`, local: "Local folder (this computer)", made: `Level pictures & state icons (${MADE.length})` }[o.value];
 }
 $("#libsel").addEventListener("change", (e) => setLib(e.target.value));
 let biq = "";
