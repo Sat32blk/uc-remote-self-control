@@ -189,7 +189,11 @@ export function startMockEditorCore(port = 0) {
             if (i < 0) return send(404, { message: "no page" });
             if (M === "GET") return send(200, a.pages[i]);
             if (M === "DELETE") { a.pages.splice(i, 1); return send(200, { message: "deleted" }); }
-            if (M === "PATCH") { Object.assign(a.pages[i], body.name !== undefined ? { name: body.name } : {}, body.grid ? { grid: body.grid } : {}, body.items ? { items: body.items } : {}); return send(200, a.pages[i]); }
+            if (M === "PATCH") {
+              // like the real remote: a sensor widget of a device that isn't there is refused
+              if ((body.items || []).some((it) => it.type === "sensor" && !S.entities.some((e) => e.entity_id === it.sensor?.sensor_id))) return send(400, { code: "BAD_REQUEST", message: "Invalid sensor configuration" });
+              Object.assign(a.pages[i], body.name !== undefined ? { name: body.name } : {}, body.grid ? { grid: body.grid } : {}, body.items ? { items: body.items } : {}); return send(200, a.pages[i]);
+            }
           }
           if ((m = /^\/buttons\/([A-Z0-9_]+)(\/(short_press|long_press))?$/.exec(rest))) {
             let b = a.buttons.find((x) => x.button === m[1]);

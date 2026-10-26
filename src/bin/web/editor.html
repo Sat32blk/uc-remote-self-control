@@ -118,6 +118,7 @@ input[type=number]{width:70px}
 .item .lbl{font-size:11px;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .item.text{font-weight:600;font-size:14px}
 .item.sensor .val{font-size:20px;font-weight:700}
+.item.stale{border-color:#dc2626 !important;opacity:.75}
 .item.select .box{border:1px solid #4b5563;border-radius:6px;padding:4px 10px;font-size:13px;width:90%;display:flex;justify-content:space-between}
 .item.media{flex-direction:row;gap:10px;justify-content:flex-start;padding:8px}
 .item.media .art{width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#7c2d12,#1e3a8a);flex:none}
@@ -1294,6 +1295,7 @@ function renderGrid() {
     else if (it.type === "select") { const d = DEV[it.entity]; if (it.text) node.append(el("span", { class: "lbl" }, it.text)); node.append(el("span", { class: "box" }, el("span", {}, d?.name || d?.options?.[0] || "–"), el("span", {}, "▾"))); }
     else if (it.type === "media_player") node.append(el("span", { class: "art" }), el("span", { class: "meta" }, el("span", { style: "font-weight:600" }, "Now playing"), el("span", { class: "lbl" }, devName(it.entity))));
     else if (it.type === "numpad") node.append(el("span", { class: "keys" }, ..."123456789·0⌫".split("").map((k) => el("span", {}, k))));
+    if (["sensor", "select", "media_player"].includes(it.type) && goneDevice(it.entity)) { node.classList.add("stale"); node.title = `Its device (${it.entity || "none"}) isn't on the remote any more: pick another one, or it's left out when this page is saved.`; }
     g.append(node);
   }
   $("#scr-act").textContent = act().name + (act().editable ? "" : " 🔒");
@@ -2311,6 +2313,18 @@ function mergeItems(base, mine, theirs, notes, pageName) {
   }
   return out;
 }
+/** Widgets (sensor, select, media widget) whose device isn't on the remote any more: the remote refuses a page
+ *  that has one ("Invalid sensor configuration"), so they're left out, with a note. */
+const WIDGET_ENTITY = { sensor: (o) => o.sensor?.sensor_id, select: (o) => o.select?.select_id, media_player: (o) => o.media_player_id };
+const goneDevice = (id) => !id || !DEV[id] || DEV[id].type === "?";
+function dropStale(items, notes, pageName) {
+  return items.filter((o) => {
+    const get = WIDGET_ENTITY[o.type];
+    if (!get || !goneDevice(get(o))) return true;
+    notes.push(`page "${pageName}": the ${TYPE_NAME[o.type].toLowerCase()} at column ${(o.location?.x || 0) + 1}, row ${(o.location?.y || 0) + 1} was left out: its device (${get(o) || "none"}) isn't on the remote any more`);
+    return false;
+  });
+}
 async function savePages(a) {
   const base = BASE[a.id] || { pages: {} }, notes = [];
   const theirsList = (await api("GET", `/activities/${enc(a.id)}/ui/pages`)) || [];
@@ -2322,14 +2336,14 @@ async function savePages(a) {
     const b = base.pages[pg.id], t = theirs[pg.id];
     if (pg.isNew || !b || !t) {
       if (!pg.isNew && b) notes.push(`page "${pg.name}" was deleted on the remote meanwhile: made again`);
-      const r = await api("POST", `/activities/${enc(a.id)}/ui/pages`, { ...body, items: mine });
+      const r = await api("POST", `/activities/${enc(a.id)}/ui/pages`, { ...body, items: dropStale(mine, notes, pg.name) });
       if (r?.page_id) order.push(r.page_id);
       continue;
     }
     order.push(pg.id);
     const unchanged = JSON.stringify(mine) === JSON.stringify((b.items || []).map((it) => itemOut(itemIn(it)))) && body.name === (b.name || "") && body.grid.width === b.grid?.width && body.grid.height === b.grid?.height;
     if (unchanged) continue;
-    const items = mergeItems(b.items || [], mine, t.items || [], notes, pg.name);
+    const items = dropStale(mergeItems(b.items || [], mine, t.items || [], notes, pg.name), notes, pg.name);
     await api("PATCH", `/activities/${enc(a.id)}/ui/pages/${enc(pg.id)}`, { ...body, items });
   }
   for (const pid of Object.keys(base.pages)) if (!a.pages.some((p) => p.id === pid) && theirs[pid]) await api("DELETE", `/activities/${enc(a.id)}/ui/pages/${enc(pid)}`);
