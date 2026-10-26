@@ -31,7 +31,7 @@ The builder's first tab shows your Remote 3 or Remote Two (picked from the remot
 
 #### Activities and pages
 
-- **Drag and drop.** The **Pictures** window sits beside the remote's screen, with as many pictures per row as the page has columns, each the size it will have on a button. Pick **Icons on the remote**, **Built-in icons** (the remote's own, drawn as on the remote), **Channel icons** or **Local folder** (pictures on your computer, shrunk and uploaded when you save).
+- **Drag and drop.** The **Pictures** window sits beside the remote, as tall as it, with as many pictures per row as the page has columns; long lists scroll inside it. Pick **Icons on the remote**, **Built-in icons** (the remote's own, drawn as on the remote), **Channel icons** or **Local folder** (pictures on your computer, shrunk and uploaded when you save).
 - **Widgets:** text button, sensor, select, media widget and number pad.
 - **What it does:** click a button and pick a device (the activity's own come first), then its command, or search with a few words (*shield movies*). **Custom value** sends a typed value such as an app link; **Not added yet** adds a device your integrations offer straight from there.
 - **Physical keys and the touch slider:** click them on the drawing to set short and long presses.
@@ -78,7 +78,7 @@ Steps with a check that each device answers, duplicate, delete (it says where th
 
 Per integration: what's on the remote and what it offers to add (**Add** adds it at once), remove, rename, enable / disable and reconnect. **+ Add an integration** opens [Integration Manager](https://github.com/JackJPowell/uc-intg-manager) if you have it, otherwise the web configurator.
 
-**App links** (Android TV): load a text file with one `market://launch?id=… = Name` per line. The apps show by name in What it does, the sequences and the guided setup ("select source · Tivimate"), and buttons that already use a link show its name. Apps the device already lists aren't added twice.
+**App links** (Android TV): load a text file with one `market://launch?id=… = Name` per line. The apps show by name in What it does, the sequences and the guided setup ("select source · Tivimate"), and buttons that already use a link show its name. Apps the device already lists aren't added twice. Since a Google Play Store change, `market://launch?id=…` links no longer open apps on Android TV; put the app's own deep link in the file instead (for example `https://www.paramountplus.com/ = Paramount+`). You can find an app's deep link with `adb shell cmd package dump <package>` (under *Schemes*), or in the [Home Assistant deep-link guide](https://community.home-assistant.io/t/android-tv-remote-app-links-deep-linking-guide/567921).
 
 ![Devices and integrations, with app links](docs/images/page-editor-devices.png)
 
@@ -565,6 +565,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.0.2:** Page Editor: the Pictures window is as tall as the remote and its pictures scroll inside it; the pictures are bigger and fill the window, with as many per row as the page has columns. App links: `market://launch?id=` links no longer open apps since a Google Play Store change; use the app's own deep link in the text file instead (see App links).
 - **1.0.1:** Page Editor: an activity only counts as on the remote's screen while it is on and the remote's screen is on (asleep, docked or with every activity off, pages are saved right away; "On screen now" says so). The screen is never set below 10 % by the integration: Display Brightness "off" / toggle, its touch slider and Controls stop at 10 % instead of an unreadable 1 %.
 - **1.0.0:** first 1.0 release, with everything from 0.9.0–0.9.10: the **Page Editor** (activities, pages, pictures including the remote's built-in icons, widgets, keys, start and off sequences with a guided setup, activity groups, home screen, macros, devices and integrations, Android TV app links), the theme picker, and backups with [Integration Manager](https://github.com/JackJPowell/uc-intg-manager) (from 0.8.8). New README with pictures of every part.
 <details><summary>Earlier versions</summary>
