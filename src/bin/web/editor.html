@@ -245,8 +245,11 @@ details.more summary{cursor:pointer;font-weight:600}
 .pecenter.stick{position:sticky;top:calc(var(--toph, 0px) + 6px)}
 /* pictures as big as a button on the remote's screen */
 /* as many pictures per row as the page has columns, each the size of a picture on a button */
-.peleft .pics{grid-template-columns:repeat(var(--cols, 4),calc(var(--cellpx, 64px) + 10px));justify-content:start}
-.peleft .pic .tt{width:var(--cellpx, 64px);align-self:center}
+.peleft .pics{grid-template-columns:repeat(var(--cols, 4),minmax(0,1fr));gap:10px;overflow-y:auto;align-content:start;padding:2px 4px 2px 2px}
+.peleft .pic{padding:6px}
+.peleft .pic .tt{width:100%}
+/* the Pictures window is as tall as the remote; its pictures scroll inside */
+.pe3 #libcard{box-sizing:border-box;overflow:hidden}
 .pe3 #remotecard{padding:0;background:transparent;border:0;box-shadow:none}
 .pe3 #remotecard .stage{padding:0;display:block;margin:0 auto}
 .pe3 #body{transform-origin:top left}
@@ -2061,6 +2064,19 @@ $("#chq").addEventListener("input", (e) => { chq = e.target.value; renderChannel
 // ---- one picture window: pick which pictures to work with ----------------------------------------
 let LIB = "icons";
 try { LIB = localStorage.getItem("pe_lib") || "icons"; } catch {}
+/** The Pictures window: as tall as the remote card, with the shown picture list scrolling inside it. */
+function fitPictures(off) {
+  const lib = $("#libcard"), card = $("#remotecard");
+  if (!lib) return;
+  for (const x of lib.querySelectorAll(".pics")) x.style.maxHeight = "";
+  lib.style.height = "";
+  if (off || !card || !card.offsetHeight) return;
+  const pics = lib.querySelector(".lib:not(.hidden) .pics") || lib.querySelector(".lib:not(.hidden)")?.querySelector(".pics");
+  lib.style.height = card.offsetHeight + "px";
+  if (!pics) return;
+  const over = lib.scrollHeight - lib.clientHeight;
+  if (over > 0) pics.style.maxHeight = Math.max(120, pics.offsetHeight - over - 4) + "px";
+}
 function setLib(v) {
   LIB = ["icons", "builtin", "ch", "local"].includes(v) ? v : "icons";
   try { localStorage.setItem("pe_lib", LIB); } catch {}
@@ -2068,6 +2084,7 @@ function setLib(v) {
   for (const x of document.querySelectorAll("#libcard .lib")) x.classList.toggle("hidden", x.dataset.lib !== LIB);
   renderLibCount();
   if (LIB === "builtin") renderBuiltin();
+  requestAnimationFrame(() => fitPictures());
 }
 function renderLibCount() {
   const n = { icons: PICS.filter((x) => !x.local).length, builtin: UCICONS.length, ch: CHANNELS.length, local: LOCAL.length }[LIB];
@@ -3004,7 +3021,7 @@ function fitRemote() {
   const body = $("#body"), stage = body?.parentElement;
   if (!body || !stage) return;
   body.style.transform = ""; stage.style.height = ""; stage.style.width = "";
-  if ($("#view-pages").classList.contains("hidden") || subView === "seq" || innerWidth <= 1150) { $(".pecenter")?.classList.remove("stick"); return; }
+  if ($("#view-pages").classList.contains("hidden") || subView === "seq" || innerWidth <= 1150) { $(".pecenter")?.classList.remove("stick"); fitPictures(true); return; }
   const natH = body.offsetHeight, natW = body.offsetWidth;
   if (!natH || !natW) return;
   const card = $("#remotecard"), toph = $("#edtop").offsetHeight;
@@ -3021,6 +3038,7 @@ function fitRemote() {
   }
   // sticky only when the whole remote fits under the top bar; otherwise it scrolls with the page
   $(".pecenter").classList.toggle("stick", card.offsetHeight <= innerHeight - toph - 12);
+  fitPictures();
   // the pictures beside it are drawn the size of a button on its screen
   const cell = $("#grid .cell");
   if (cell) $("#view-pages").style.setProperty("--cellpx", Math.round(cell.getBoundingClientRect().width * 0.8) + "px"); // a picture on a button is 80 % of the cell
