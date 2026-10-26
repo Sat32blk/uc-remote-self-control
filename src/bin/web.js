@@ -477,6 +477,13 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       }
     },
     "GET /api/write-stats": async (req, res) => send(res, 200, writeStats()),
+    // the pictures this integration's settings still use (level-picture frames, state icons, ↩ pictures):
+    // the Page Editor won't delete those
+    "GET /api/editor/keptpictures": async (req, res) => {
+      if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });
+      const b = await buildBackup(false);
+      send(res, 200, { used: b.picturesOnRemote || [] });
+    },
     "GET /api/backup": async (req, res) => {
       const core = getCore();
       if (!core) return send(res, 503, { error: "The integration isn't connected to the remote." });

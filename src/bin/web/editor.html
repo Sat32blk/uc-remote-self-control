@@ -500,6 +500,9 @@ details.more summary{cursor:pointer;font-weight:600}
           <p class="hint" style="margin:8px 0" id="made-info"></p>
           <label class="f">Search<input type="search" id="madeq" placeholder="arc, bar, battery…"></label>
           <div style="height:8px"></div>
+          <div class="dotlegend"><span><i style="background:#2563eb"></i>kept: used by a level picture, state icon or ↩ button, or on a page</span><span><i style="background:#f59e0b"></i>not used: can be deleted</span></div>
+          <div style="height:6px"></div>
+          <div class="selbar" id="sel-made"></div>
           <div class="pics" id="madepics"></div>
         </div>
 
@@ -907,6 +910,7 @@ const PICS = [];
 const PIC = {};
 let HIDDEN_FRAMES = 0; // the integration's own pictures (level-picture frames, state icons, ↩): in their own list
 const MADE = []; // those pictures
+let KEPT = null; // file names the integration's settings still use (null = not known: nothing can be deleted)
 const USED_ELSEWHERE = new Set(); // pictures of devices and activities (home screen tiles)
 const isFrame = (id) => /^(lv_|si_|smart_|ret_)/.test(id);
 const shortName = (id) => String(id).replace(/^(custom|ctv|uc):/, "").replace(/\.[a-z0-9]+$/i, "").replace(/__.*$/, "").replace(/[_-]+/g, " ").trim().slice(0, 22) || String(id);
@@ -1084,6 +1088,8 @@ async function loadAll() {
   for (const d of DEVICES) if (d.icon && /^custom:/.test(d.icon)) USED_ELSEWHERE.add(d.icon);
   const [, icons, chans, bgs, , , , intgs, st, mapping] = await listsP;
   HIDDEN_FRAMES = 0; MADE.length = 0;
+  KEPT = null;
+  fetch("/api/editor/keptpictures", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).then((j) => { KEPT = j && Array.isArray(j.used) ? new Set(j.used) : null; if (LIB === "made") renderMade(); }).catch(() => {});
   for (const r of icons) {
     const p = { id: "custom:" + r.id, file: r.id, short: shortName(r.id), mono: "", bg: "#374151", src: imgUrl("Icon", r.id), size: r.size };
     PIC[p.id] = p;
@@ -2012,20 +2018,28 @@ $("#q").addEventListener("input", (e) => { query = e.target.value; renderPics();
 // ---- the integration's own pictures: level-picture frames (lv_), state icons (si_), ↩ pictures (ret_) ----
 let madeq = "";
 const MADE_KIND = (f) => f.startsWith("lv_") ? "level picture" : f.startsWith("si_") ? "state icon" : f.startsWith("ret_") ? "↩ button" : "this integration";
+/** A picture this integration made may be deleted only when its settings don't use it and no page shows it. */
+const madeFree = (p, used) => KEPT !== null && !KEPT.has(p.file) && !used.has(p.id);
 function renderMade() {
-  const q = madeq.trim().toLowerCase();
+  const q = madeq.trim().toLowerCase(), used = usedPics();
   const list = MADE.filter((p) => !q || p.file.toLowerCase().includes(q)).sort((a, b) => a.file.localeCompare(b.file));
-  $("#made-info").textContent = MADE.length ? "Pictures this integration made: the frames of level pictures (one per 10 %), state-icon and ↩ pictures. Drag one onto the screen like any picture. They're changed and deleted in the builder's Icons & Sliders and Return tabs, so they can't be deleted here." : "This integration hasn't made any pictures yet (level pictures and state icons are made in the builder's Icons & Sliders tab).";
-  $("#madepics").replaceChildren(...list.slice(0, 400).map((p) => el("div", { class: "pic" + (picked === p.id ? " on" : ""), draggable: "true", title: `${p.file} (${MADE_KIND(p.file)})`, role: "button", tabindex: "0", "aria-pressed": String(picked === p.id),
-    on: { dragstart: (e) => startDrag(e, { kind: "pic", id: p.id }), dragend: endDrag, click: () => { picked = picked === p.id ? null : p.id; renderMade(); msg(picked ? "Now click an empty spot or an icon button on the page." : "", ""); }, keydown: (e) => { if (e.key === "Enter") { picked = p.id; renderMade(); } } } },
-    tileThumb(p), el("span", { class: "nm" }, p.file.replace(/^(lv|si|ret|smart)_/, "").replace(/\.png$/, "").replace(/_/g, " ")))));
+  const free = MADE.filter((p) => madeFree(p, used)).length;
+  $("#made-info").textContent = MADE.length ? `Pictures this integration made: the frames of level pictures (one per 10 %), state-icon and ↩ pictures. Drag one onto the screen like any picture. ${KEPT === null ? "Checking which ones are still used…" : `${free} of ${MADE.length} aren't used by anything: those can be deleted (Select…). The others are kept: a level picture needs all 11 of its frames.`}` : "This integration hasn't made any pictures yet (level pictures and state icons are made in the builder's Icons & Sliders tab).";
+  selBar("made", list.filter((p) => madeFree(p, used)).map((p) => p.id), renderMade);
+  $("#madepics").replaceChildren(...list.slice(0, 400).map((p) => {
+    const ok = madeFree(p, used);
+    const tile = el("div", { class: "pic" + (picked === p.id ? " on" : ""), draggable: "true", title: `${p.file} (${MADE_KIND(p.file)})${ok ? "" : " · kept: still used"}`, role: "button", tabindex: "0", "aria-pressed": String(picked === p.id),
+      on: { dragstart: (e) => startDrag(e, { kind: "pic", id: p.id }), dragend: endDrag, click: () => { picked = picked === p.id ? null : p.id; renderMade(); msg(picked ? "Now click an empty spot or an icon button on the page." : "", ""); }, keydown: (e) => { if (e.key === "Enter") { picked = p.id; renderMade(); } } } },
+      tileThumb(p), el("span", { class: "nm" }, p.file.replace(/^(lv|si|ret|smart)_/, "").replace(/\.png$/, "").replace(/_/g, " ")), sdot(ok ? "free" : "used", ok ? "Not used: can be deleted" : "Kept: still used"));
+    return ok ? selTile("made", p.id, tile) : tile;
+  }));
   if (!list.length && MADE.length) $("#madepics").append(el("p", { class: "hint" }, "No pictures match."));
 }
 $("#madeq").addEventListener("input", (e) => { madeq = e.target.value; renderMade(); });
 // ---- selecting several pictures and deleting them from the remote ----------------------------------
-const SELM = { icons: false, ch: false }, SELS = { icons: new Set(), ch: new Set() };
+const SELM = { icons: false, ch: false, made: false }, SELS = { icons: new Set(), ch: new Set(), made: new Set() };
 function selBar(key, visibleIds, rerender) {
-  const box = $(key === "icons" ? "#sel-icons" : "#sel-ch");
+  const box = $(key === "icons" ? "#sel-icons" : key === "made" ? "#sel-made" : "#sel-ch");
   const set = SELS[key];
   if (!SELM[key]) { box.replaceChildren(el("button", { class: "btn small", type: "button", on: { click: () => { SELM[key] = true; rerender(); } } }, "Select…")); return; }
   const used = usedPics();
@@ -2044,6 +2058,7 @@ function selBar(key, visibleIds, rerender) {
           await api("DELETE", `/resources/${type}/${enc(p.file || id.replace(/^(custom|ctv):/, ""))}`);
           const i = PICS.findIndex((x) => x.id === id); if (i >= 0) PICS.splice(i, 1);
           const j = CHANNELS.findIndex((x) => x.id === id); if (j >= 0) CHANNELS.splice(j, 1);
+          const k = MADE.findIndex((x) => x.id === id); if (k >= 0) { MADE.splice(k, 1); HIDDEN_FRAMES--; }
           delete PIC[id]; set.delete(id); done++;
         } catch (e) { fails.push(`${p.short}: ${e.message}`); }
       }
@@ -2066,7 +2081,7 @@ function selTile(key, id, node) {
   if (SELS[key].has(id)) node.classList.add("picked");
   node.prepend(el("span", { class: "chk", "aria-hidden": "true" }, SELS[key].has(id) ? "✓" : ""));
   node.setAttribute("aria-pressed", String(SELS[key].has(id)));
-  node.addEventListener("click", (e) => { e.stopImmediatePropagation(); if (SELS[key].has(id)) SELS[key].delete(id); else SELS[key].add(id); key === "icons" ? renderPics() : renderChannels(); }, { capture: true });
+  node.addEventListener("click", (e) => { e.stopImmediatePropagation(); if (SELS[key].has(id)) SELS[key].delete(id); else SELS[key].add(id); key === "icons" ? renderPics() : key === "made" ? renderMade() : renderChannels(); }, { capture: true });
   return node;
 }
 
