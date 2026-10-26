@@ -220,21 +220,21 @@ details.more summary{cursor:pointer;font-weight:600}
 .pe3 .petop .tb .grp{flex-wrap:wrap;min-width:0;max-width:100%}
 .pe3 .petop .tb select{max-width:100%;min-width:0}
 .pe3 .petop .btn{white-space:nowrap}
-.pe3 .petop .tb .save .status{flex:1 1 100%;text-align:right}
 .tbmsg{display:flex;flex-wrap:wrap;gap:16px;font-size:13px}
 .tbmsg:has(#gridmsg:empty):has(#savewarn.hidden){display:none}
 #savewarn{color:#7c2d12}
 .tb #savestatus{max-width:340px;text-align:right}
 .topgrid{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-start}
 .savebox{display:flex;flex-direction:column;gap:6px;align-items:flex-end;max-width:420px}
-.pe3{display:grid;grid-template-columns:minmax(230px,0.8fr) auto minmax(260px,0.9fr);grid-template-rows:auto 1fr;gap:14px;align-items:start}
+.pe3{display:grid;grid-template-columns:minmax(230px,0.8fr) auto minmax(260px,0.9fr);grid-template-rows:auto auto;gap:14px;align-items:start}
 /* the page scrolls; the side columns take their full height and the remote stays in view (sticky) */
 .stage{overflow:visible}
 #body{transform-origin:top center;align-self:flex-start;flex:none}
-.petop{grid-column:1;grid-row:1;margin-bottom:0}
+.petop{grid-column:1 / 4;grid-row:1;margin-bottom:0}
+/* the pictures start level with the remote's screen, for dragging across */
 .peleft{grid-column:1;grid-row:2}
-.pecenter{grid-column:2;grid-row:1 / 3}
-.peright{grid-column:3;grid-row:1 / 3}
+.pecenter{grid-column:2;grid-row:2}
+.peright{grid-column:3;grid-row:2}
 .peright select,.peright input[type=text]{max-width:100%;width:100%}
 .peright .row > label.f{flex:1 1 100%;min-width:0}
 .peright .row > label.f:has(input[type=number]){flex:0 0 auto}
@@ -244,7 +244,8 @@ details.more summary{cursor:pointer;font-weight:600}
 /* stays in view while the page scrolls, when it fits the window */
 .pecenter.stick{position:sticky;top:calc(var(--toph, 0px) + 6px)}
 /* pictures as big as a button on the remote's screen */
-.peleft .pics{grid-template-columns:repeat(auto-fill,calc(var(--cellpx, 64px) + 10px));justify-content:start}
+/* as many pictures per row as the page has columns, each the size of a picture on a button */
+.peleft .pics{grid-template-columns:repeat(var(--cols, 4),calc(var(--cellpx, 64px) + 10px));justify-content:start}
 .peleft .pic .tt{width:var(--cellpx, 64px);align-self:center}
 .pe3 #remotecard{padding:0;background:transparent;border:0;box-shadow:none}
 .pe3 #remotecard .stage{padding:0;display:block;margin:0 auto}
