@@ -2,68 +2,168 @@
 
 [![test](https://github.com/Sat32blk/uc-remote-self-control/actions/workflows/test.yml/badge.svg)](https://github.com/Sat32blk/uc-remote-self-control/actions/workflows/test.yml)
 
-A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that runs on the remote itself and lets the remote control **itself**:
+A custom integration for the **Unfolded Circle Remote 3** (and Remote Two) that runs on the remote itself. It started as a way to change the button backlight and the screen brightness from a button or a macro. It has grown into a second way to set up your remote: a **Page Editor** that edits activities, pages, buttons, sequences, macros, the home screen and devices on a picture of your remote, plus things the remote can't do on its own, like buttons with if / else logic, icons that follow a device's state, sliders for any number, and a ↩ button back to the previous activity.
 
-- **Page Editor (beta):** edit your activities on a picture of your Remote 3 or Remote Two: drag pictures and widgets onto pages, set what buttons and physical keys do, start and off sequences with a guided setup for new devices, activity groups, macros, the home screen and your devices. Saved straight to the remote, after a full remote backup.
-- **Remote settings as entities:** button backlight level and color, display brightness and timeout, sleep timeout, wake sensitivity, Wake on LAN, sound effects and volume, haptics. Use them in activities, macros, pages, buttons and the touch slider.
-- **Smart Controls:** buttons with if / else logic ("if the receiver is on, turn *it* up, otherwise the TV"), built in a browser page the integration serves itself.
-- **State icons:** make a button on a page change its icon with a device's state, like a green power icon while the receiver is on. Pick the button, drop in an image per state.
-- **Sliders & quick menus:** turn any number on your devices (receiver volume, a light, a blind) into a slider with the remote's own slider pop-up, and make pop-up menus whose choices run Smart Control steps (inputs, sound modes, scenes).
-- **Return to previous activity:** a ↩ button (on screen or a physical button) that always takes you back to the activity you came from, optionally turning off the one you leave.
-- **Controls:** press a switch and the volume rocker and touch slider change something else for a few seconds (a light, a tone control, the screen brightness), with the remote's own volume pop-up.
-- **Level pictures:** a button that shows a device's level (bar, gauge, battery, …, 16 designs) in any color, even changing color with the value.
-- **Device states (live):** see every value your devices (and the remote itself, including its battery) report, and click them into conditions and state icons.
-- **Page jumps:** a smart control can jump to any page of the activity you're in, and **start pages** pick the page an activity opens on, depending on your devices.
-- **Backup and restore:** everything you set up, with its pictures, in one file.
+Everything runs on the remote and is set up in a browser page the integration serves itself: no PC, server or cloud needed.
+
+![The Page Editor: pictures on the left, the remote in the middle, what the selected button does on the right](docs/images/page-editor.png)
 
 > [!WARNING]
-> **Beta.** Tested on one Remote 3 so far. The integration changes your remote's settings, activities, pages and button mappings. **Back up your remote's configuration in the web configurator before installing**, so you can restore it if something goes wrong.
+> **Back up your remote's configuration in the web configurator before installing.** The integration changes your remote's settings, activities, pages, button mappings and more. The Page Editor also saves a full remote backup before its first change of a visit, but keep your own. Tested on one Remote 3 so far.
 
-> Community project, not affiliated with Unfolded Circle. MIT licensed. It changes the remote's settings through the remote's local Core REST API.
-
-![The ↩ button and a Smart Controls page on the remote (illustration)](docs/images/remote-screens.png)
-
-![Controls with the remote's own pop-up, and a level picture on a button (illustration)](docs/images/remote-controls.png)
-
-<p align="center"><img src="docs/images/state-icon-demo.gif" alt="State icon: the power button turns green when the receiver is on" width="300"></p>
-
-*Illustrations of what the integration adds to your activities, drawn after a Remote 3 screen. The screenshots further down are of the real builder page, running against a test remote with example devices.*
+> Community project, not affiliated with Unfolded Circle. MIT licensed. It works through the remote's local Core REST API.
 
 ## Contents
 
+- [Features](#features)
+  - [Page Editor](#page-editor): [activities and pages](#activities-and-pages) · [start and stop, with a guided setup](#start-and-stop-with-a-guided-setup) · [activity groups](#activity-groups) · [home screen](#home-screen) · [macros](#macros) · [devices, integrations and app links](#devices-integrations-and-app-links) · [themes](#themes) · [safe saving](#safe-saving)
+  - [Smart Controls](#smart-controls) · [State icons](#state-icons) · [Sliders, quick menus and level pictures](#sliders-quick-menus-and-level-pictures) · [Controls](#controls) · [Return ↩ and page jumps](#return--and-page-jumps) · [Smart Launchers](#smart-launchers) · [The remote's own settings](#the-remotes-own-settings) · [Device states](#device-states) · [Backup, restore and Integration Manager](#backup-restore-and-integration-manager)
 - [Install](#install)
-- [Walkthroughs](#walkthroughs)
-  1. [Your first Smart Control (2 minutes)](#1-your-first-smart-control-2-minutes)
-  2. [Smart volume: receiver if it's on, otherwise the TV](#2-smart-volume-receiver-if-its-on-otherwise-the-tv)
-  3. [Switch input, turning the receiver on first](#3-switch-input-turning-the-receiver-on-first)
-  4. [Night Mode on a long press](#4-night-mode-on-a-long-press)
-  5. [Backlight by time of day](#5-backlight-by-time-of-day)
-  6. [Return to the previous activity](#6-return-to-the-previous-activity)
-  7. [Display brightness on the touch slider](#7-display-brightness-on-the-touch-slider)
-  8. [A power icon that turns green when the receiver is on](#8-a-power-icon-that-turns-green-when-the-receiver-is-on)
-  9. [A receiver volume slider](#9-a-receiver-volume-slider)
-  10. [A pop-up menu for the receiver's inputs](#10-a-pop-up-menu-for-the-receivers-inputs)
-  11. [The volume keys and touch slider for a light (Controls)](#11-the-volume-keys-and-touch-slider-for-a-light-controls)
-  12. [Back up everything](#12-back-up-everything)
-  13. [Jump to a page, and start pages](#13-jump-to-a-page-and-start-pages)
-  14. [One button for whichever activity fits (smart launchers)](#14-one-button-for-whichever-activity-fits-smart-launchers)
-  15. [Edit your activities on a picture of your remote (Page Editor)](#15-edit-your-activities-on-a-picture-of-your-remote-page-editor)
-- [The builder](#the-builder)
-- [Entities](#entities)
-- [Rules reference](#rules-reference)
+- [Walkthroughs](#walkthroughs): 15 step-by-step examples, from your first Smart Control to the Page Editor
+- [The builder](#the-builder) · [Entities](#entities) · [Rules reference](#rules-reference)
 - [Security](#security) · [Configuration](#configuration) · [Logs and removal](#logs-and-removal) · [Development](#development) · [Changes](#changes) · [Support](#support)
+
+## Features
+
+### Page Editor
+
+The builder's first tab shows your Remote 3 or Remote Two (picked from the remote's model number) and lets you edit what's on it. Nothing is written until you press a save button, and the integration saves a full remote backup before the first change of each visit (**Last remote backup** downloads it).
+
+#### Activities and pages
+
+- **Drag and drop.** The **Pictures** window sits beside the remote's screen, with as many pictures per row as the page has columns, each the size it will have on a button. Pick **Icons on the remote**, **Built-in icons** (the remote's own, drawn as on the remote), **Channel icons** or **Local folder** (pictures on your computer, shrunk and uploaded when you save).
+- **Widgets:** text button, sensor, select, media widget and number pad.
+- **What it does:** click a button and pick a device (the activity's own come first), then its command, or search with a few words (*shield movies*). **Custom value** sends a typed value such as an app link; **Not added yet** adds a device your integrations offer straight from there.
+- **Physical keys and the touch slider:** click them on the drawing to set short and long presses.
+- **Pages:** add, rename, change the grid, move, delete. **Activities:** rename, duplicate, delete or make a new one; activity group, prevent sleep and voice assistant.
+
+![What it does: the SHIELD's commands, including app links, for the selected button](docs/images/page-editor-what-it-does.png)
+
+<img src="docs/images/page-editor-built-in-icons.png" alt="Built-in icons in the Pictures window, next to the remote's screen" width="640">
+
+#### Start and stop, with a guided setup
+
+The start and off sequences with readiness check and what happens when a command fails, and the devices in the activity.
+
+When you give a button a command of a device that isn't in the sequences yet (or use **+ Add a device…**), a short setup asks what kind of device it is (display, AV receiver, streaming device, amp / subwoofer, Home Assistant, other), then a few questions for that kind (input, app, turn off at the end). Its steps go into the sequences in signal-flow order with recommended waits, and your other steps aren't moved:
+
+- **on:** display → 1.5 s → sources → 2 s → receiver + input → 3 s → amps
+- **off:** amps → 1 s → receiver → 1 s → display → 0.5 s → sources
+
+![Start and off sequences](docs/images/page-editor-start-stop.png)
+
+| What kind of device is it? | Then a few questions for that kind |
+|---|---|
+| <img src="docs/images/page-editor-guided-setup.png" alt="Guided setup, step 1" width="480"> | <img src="docs/images/page-editor-guided-setup-2.png" alt="Guided setup, step 2" width="480"> |
+
+#### Activity groups
+
+What switching between activities of a group turns off, as one plain sentence, with the steps and a grid of every switch in the group.
+
+![Activity groups](docs/images/page-editor-activity-groups.png)
+
+#### Home screen
+
+Your home pages with their tiles and background pictures (the remote's own, or one from your computer). Drag activities, devices and groups into a page.
+
+![Home screen](docs/images/page-editor-home-screen.png)
+
+#### Macros
+
+Steps with a check that each device answers, duplicate, delete (it says where the macro is used first) and **Try it now**.
+
+![Macros](docs/images/page-editor-macros.png)
+
+#### Devices, integrations and app links
+
+Per integration: what's on the remote and what it offers to add (**Add** adds it at once), remove, rename, enable / disable and reconnect. **+ Add an integration** opens [Integration Manager](https://github.com/JackJPowell/uc-intg-manager) if you have it, otherwise the web configurator.
+
+**App links** (Android TV): load a text file with one `market://launch?id=… = Name` per line. The apps show by name in What it does, the sequences and the guided setup ("select source · Tivimate"), and buttons that already use a link show its name. Apps the device already lists aren't added twice.
+
+![Devices and integrations, with app links](docs/images/page-editor-devices.png)
+
+#### Themes
+
+A **Theme** picker for the whole builder: Automatic, Desktop, Dark mode, Remote style, Midnight blue, High contrast.
+
+![Dark mode, Remote style and Midnight blue](docs/images/page-editor-themes.png)
+
+#### Safe saving
+
+- **Pages are read again before saving.** A button you didn't touch keeps what the remote has now, so a picture the integration (state icons, level pictures) or the web configurator changed meanwhile isn't overwritten. Only changed pages, keys and settings are written.
+- **The activity on the remote's screen** is saved once you leave it (changing a page you're looking at would jump to page 1); **Save pages now anyway** doesn't wait.
+- If a picture from your computer can't be uploaded, nothing is saved.
+- Activities made by an integration, and Smart Launcher copies, are locked (🔒).
+- The editor reaches the remote only through the builder's login, and only for what it needs: API keys, system commands (reboot, update, power), the remote's settings and deleting whole collections are refused.
+
+### Smart Controls
+
+Buttons with **if / else if / otherwise** logic, built by picking from your own devices, activities and the remote's settings: "if the receiver is on, turn *it* up, otherwise the TV". Conditions on device states, the activity that's on, the time, the remote's settings and battery, and remembered values. Steps can run commands (IR too), wait, **wait until** a device is ready, remember and restore settings, and **jump to a page**. Templates for Night Mode, Quiet Mode, smart volume, input with wait and more; **Test** runs one on the remote and shows what it did. [Walkthroughs 1–5](#walkthroughs)
+
+![A Smart Control in the builder](docs/images/builder-overview.png)
+
+### State icons
+
+A button on a page that changes its picture or label with a device's state, like a green power icon while the receiver is on. Pick the button on a drawing of the page, drop in a picture per state. [Walkthrough 8](#8-a-power-icon-that-turns-green-when-the-receiver-is-on)
+
+<p align="center"><img src="docs/images/state-icon-demo.gif" alt="State icon: the power button turns green when the receiver is on" width="300"></p>
+
+### Sliders, quick menus and level pictures
+
+- **Sliders:** any number on a device (receiver volume, a light, a blind, even IR up / down) as a slider with the remote's own slider pop-up and the Remote 3 touch slider.
+- **Quick menus:** a pop-up list whose choices run steps: inputs, sound modes, scenes. Build one from a device's input list in one click.
+- **Level pictures:** a button that shows a level in 16 designs (bar, arc gauge, battery, needle, …), in any color, changing color with the value, always or only for a few seconds after it changes. 12 tile icons for sliders and menus.
+
+[Walkthroughs 9–10](#9-a-receiver-volume-slider)
+
+![The 16 level pictures, colors by value and the 12 tile icons](docs/images/slider-graphics.png)
+
+### Controls
+
+Press a switch and the volume rocker and touch slider change something else for a moment (a light, a tone control, the screen or backlight brightness, one of your sliders), with the remote's own volume pop-up. Per activity, what they do when no control is on; optionally **borrow** the rocker from your TV only while a control is on. [Walkthrough 11](#11-the-volume-keys-and-touch-slider-for-a-light-controls)
+
+![Controls with the remote's own pop-up, and a level picture on a button (illustration)](docs/images/remote-controls.png)
+
+### Return ↩ and page jumps
+
+- **↩ Return to the previous activity:** an on-screen button (text, arrow or your own picture) and/or a physical button that always takes you back to the activity you came from, optionally turning off the one you leave. [Walkthrough 6](#6-return-to-the-previous-activity)
+- **Go to page:** a step that jumps to a page of the activity you're in, with logic ("if the Shield is playing → Apps, otherwise → Remote"). **Start pages:** per activity, the page it opens on depending on your devices. [Walkthrough 13](#13-jump-to-a-page-and-start-pages)
+
+![The ↩ button and a Smart Controls page on the remote (illustration)](docs/images/remote-screens.png)
+
+### Smart Launchers
+
+One button (on a page, a physical button or the home screen) that opens the activity your conditions pick: *if the Shield is on → Watch ShieldTV, otherwise → Watch RokuTV*, optionally with extra steps once it has started. [Walkthrough 14](#14-one-button-for-whichever-activity-fits-smart-launchers)
+
+### The remote's own settings
+
+Button backlight level and color, display brightness and timeout, auto brightness, sleep timeout, wake sensitivity, Wake on LAN, sound effects and volume, and haptics, as entities you can use in activities, macros, pages, buttons and on the touch slider. See [Entities](#entities).
+
+### Device states
+
+A live panel with every value your devices (and the remote itself, battery included) report, with all values seen so far. Click a value to put it into a condition, a state icon or a slider.
+
+### Backup, restore and Integration Manager
+
+- **Builder → Backup:** one file with everything you set up, plus the pictures it uses. Restore picks the parts and checks them all before changing anything.
+- **Reconfigure → Back up settings / Restore settings from a backup:** the same settings as text. [Integration Manager](https://github.com/JackJPowell/uc-intg-manager)'s **Backup Config** uses this, so it can keep your settings with its other backups.
+- **Remove everything** puts back what the integration changed on your remote before you uninstall it.
+
+[Walkthrough 12](#12-back-up-everything)
 
 ## Install
 
 1. **Back up your remote** in the web configurator and download the backup.
-1. Download `uc-intg-self-control-<version>.tar.gz` from the [latest release](https://github.com/Sat32blk/uc-remote-self-control/releases/latest).
-2. Web configurator → **Integrations → Add new → Install custom** → choose the file.
+2. Install the integration:
+   - with [Integration Manager](https://github.com/JackJPowell/uc-intg-manager): find **Remote Self-Control** in its list of available integrations (once it has been added there) and install it; or
+   - download `uc-intg-self-control-<version>.tar.gz` from the [latest release](https://github.com/Sat32blk/uc-remote-self-control/releases/latest), then web configurator → **Integrations → Add new → Install custom** → choose the file.
 3. Start the setup for **Remote Self-Control**. The first screen is information only. On the second, enter the **web-configurator PIN** and leave the address at `127.0.0.1`.
    - The integration uses the PIN once to create an API key named "Self-Control <date>" and stores only that key.
    - If setup fails with a connection error, run it again with the remote's own IP address.
-4. Add the entities you want to the integration, then use them in activities, macros or pages.
+4. Open the builder at `http://<remote-name>.local:10123/` (the exact address is in Integrations → Remote Self-Control → Configure) and log in with the same PIN. The **Page Editor** opens first.
+5. For the remote settings, Smart Controls, sliders and so on: add the entities you want to the integration, then use them in activities, macros or pages.
 
-To update, first save a **Backup** in the builder (walkthrough 12), then use Install custom with **Update existing driver** checked. Your Smart Controls and settings are kept. No restart of the remote is needed.
+To update, first save a **Backup** in the builder (walkthrough 12), then use Install custom with **Update existing driver** checked (or update in Integration Manager). Your settings are kept. No restart of the remote is needed.
 
 ## Walkthroughs
 
@@ -281,25 +381,13 @@ Why it works this way: the remote only switches to an activity's screen when the
 
 ### 15. Edit your activities on a picture of your remote (Page Editor)
 
-*Beta. It changes your activities, macros, home screen and devices directly. Before the first change of a visit, the integration saves a full backup of the remote (the same file as the web configurator's backup) and keeps the newest two on the remote: **Last remote backup** downloads it. Still keep your own backup from the web configurator.*
+1. Builder → **Page Editor** (the first tab) → **Activities ▾ → Interface**, and pick the activity and page at the top.
+2. In **Pictures**, choose where the pictures come from, then drag one onto the remote's screen (or click it, then a spot). Drag widgets from the right.
+3. Click the new button, then **What it does** → pick the device and its command. If that device isn't in the activity's start and off sequences yet, the **guided setup** opens: answer its few questions and its steps are added in the right order.
+4. Click a physical key or the touch slider on the drawing to set them too.
+5. **Save to remote**. If that activity is on the remote's screen right now, its pages are saved once you leave it.
 
-![Page Editor](docs/images/page-editor.png)
-
-Builder → **Page Editor** (the first tab). Nothing is written until you click a save button.
-
-- **Activities ▾ → Interface:** pick the activity and page. In **Pictures**, choose Icons on the remote, Built-in icons (the remote's own), Channel icons or Local folder (pictures on your computer, uploaded when you save), then drag one onto the screen, or click it and then a spot. Drag widgets (text button, sensor, select, media widget, number pad) from the right. Click a button to set **What it does**: pick a device (the activity's own come first) and then its command, or search with a few words (*roku netflix*); **Custom value** sends a typed source such as an app link; **Not added yet** adds a device your integrations offer straight from there; narrow it by kind (devices, activities, macros, this integration) or device. Click a **physical key** or the **touch slider** on the drawing to set them. Rename, duplicate, delete or make a new activity, set its activity group, prevent sleep and voice assistant in the top bar. Pages: add, rename, grid size, move, delete. **Save to remote**.
-- **Activities ▾ → Start/Stop:** the start and off sequences, readiness check and what happens when a command fails. **+ Add a device…**, or giving a button a command of a device that isn't in the sequences yet, opens a short **setup**: what kind of device it is (display, AV receiver, streaming device / player, amp / subwoofer, Home Assistant, other), then a few questions for that kind (input, app, turn off at the end), then a preview. Its steps go into the sequences in signal-flow order with recommended waits: on = display → 1.5 s → sources → 2 s → receiver + input → 3 s → amps; off = amps → 1 s → receiver → 1 s → display → 0.5 s → sources. Your other steps aren't moved.
-- **Activities ▾ → Activity groups:** what switching between activities of a group turns off, as one sentence, with the steps and a grid of every switch.
-- **Home screen:** your home pages ("groups") with their tiles and background pictures (the remote's own, or one from your computer).
-- **Macros:** steps, duplicate, delete (with where it's used), **Try it now**.
-- **Devices & integrations:** per integration what's on the remote and what it offers to add; Android TV integrations also have **App links** (load a text file with one `market://launch?id=… = Name` per line, and the apps show by name when you pick commands) (**Add** on a device adds it at once; no save needed); add several, remove (asks again when a device is used), rename, enable / disable, reconnect. Setting up a new integration still happens in the web configurator.
-
-Good to know:
-
-- **Saving re-reads the pages first.** A button you didn't touch keeps whatever the remote has now, so a picture the integration (state icons, level pictures) or the web configurator changed meanwhile isn't overwritten. Only changed pages, keys and settings are written.
-- **The activity on the remote's screen:** its pages are saved once you leave it (changing a page you're looking at would jump to page 1). Keys, slider and settings save at once; **Save pages now anyway** doesn't wait.
-- Activities made by an integration are shown with 🔒 and can't be edited. The integration's own level-picture frames aren't listed in Icons.
-- The **Theme** picker (top right of the builder) applies to every tab: Automatic, Desktop, Dark mode, Remote style, Midnight blue, High contrast.
+See [Page Editor](#page-editor) for everything else it does.
 
 ## The builder
 
@@ -427,7 +515,7 @@ For lists, `option` can also be `next` / `previous` (wraps around) or `up` / `do
 | `UC_SELF_RETURN_POLL_MS` | `2000` | How often activity states (↩ button), state-icon devices, slider values and menu conditions are read |
 | `UC_SELF_SLIDER_HOLD_MS` | `3000` | After you move a slider, device reports are ignored this long so a slow device can't jump it back |
 
-Files in the integration's config folder: `self_control.json` (address + API key), `smart_rules.json` (your rules; absent = defaults), `smart_vars.json` (remembered values), `return.json` (↩ settings and activity history), `state_icons.json` (state icons and each button's default look), `sliders_menus.json` (sliders, quick menus and their last values), `controls.json` (Controls), `states_seen.json` (values seen in the device states panel). The builder's **Backup** saves all of these except the login and the caches.
+Files in the integration's config folder: `self_control.json` (address + API key), `smart_rules.json` (your rules; absent = defaults), `smart_vars.json` (remembered values), `return.json` (↩ settings and activity history), `state_icons.json` (state icons and each button's default look), `sliders_menus.json` (sliders, quick menus and their last values), `controls.json` (Controls), `states_seen.json` (values seen in the device states panel). The Page Editor adds `app_links.json` (Android TV app links) and keeps its remote backups on the remote (the newest two). The builder's **Backup** saves all of these except the login and the caches.
 
 ## Logs and removal
 
@@ -477,7 +565,9 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
-- **1.0.0:** first 1.0 release: everything up to 0.9.10, including the **Page Editor** (0.9.x) and backups with Integration Manager.
+- **1.0.0:** first 1.0 release, with everything from 0.9.0–0.9.10: the **Page Editor** (activities, pages, pictures including the remote's built-in icons, widgets, keys, start and off sequences with a guided setup, activity groups, home screen, macros, devices and integrations, Android TV app links), the theme picker, and backups with [Integration Manager](https://github.com/JackJPowell/uc-intg-manager) (from 0.8.8). New README with pictures of every part.
+<details><summary>Earlier versions</summary>
+
 - **0.9.10:** Page Editor: the Pictures window shows as many pictures per row as the page has columns, and sits beside the remote's screen (the activity and page bar runs across the top), for easy drag and drop.
 - **0.9.9:** Page Editor: the remote is drawn bigger (up to 1.7× the window height; the page scrolls, and the remote stays in view only when it fits); the side windows are a little narrower; pictures in the Pictures window are the same size as on the remote's buttons.
 - **0.9.8:** includes 0.8.8's backups with [Integration Manager](https://github.com/JackJPowell/uc-intg-manager): its **Backup Config** saves your settings (now with the Page Editor's app links) as text, and **Reconfigure → Restore settings from a backup** puts them back. Both choices are also in the integration's own setup.
@@ -526,6 +616,8 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 - **0.3.0:** Smart Controls are generic: starts with one Smart Test Button; remote-only templates; builder page served by the integration with PIN login, device list, templates, save and test; remember / restore settings; next / previous / up / down; IR simple commands.
 - 0.2.0: Smart Buttons: conditional rules, last-result sensor, rule editor in the setup screen.
 - 0.1.x: remote settings entities, grouped into Remote Display / Remote Buttons / Remote Settings; macro-friendly selects.
+
+</details>
 
 ## Support
 
