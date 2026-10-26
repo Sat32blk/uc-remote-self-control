@@ -31,7 +31,7 @@ The builder's first tab shows your Remote 3 or Remote Two (picked from the remot
 
 #### Activities and pages
 
-- **Drag and drop.** The **Pictures** window sits beside the remote, as tall as it, with as many pictures per row as the page has columns; long lists scroll inside it. Pick **Icons on the remote**, **Built-in icons** (the remote's own, drawn as on the remote), **Channel icons** or **Local folder** (pictures on your computer, shrunk and uploaded when you save).
+- **Drag and drop.** The **Pictures** window sits beside the remote, as tall as it, with as many pictures per row as the page has columns; long lists scroll inside it. Pick **Icons on the remote**, **Built-in icons** (the remote's own, drawn as on the remote), **Channel icons**, **Level pictures & state icons** (the ones this integration made) or **Local folder** (pictures on your computer, shrunk and uploaded when you save).
 - **Widgets:** text button, sensor, select, media widget and number pad.
 - **What it does:** click a button and pick a device (the activity's own come first), then its command, or search with a few words (*shield movies*). **Custom value** sends a typed value such as an app link; **Not added yet** adds a device your integrations offer straight from there.
 - **Physical keys and the touch slider:** click them on the drawing to set short and long presses.
@@ -565,6 +565,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.0.5:** Page Editor: a fifth picture list, **Level pictures & state icons**, shows the pictures this integration made (the 11 frames of each level picture, state-icon and ↩ pictures). Drag them onto the screen like any picture; they can't be deleted from the Page Editor, so a level picture can't lose its frames by accident.
 - **1.0.4:** Page Editor: a sensor, select or media widget whose device isn't on the remote any more (e.g. removed from Home Assistant) is outlined in red, and left out when its page is saved, with a note saying which one. The remote refuses to save a page that still has one ("Invalid sensor configuration").
 - **1.0.3:** the 10 % screen limit from 1.0.1 is removed again (Display Brightness "off" is the dimmest level). Page Editor: built-in icons are drawn at the size of their tile in the Pictures window.
 - **1.0.2:** Page Editor: the Pictures window is as tall as the remote and its pictures scroll inside it; the pictures are bigger and fill the window, with as many per row as the page has columns. App links: `market://launch?id=` links no longer open apps since a Google Play Store change; use the app's own deep link in the text file instead (see App links).
