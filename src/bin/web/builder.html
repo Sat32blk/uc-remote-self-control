@@ -69,6 +69,24 @@ header > div:last-child { flex-direction: row !important; align-items: center !i
 :root[data-theme="dark"] .pw-pic .tt, :root[data-theme="config"] .pw-pic .tt, :root[data-theme="midnight"] .pw-pic .tt { outline: 1px solid var(--line); }
 .glyph { font-family: ucicons; color: #fff; line-height: 1; font-weight: 400; }
 .picwin .status:empty { display: none; }
+/* Slider level: the page with a frame for the level's area */
+.lvwrap { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
+.lvwrap > .lines { flex: 1 1 260px; min-width: 0; }
+.lvarea { position: relative; background: #000; border-radius: 16px; padding: 0; box-sizing: content-box; border: 10px solid #000; user-select: none; touch-action: none; flex: none; }
+.lvempty { position: absolute; border: 1px dashed #2a2a30; border-radius: 10px; box-sizing: border-box; }
+.lvit { position: absolute; border-radius: 10px; background: #1c1c20; color: #d1d5db; font-size: 10px; display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden; line-height: 1.15; padding: 2px; box-sizing: border-box; }
+.lvit img { width: 80%; height: 80%; object-fit: contain; }
+.lvit.big { background: linear-gradient(135deg, #1e293b, #312e81); text-transform: capitalize; }
+.lvit.other { outline: 2px solid #7c3aed; outline-offset: -2px; }
+.lvcell { position: absolute; border-radius: 10px; }
+.lvframe { position: absolute; border: 2px solid #f59e0b; border-radius: 13px; cursor: move; z-index: 2; box-sizing: border-box; }
+.lvframe .lab { position: absolute; top: -24px; left: -2px; background: #f59e0b; color: #111; font-weight: 700; font-size: 12px; border-radius: 6px; padding: 0 7px; white-space: nowrap; }
+.lvframe .h { position: absolute; width: 16px; height: 16px; background: #f59e0b; border: 2px solid #111; border-radius: 50%; box-sizing: border-box; }
+.lvframe .h.se { right: -9px; bottom: -9px; cursor: nwse-resize; } .lvframe .h.e { right: -9px; top: calc(50% - 8px); cursor: ew-resize; } .lvframe .h.s { bottom: -9px; left: calc(50% - 8px); cursor: ns-resize; }
+.lvramp { height: 12px; border-radius: 6px; border: 1px solid var(--line); }
+.cellpick { display: inline-grid; gap: 4px; }
+.cellpick button { width: 26px; height: 26px; min-height: 26px; padding: 0; border-radius: 6px; font-size: 11px; background: var(--inset); }
+.cellpick button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 /* Statistics: one hue, thin bars, one axis per chart */
 .pane.stats { max-width: none; } .stats { --series-1: #2a78d6; --band: rgba(27,175,122,.16); --band-edge: #1baf7a; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .stats { --series-1: #3987e5; --band: rgba(25,158,112,.22); --band-edge: #199e70; } }
@@ -1833,106 +1851,205 @@ $("#copy").addEventListener("click", () => {
 window.addEventListener("beforeunload", (e) => { if (edDirty("smart") || edDirty("icons") || edDirty("extras") || edDirty("ret")) { e.preventDefault(); e.returnValue = ""; } });
 
 // ---- Level graphics and tile icons (drawn on a 90x90 canvas) ----------------
-// Level designs: draw(g, f, c) with f = 0..1 and c = { on, off } colors.
+// Level designs: draw(g, f, c) in a 90 × 90 box, f = 0..1. c = { on, off, at(q), grad(x0, y0, x1, y1), conic(a0, cx, cy, span) }:
+// on = the level's colour; at(q) = the colour for the part of the fill standing for q (gradient inside the picture);
+// grad / conic = a fill running through the colours (or just `on` when there's no gradient).
+// axis "h" / "v": a horizontal / vertical design, turned when the area is the other way round; round: kept round.
 const TAU = Math.PI * 2;
-function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, Math.max(0, w), Math.max(0, h), r); }
 const LEVEL_DESIGNS = {
-  bar: { name: "Bar", draw(g, f, c) {
+  text: { name: "Text", text: true },
+  bar: { name: "Bar", axis: "h", draw(g, f, c) {
     rr(g, 10, 37, 70, 16, 8); g.fillStyle = c.off; g.fill();
-    if (f > 0) { g.save(); rr(g, 10, 37, 70, 16, 8); g.clip(); g.fillStyle = c.on; g.fillRect(10, 37, 70 * f, 16); g.restore(); }
+    if (f > 0) { g.save(); rr(g, 10, 37, 70, 16, 8); g.clip(); g.fillStyle = c.grad(10, 0, 80, 0); g.fillRect(10, 37, 70 * f, 16); g.restore(); }
   } },
-  column: { name: "Column", draw(g, f, c) {
+  column: { name: "Column", axis: "v", draw(g, f, c) {
     rr(g, 33, 8, 24, 74, 12); g.fillStyle = c.off; g.fill();
-    if (f > 0) { g.save(); rr(g, 33, 8, 24, 74, 12); g.clip(); g.fillStyle = c.on; g.fillRect(33, 82 - 74 * f, 24, 74 * f); g.restore(); }
+    if (f > 0) { g.save(); rr(g, 33, 8, 24, 74, 12); g.clip(); g.fillStyle = c.grad(0, 82, 0, 8); g.fillRect(33, 82 - 74 * f, 24, 74 * f); g.restore(); }
   } },
-  arc: { name: "Arc gauge", draw(g, f, c) {
+  block: { name: "Block", axis: "v", draw(g, f, c) {
+    rr(g, 8, 8, 74, 74, 14); g.fillStyle = c.off; g.fill();
+    if (f > 0) { g.save(); rr(g, 8, 8, 74, 74, 14); g.clip(); g.fillStyle = c.grad(0, 82, 0, 8); g.fillRect(8, 82 - 74 * f, 74, 74 * f); g.restore(); }
+  } },
+  thin: { name: "Thin bar", axis: "v", draw(g, f, c) {
+    rr(g, 40, 6, 10, 78, 5); g.fillStyle = c.off; g.fill();
+    if (f > 0) { rr(g, 40, 84 - 78 * f, 10, 78 * f, 5); g.fillStyle = c.grad(0, 84, 0, 6); g.fill(); }
+  } },
+  led: { name: "LED meter", axis: "v", draw(g, f, c) {
+    const n = 20, lit = Math.round(f * n);
+    for (let i = 0; i < n; i++) for (const x of [16, 48]) { rr(g, x, 84 - (i + 1) * 3.9, 26, 2.6, 1); g.fillStyle = i < lit ? c.at((i + 1) / n) : "rgba(255,255,255,0.1)"; g.fill(); }
+  } },
+  arc: { name: "Arc gauge", round: true, draw(g, f, c) {
     const a0 = Math.PI * 0.75, span = Math.PI * 1.5;
     g.lineWidth = 11; g.lineCap = "round";
     g.beginPath(); g.arc(45, 48, 30, a0, a0 + span); g.strokeStyle = c.off; g.stroke();
-    if (f > 0) { g.beginPath(); g.arc(45, 48, 30, a0, a0 + span * f); g.strokeStyle = c.on; g.stroke(); }
+    if (f > 0) { g.beginPath(); g.arc(45, 48, 30, a0, a0 + span * f); g.strokeStyle = c.conic(a0, 45, 48, span); g.stroke(); }
   } },
-  ring: { name: "Ring", draw(g, f, c) {
+  ring: { name: "Ring", round: true, draw(g, f, c) {
     g.lineWidth = 10;
     g.beginPath(); g.arc(45, 45, 32, 0, TAU); g.strokeStyle = c.off; g.stroke();
-    if (f > 0) { g.lineCap = "round"; g.beginPath(); g.arc(45, 45, 32, -Math.PI / 2, -Math.PI / 2 + TAU * f); g.strokeStyle = c.on; g.stroke(); }
+    if (f > 0) { g.lineCap = "round"; g.beginPath(); g.arc(45, 45, 32, -Math.PI / 2, -Math.PI / 2 + TAU * f); g.strokeStyle = c.conic(-Math.PI / 2, 45, 45, TAU); g.stroke(); }
     g.beginPath(); g.arc(45, 45, 6 + 12 * f, 0, TAU); g.fillStyle = f > 0 ? c.on : c.off; g.fill();
   } },
-  dots: { name: "Dots", draw(g, f, c) {
+  dots: { name: "Dots", axis: "h", draw(g, f, c) {
     const lit = Math.round(f * 10);
     for (let i = 0; i < 10; i++) { const x = 15 + (i % 5) * 15, y = i < 5 ? 55 : 35;
-      g.beginPath(); g.arc(x, y, 5.5, 0, TAU); g.fillStyle = i < lit ? c.on : c.off; g.fill(); }
+      g.beginPath(); g.arc(x, y, 5.5, 0, TAU); g.fillStyle = i < lit ? c.at((i + 1) / 10) : c.off; g.fill(); }
   } },
-  signal: { name: "Signal", draw(g, f, c) {
+  signal: { name: "Signal", axis: "v", draw(g, f, c) {
     const lit = Math.round(f * 5);
-    for (let i = 0; i < 5; i++) { const h = 14 + i * 14; rr(g, 9 + i * 15, 80 - h, 11, h, 3); g.fillStyle = i < lit ? c.on : c.off; g.fill(); }
+    for (let i = 0; i < 5; i++) { const h = 14 + i * 14; rr(g, 9 + i * 15, 80 - h, 11, h, 3); g.fillStyle = i < lit ? c.at((i + 1) / 5) : c.off; g.fill(); }
   } },
-  speaker: { name: "Speaker", draw(g, f, c) {
+  speaker: { name: "Speaker", round: true, draw(g, f, c) {
     g.fillStyle = f > 0 ? c.on : c.off;
     g.beginPath(); g.moveTo(12, 36); g.lineTo(24, 36); g.lineTo(40, 22); g.lineTo(40, 68); g.lineTo(24, 54); g.lineTo(12, 54); g.closePath(); g.fill();
     const waves = f <= 0 ? 0 : Math.min(3, Math.ceil(f * 3));
     g.lineWidth = 6; g.lineCap = "round";
-    for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(40, 45, 12 + i * 12, -0.8, 0.8); g.strokeStyle = i < waves ? c.on : c.off; g.stroke(); }
+    for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(40, 45, 12 + i * 12, -0.8, 0.8); g.strokeStyle = i < waves ? c.at((i + 1) / 3) : c.off; g.stroke(); }
     if (f <= 0) { g.strokeStyle = c.on; g.lineWidth = 5; g.beginPath(); g.moveTo(52, 34); g.lineTo(74, 56); g.moveTo(74, 34); g.lineTo(52, 56); g.stroke(); }
   } },
-  knob: { name: "Knob", draw(g, f, c) {
+  knob: { name: "Knob", round: true, draw(g, f, c) {
     const a0 = Math.PI * 0.75, span = Math.PI * 1.5;
     for (let i = 0; i <= 10; i++) { const a = a0 + span * i / 10;
-      g.beginPath(); g.arc(45 + Math.cos(a) * 38, 45 + Math.sin(a) * 38, 3, 0, TAU); g.fillStyle = i / 10 <= f + 1e-9 && f > 0 ? c.on : c.off; g.fill(); }
+      g.beginPath(); g.arc(45 + Math.cos(a) * 38, 45 + Math.sin(a) * 38, 3, 0, TAU); g.fillStyle = i / 10 <= f + 1e-9 && f > 0 ? c.at(i / 10) : c.off; g.fill(); }
     g.beginPath(); g.arc(45, 45, 26, 0, TAU); g.fillStyle = c.off; g.fill();
     const a = a0 + span * f; g.lineWidth = 6; g.lineCap = "round"; g.strokeStyle = c.on;
     g.beginPath(); g.moveTo(45 + Math.cos(a) * 8, 45 + Math.sin(a) * 8); g.lineTo(45 + Math.cos(a) * 21, 45 + Math.sin(a) * 21); g.stroke();
   } },
-  tank: { name: "Tank", draw(g, f, c) {
+  tank: { name: "Tank", axis: "v", draw(g, f, c) {
     rr(g, 24, 10, 42, 72, 10); g.lineWidth = 5; g.strokeStyle = c.off; g.stroke();
     if (f > 0) { g.save(); rr(g, 29, 15, 32, 62, 6); g.clip(); const top = 77 - 62 * f;
-      g.beginPath(); g.moveTo(29, top); g.quadraticCurveTo(37, top - 4, 45, top); g.quadraticCurveTo(53, top + 4, 61, top); g.lineTo(61, 77); g.lineTo(29, 77); g.closePath(); g.fillStyle = c.on; g.fill(); g.restore(); }
+      g.beginPath(); g.moveTo(29, top); g.quadraticCurveTo(37, top - 4, 45, top); g.quadraticCurveTo(53, top + 4, 61, top); g.lineTo(61, 77); g.lineTo(29, 77); g.closePath(); g.fillStyle = c.grad(0, 77, 0, 15); g.fill(); g.restore(); }
   } },
-  thermo: { name: "Thermometer", draw(g, f, c) {
+  thermo: { name: "Thermometer", axis: "v", draw(g, f, c) {
     g.fillStyle = c.off; rr(g, 37, 8, 16, 58, 8); g.fill(); g.beginPath(); g.arc(45, 70, 13, 0, TAU); g.fill();
-    g.fillStyle = c.on; g.beginPath(); g.arc(45, 70, 8, 0, TAU); g.fill();
-    const h = 6 + 52 * f; rr(g, 41, 66 - h, 8, h + 2, 4); g.fill();
+    g.fillStyle = c.at(0); g.beginPath(); g.arc(45, 70, 8, 0, TAU); g.fill();
+    const h = 6 + 52 * f; rr(g, 41, 66 - h, 8, h + 2, 4); g.fillStyle = c.grad(0, 68, 0, 8); g.fill();
   } },
-  eq: { name: "Equalizer", draw(g, f, c) {
+  eq: { name: "Equalizer", axis: "v", draw(g, f, c) {
     const env = [0.55, 0.8, 1, 0.7, 0.9, 0.6, 0.75];
     env.forEach((e, i) => { const x = 8 + i * 11; rr(g, x, 12, 8, 66, 4); g.fillStyle = c.off; g.fill();
-      const h = Math.max(f > 0 ? 8 : 0, 66 * e * f); if (h > 0) { rr(g, x, 78 - h, 8, h, 4); g.fillStyle = c.on; g.fill(); } });
+      const h = Math.max(f > 0 ? 8 : 0, 66 * e * f); if (h > 0) { rr(g, x, 78 - h, 8, h, 4); g.fillStyle = c.grad(0, 78, 0, 12); g.fill(); } });
   } },
-  segments: { name: "Segments", draw(g, f, c) {
+  segments: { name: "Segments", round: true, draw(g, f, c) {
     const n = 12, lit = Math.round(f * n); g.lineWidth = 11;
     for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + TAU * i / n;
-      g.beginPath(); g.arc(45, 45, 32, a + 0.08, a + TAU / n - 0.08); g.strokeStyle = i < lit ? c.on : c.off; g.stroke(); }
+      g.beginPath(); g.arc(45, 45, 32, a + 0.08, a + TAU / n - 0.08); g.strokeStyle = i < lit ? c.at((i + 1) / n) : c.off; g.stroke(); }
   } },
-  battery: { name: "Battery", draw(g, f, c) {
+  battery: { name: "Battery", axis: "h", draw(g, f, c) {
     rr(g, 10, 26, 64, 38, 7); g.lineWidth = 5; g.strokeStyle = c.off; g.stroke();
     rr(g, 76, 37, 6, 16, 2); g.fillStyle = c.off; g.fill();
-    if (f > 0) { rr(g, 16, 32, 52 * f, 26, 3); g.fillStyle = c.on; g.fill(); }
+    if (f > 0) { rr(g, 16, 32, 52 * f, 26, 3); g.fillStyle = c.grad(16, 0, 68, 0); g.fill(); }
   } },
-  needle: { name: "Needle", draw(g, f, c) {
+  needle: { name: "Needle", round: true, draw(g, f, c) {
     const a0 = Math.PI, span = Math.PI;
     g.lineWidth = 9; g.lineCap = "butt";
     g.beginPath(); g.arc(45, 60, 34, a0, a0 + span); g.strokeStyle = c.off; g.stroke();
-    if (f > 0) { g.beginPath(); g.arc(45, 60, 34, a0, a0 + span * f); g.strokeStyle = c.on; g.stroke(); }
+    if (f > 0) { g.beginPath(); g.arc(45, 60, 34, a0, a0 + span * f); g.strokeStyle = c.conic(a0, 45, 60, span); g.stroke(); }
     const a = a0 + span * f; g.lineWidth = 5; g.lineCap = "round"; g.strokeStyle = c.on;
     g.beginPath(); g.moveTo(45, 60); g.lineTo(45 + Math.cos(a) * 28, 60 + Math.sin(a) * 28); g.stroke();
     g.beginPath(); g.arc(45, 60, 6, 0, TAU); g.fillStyle = c.on; g.fill();
   } },
-  pie: { name: "Pie", draw(g, f, c) {
-    g.beginPath(); g.arc(45, 45, 34, 0, TAU); g.fillStyle = c.off; g.fill();
-    if (f > 0) { g.beginPath(); g.moveTo(45, 45); g.arc(45, 45, 34, -Math.PI / 2, -Math.PI / 2 + TAU * f); g.closePath(); g.fillStyle = c.on; g.fill(); }
+  dial: { name: "Dial", round: true, draw(g, f, c) {
+    const a0 = Math.PI * 0.75, span = Math.PI * 1.5;
+    for (let i = 0; i <= 10; i++) { const a = a0 + span * i / 10; g.strokeStyle = c.at(i / 10); g.lineWidth = i % 5 ? 2.5 : 4.5; g.lineCap = "round";
+      g.beginPath(); g.moveTo(45 + Math.cos(a) * 28, 48 + Math.sin(a) * 28); g.lineTo(45 + Math.cos(a) * 36, 48 + Math.sin(a) * 36); g.stroke(); }
+    const a = a0 + span * f; g.strokeStyle = c.on; g.lineWidth = 5; g.beginPath(); g.moveTo(45, 48); g.lineTo(45 + Math.cos(a) * 25, 48 + Math.sin(a) * 25); g.stroke();
+    g.beginPath(); g.arc(45, 48, 5, 0, TAU); g.fillStyle = "#e5e7eb"; g.fill();
   } },
-  stairs: { name: "Steps", draw(g, f, c) {
+  pie: { name: "Pie", round: true, draw(g, f, c) {
+    g.beginPath(); g.arc(45, 45, 34, 0, TAU); g.fillStyle = c.off; g.fill();
+    if (f > 0) { g.beginPath(); g.moveTo(45, 45); g.arc(45, 45, 34, -Math.PI / 2, -Math.PI / 2 + TAU * f); g.closePath(); g.fillStyle = c.conic(-Math.PI / 2, 45, 45, TAU); g.fill(); }
+  } },
+  stairs: { name: "Steps", axis: "v", draw(g, f, c) {
     const n = 6, lit = Math.round(f * n);
-    for (let i = 0; i < n; i++) { const h = 10 + i * 11; rr(g, 8 + i * 13, 78 - h, 10, h, 2); g.fillStyle = i < lit ? c.on : c.off; g.fill(); }
+    for (let i = 0; i < n; i++) { const h = 10 + i * 11; rr(g, 8 + i * 13, 78 - h, 10, h, 2); g.fillStyle = i < lit ? c.at((i + 1) / n) : c.off; g.fill(); }
     g.fillStyle = c.off; g.fillRect(6, 80, 78, 3);
+  } },
+  slider: { name: "Slider", axis: "v", draw(g, f, c) {
+    const y0 = 76, y1 = 14, y = y0 + (y1 - y0) * f;
+    rr(g, 41, y1, 8, y0 - y1, 4); g.fillStyle = c.off; g.fill();
+    rr(g, 41, y, 8, y0 - y, 4); g.fillStyle = c.grad(0, y0, 0, y1); g.fill();
+    g.beginPath(); g.arc(45, y, 10, 0, TAU); g.fillStyle = "#f3f4f6"; g.fill(); g.lineWidth = 3; g.strokeStyle = c.on; g.stroke();
   } }
 };
 const LEVEL_COLORS = { orange: "#f2a541", green: "#2ecc71", blue: "#4aa3ff", white: "#f2f4f7", red: "#ff5a4e", purple: "#a67cff" };
 const LEVEL_OFF = "rgba(255,255,255,0.18)";
 const hexOf = (color) => LEVEL_COLORS[color] || (/^#[0-9a-f]{6}$/i.test(String(color || "")) ? color : LEVEL_COLORS.orange);
-/** The color at a level (0..1): the last "from %" step reached, else the main color. */
-const colorAt = (color, colors, f) => { let out = hexOf(color); for (const c of colors || []) if (f * 100 >= c.from - 1e-9) out = c.color; return out; };
+const mixHex = (a, b, t) => "#" + [1, 3, 5].map((i) => { const x = parseInt(a.slice(i, i + 2), 16), y = parseInt(b.slice(i, i + 2), 16); return Math.round(x + (y - x) * t).toString(16).padStart(2, "0"); }).join("");
+/**
+ * The colour at a level (0..1). Steps: the last "from %" reached, else the main colour.
+ * Blend: the main colour at 0 %, each step's colour at its %, smoothly in between.
+ */
+const colorAt = (color, colors, f, blend = false) => {
+  const main = hexOf(color);
+  if (!colors?.length) return main;
+  const p = f * 100;
+  if (!blend) { let out = main; for (const c of colors) if (p >= c.from - 1e-9) out = c.color; return out; }
+  const st = [{ from: 0, color: main }, ...[...colors].sort((a, b) => a.from - b.from)];
+  if (p <= st[0].from) return st[0].color;
+  for (let i = 1; i < st.length; i++) if (p <= st[i].from) return mixHex(st[i - 1].color, st[i].color, (p - st[i - 1].from) / Math.max(1e-6, st[i].from - st[i - 1].from));
+  return st[st.length - 1].color;
+};
 /** Name part for frame files: a named color as is, anything else as a short hash. */
 const colorTag = (color, colors) => (colors?.length || !LEVEL_COLORS[color] ? "c" + hashStr(JSON.stringify([hexOf(color), colors || []])) : color);
+/** The paint for one drawing (see LEVEL_DESIGNS). spec: { color, colors, blend, inner }. */
+function levelPaint(g, spec, f) {
+  const on = colorAt(spec.color, spec.colors, f, spec.blend);
+  const inner = !!(spec.inner && spec.colors?.length);
+  const at = (q) => (inner ? colorAt(spec.color, spec.colors, q, spec.blend) : on);
+  return { on, off: LEVEL_OFF, at,
+    grad: (x0, y0, x1, y1) => { if (!inner) return on; const gr = g.createLinearGradient(x0, y0, x1, y1); for (let i = 0; i <= 20; i++) gr.addColorStop(i / 20, at(i / 20)); return gr; },
+    conic: (a0, cx, cy, span) => {
+      if (!inner || !g.createConicGradient) return on;
+      const gr = g.createConicGradient(a0, cx, cy), k = Math.min(1, span / TAU);
+      for (let i = 0; i <= 20; i++) gr.addColorStop(Math.min(1, (i / 20) * k), at(i / 20));
+      if (k < 1) gr.addColorStop(Math.min(1, k + 0.001), at(0));
+      return gr;
+    } };
+}
+/** The value as text: "62 %", "62", or the device's own value (from the slider's range). */
+function levelText(spec, f) {
+  if (spec.fmt === "raw" && Number.isFinite(spec.min) && Number.isFinite(spec.max)) { const v = spec.min + f * (spec.max - spec.min); return String(Math.abs(spec.max - spec.min) <= 10 ? Math.round(v * 10) / 10 : Math.round(v)); }
+  return spec.fmt === "num" ? String(Math.round(f * 100)) : `${Math.round(f * 100)} %`;
+}
+/** Text as big as the area (W × H): in a tall area the number sits above the % sign. */
+function drawBigText(g, t, W, H, color, scale = 1) {
+  const m = /^(.*?)(\s*%)$/.exec(t), lines = m && H > W * 1.3 ? [m[1], "%"] : [t];
+  const fit = (size) => { g.font = `800 ${size}px "IBM Plex Sans", system-ui, sans-serif`; return Math.max(...lines.map((l) => g.measureText(l).width)); };
+  let size = (H / lines.length) * 0.82 * scale;
+  while (size > 6 && fit(size) > W * 0.9 * scale) size -= 1;
+  g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = color;
+  const lh = size * 1.02, y0 = H / 2 - ((lines.length - 1) * lh) / 2;
+  lines.forEach((l, i) => g.fillText(l, W / 2, y0 + i * lh));
+}
+/** A small text label on one 90 × 90 button (white, outlined so it reads over any picture). */
+function drawLabel(g, t, size = "m") {
+  let px = { s: 18, m: 24, l: 32 }[size] || 24;
+  g.font = `700 ${px}px "IBM Plex Sans", system-ui, sans-serif`;
+  while (px > 8 && g.measureText(t).width > 82) { px -= 1; g.font = `700 ${px}px "IBM Plex Sans", system-ui, sans-serif`; }
+  g.textAlign = "center"; g.textBaseline = "middle"; g.lineJoin = "round";
+  g.lineWidth = 5; g.strokeStyle = "rgba(0,0,0,0.75)"; g.strokeText(t, 45, 46); g.fillStyle = "#fff"; g.fillText(t, 45, 46);
+}
+/**
+ * Draws a level picture on an area of W × H pixels. spec: { design, color, colors, blend, inner, scale, fmt, min, max }.
+ * Round designs keep their shape (centred); others stretch, turned to the area's direction.
+ */
+function drawLevel(g, spec, f, W, H) {
+  const d = LEVEL_DESIGNS[spec.design] || LEVEL_DESIGNS.bar;
+  if (d.text) { drawBigText(g, levelText(spec, f), W, H, colorAt(spec.color, spec.colors, f, spec.blend), spec.scale || 1); return; }
+  g.save();
+  if (d.round) { const k = Math.min(W, H) / 90; g.translate((W - 90 * k) / 2, (H - 90 * k) / 2); g.scale(k, k); }
+  else {
+    const rot = d.axis === "h" && H > W * 1.2 ? -1 : d.axis === "v" && W > H * 1.2 ? 1 : 0;
+    if (rot) { g.translate(W / 2, H / 2); g.rotate((rot * Math.PI) / 2); g.translate(-H / 2, -W / 2); g.scale(H / 90, W / 90); }
+    else g.scale(W / 90, H / 90);
+  }
+  const sc = spec.scale || 1;
+  if (sc !== 1) { g.translate(45 * (1 - sc), 45 * (1 - sc)); g.scale(sc, sc); }
+  d.draw(g, f, levelPaint(g, spec, f));
+  g.restore();
+}
 
 // Tile icons: white line glyphs on transparent (the remote tints nothing; white suits its dark tiles).
 const W = "#ffffff";
@@ -1970,11 +2087,10 @@ function gfxCanvas(draw) {
   g.fillStyle = "rgba(0,0,0,0.004)"; g.fillRect(0, 0, 1, 1); g.fillRect(89, 89, 1, 1); // keep margins (the remote crops transparent edges)
   return c;
 }
-const levelFrame = (design, color, f, bg = null, scale = 1) => gfxCanvas((g) => {
+const levelFrame = (design, color, f, bg = null, scale = 1, extra = {}) => gfxCanvas((g) => {
   // bg: the button's own picture, drawn underneath (the remote shows one picture per button, so layering is baked in)
   if (bg) g.drawImage(bg, 0, 0, 90, 90);
-  if (scale !== 1) { g.translate(45 * (1 - scale), 45 * (1 - scale)); g.scale(scale, scale); }
-  LEVEL_DESIGNS[design].draw(g, f, { on: hexOf(color), off: LEVEL_OFF });
+  drawLevel(g, { color, scale, ...extra, design }, f, 90, 90);
 });
 // Pictures of custom icons on the remote, loaded once (same origin, so canvases stay exportable).
 const BG_CACHE = {};
@@ -2017,18 +2133,18 @@ async function uploadLevelFrames(design, color, onProgress, { bg = null, scale =
   }
   return out;
 }
-// ---- level graphics over several buttons (a rectangle of tiles, e.g. a column down the left side) ----
+// ---- level pictures over an area of buttons (e.g. 2 × 4 down the right side) ----
 const hashStr = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return h.toString(36); };
-/** The rectangle spanned by the two clicked corners. */
+/** The rectangle spanned by the two corners (location = top left, location2 = bottom right). */
 function shapeRect(lv) {
   const a = lv.location, b = lv.location2 || lv.location;
   if (!a) return null;
   return { x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), w: Math.abs(a.x - b.x) + 1, h: Math.abs(a.y - b.y) + 1 };
 }
-/** Buttons inside the rectangle: usable (1×1 icon/text), blocked (other kinds or bigger), and the number of empty spots. */
+/** Buttons inside the rectangle: usable (1×1 icon/text), blocked (other kinds or bigger), and the empty spots. */
 function shapeCells(lv, act) {
   const r = shapeRect(lv);
-  if (!r || !act?.page) return { rect: r, cells: [], blocked: [], gaps: 0 };
+  if (!r || !act?.page) return { rect: r, cells: [], blocked: [], gaps: 0, empty: [] };
   const inside = (x, y) => x >= r.x0 && x < r.x0 + r.w && y >= r.y0 && y < r.y0 + r.h;
   const cells = [], blocked = [];
   const covered = new Set();
@@ -2040,25 +2156,31 @@ function shapeCells(lv, act) {
     if ((it.type === "icon" || it.type === "text") && w === 1 && h === 1) cells.push({ x, y });
     else blocked.push(it);
   }
+  const empty = [];
+  for (let y = r.y0; y < r.y0 + r.h; y++) for (let x = r.x0; x < r.x0 + r.w; x++) if (!covered.has(x + "," + y)) empty.push({ x, y });
   cells.sort((p, q) => p.y - q.y || p.x - q.x);
-  return { rect: r, cells, blocked, gaps: r.w * r.h - covered.size };
+  return { rect: r, cells, blocked, gaps: empty.length, empty };
 }
-/** The whole picture for a rectangle of tiles at value f (0..1); bgs maps "x,y" to a loaded image. */
-function levelComposite(design, color, f, { rect, fit = "stretch", scale = 1, bgs = {} }) {
+/** The whole picture for an area at value f (0..1); bgs maps "x,y" to a loaded image drawn underneath. */
+function levelComposite(spec, f, rect, bgs = {}) {
   const W = rect.w * 90, H = rect.h * 90;
   const c = document.createElement("canvas"); c.width = W; c.height = H;
   const g = c.getContext("2d");
   for (const [k, img] of Object.entries(bgs)) if (img) { const [x, y] = k.split(",").map(Number); g.drawImage(img, (x - rect.x0) * 90, (y - rect.y0) * 90, 90, 90); }
-  g.save();
-  if (fit === "keep") { const k = Math.min(rect.w, rect.h); g.translate((W - 90 * k) / 2, (H - 90 * k) / 2); g.scale(k, k); }
-  else g.scale(rect.w, rect.h);
-  if (scale !== 1) { g.translate(45 * (1 - scale), 45 * (1 - scale)); g.scale(scale, scale); }
-  LEVEL_DESIGNS[design].draw(g, f, { on: LEVEL_COLORS[color] || color, off: LEVEL_OFF });
-  g.restore();
+  drawLevel(g, spec, f, W, H);
   return c;
 }
 const sliceCell = (big, rect, x, y) => gfxCanvas((g) => g.drawImage(big, (x - rect.x0) * 90, (y - rect.y0) * 90, 90, 90, 0, 0, 90, 90));
-/** Renders the 11 steps of a multi-button level graphic, slices them per button and uploads them (11 × buttons). */
+/** One button's picture of an area at value f, with the text label if it sits on that button. */
+function cellFrame(draw, big, c, f) {
+  const sc = sliceCell(big, draw.rect, c.x, c.y);
+  if (draw.label?.on && c.x === draw.label.x && c.y === draw.label.y) drawLabel(sc.getContext("2d"), levelText({ ...draw.spec, fmt: draw.label.fmt }, f), draw.label.size);
+  return sc;
+}
+/**
+ * Renders the 11 steps of a level picture over an area, slices them per button and uploads them (11 × buttons).
+ * draw: { spec, rect, cells: [{ x, y }], sig, bgs: { "x,y": icon }, label: { on, fmt, size, x, y } }
+ */
 async function uploadCellFrames(draw, onProgress) {
   const bgs = {};
   for (const [k, icon] of Object.entries(draw.bgs || {})) {
@@ -2069,9 +2191,9 @@ async function uploadCellFrames(draw, onProgress) {
   const frames = draw.cells.map(() => []);
   let n = 0;
   for (let i = 0; i <= 10; i++) {
-    const big = levelComposite(draw.design, draw.color, i / 10, { rect: draw.rect, fit: draw.fit, scale: draw.scale, bgs });
+    const big = levelComposite(draw.spec, i / 10, draw.rect, bgs);
     for (const [k, c] of draw.cells.entries()) {
-      frames[k].push(await uploadCanvas(`lv_${draw.sig}_${c.x}_${c.y}_${String(i * 10).padStart(3, "0")}.png`, sliceCell(big, draw.rect, c.x, c.y)));
+      frames[k].push(await uploadCanvas(`lv_${draw.sig}_${c.x}_${c.y}_${String(i * 10).padStart(3, "0")}.png`, cellFrame(draw, big, c, i / 10)));
       onProgress && onProgress(++n, 11 * draw.cells.length);
     }
   }
@@ -2091,7 +2213,8 @@ const iconsOut = () => ICONS.map((b) => {
     states: b.kind === "level" ? [] : b.states.map((s) => ({ value: s.value, icon: s.icon || null, text: s.text || null })) };
   if (b.kind === "level") Object.assign(o, { kind: "level", min: Number(b.min), max: Number(b.max), design: b.design, color: b.color, ...(b.colors?.length ? { colors: b.colors } : {}), frames: b.frames || [], ...(b.slider ? { slider: b.slider } : {}), ...(b.bg ? { bg: b.bg } : {}), ...(b.scale && b.scale !== 1 ? { scale: b.scale } : {}),
     ...(b.cells?.length ? { cells: b.cells.map((c) => ({ x: c.x, y: c.y, frames: c.frames || [] })) } : {}),
-    ...(b.show === "change" ? { show: "change", showMs: b.showMs || 4000 } : {}), ...(b.fit === "keep" ? { fit: "keep" } : {}), ...(b.sig ? { sig: b.sig } : {}) });
+    ...(b.show === "change" ? { show: "change", showMs: b.showMs || 4000, ...(b.noRestart ? { noRestart: true } : {}) } : {}), ...(b.fit === "keep" ? { fit: "keep" } : {}), ...(b.sig ? { sig: b.sig } : {}),
+    ...(b.blend ? { blend: true } : {}), ...(b.inner ? { inner: true } : {}), ...(b.fmt && b.fmt !== "pct" ? { fmt: b.fmt } : {}), ...(b.label?.on ? { label: b.label } : {}) });
   return o;
 });
 const iconImg = (icon, alt) => String(icon || "").startsWith("uc:") ? picFace(icon) : el("img", { src: iconUrl(icon), alt: alt || "", on: { error: (e) => e.target.replaceWith(document.createTextNode(String(icon || "").replace(/^custom:/, "").replace(/\.png$/, "").slice(0, 14))) } });
@@ -2329,6 +2452,7 @@ async function postIcons(onProgress) {
     b.frames = fr[0];
   }
   for (const b of ICONS) if (b.kind === "level" && !b.cells?.length && (!b.frames || b.frames.length !== 11)) {
+    if (b._draw) { b.frames = (await uploadCellFrames(b._draw, (n, t) => onProgress && onProgress(b, n, t)))[0]; continue; }
     b.frames = await uploadLevelFrames(b.design, b.color, (n) => onProgress && onProgress(b, n), { bg: b.bg || null, scale: b.scale || 1, colors: b.colors || null });
   }
   return api("POST", "/api/icons", { icons: iconsOut() });
@@ -2444,7 +2568,10 @@ function tilePicker(x, label) {
 
 // A slider's level graphic: a button on a single-page activity whose picture shows the slider's value
 // (bar, gauge, dots…). Stored as a state icon of kind "level" linked to the slider; edited here only.
+// A slider's level picture: the buttons in an area of a single-page activity show the slider's value
+// (text, bar, gauge, dots…). Stored as a state icon of kind "level" linked to the slider; edited here only.
 const levelOf = (sid) => ICONS.find((b) => b.kind === "level" && b.slider === sid);
+const LEVEL_WHEN = [["always", "Always"], ["1", "Only while changing (gone 1 s after the last change)"], ["2", "2 seconds after a change"], ["3", "3 seconds"], ["4", "4 seconds"], ["6", "6 seconds"], ["8", "8 seconds"], ["10", "10 seconds"], ["15", "15 seconds"], ["30", "30 seconds"], ["60", "1 minute"], ["300", "5 minutes"]];
 /** Each slider gets its level settings (s.level) from its linked state icon, for editing. */
 function attachLevels() {
   for (const s of SLIDERS) {
@@ -2452,8 +2579,11 @@ function attachLevels() {
     if (!b) { s.level = s.level || null; continue; }
     const cells = b.cells?.length > 1 ? b.cells : null;
     const loc = cells ? { x: Math.min(...cells.map((c) => c.x)), y: Math.min(...cells.map((c) => c.y)) } : b.location ? { ...b.location } : null;
-    s.level = { activity: b.activity, location: loc, design: b.design, color: b.color, colors: (b.colors || []).map((c) => ({ ...c })),
-      scale: b.scale || 1, show: b.show === "change" ? "change" : "always", showSec: Math.round((b.showMs || 4000) / 1000) };
+    const loc2 = cells ? { x: Math.max(...cells.map((c) => c.x)), y: Math.max(...cells.map((c) => c.y)) } : loc;
+    const colors = (b.colors || []).map((c) => ({ ...c }));
+    s.level = { activity: b.activity, location: loc, location2: loc2, design: b.design, color: b.color, colors, cmode: colors.length ? (b.blend ? "blend" : "steps") : "one",
+      inner: !!b.inner, fmt: b.fmt || "pct", label: b.label ? { ...b.label } : { on: false, fmt: "pct", size: "m" },
+      scale: b.scale || 1, when: b.show === "change" ? String(Math.round((b.showMs || 4000) / 1000)) : "always", restart: !b.noRestart };
   }
 }
 /** The button's own look at a spot (before any state icon or level graphic changed it). */
@@ -2468,6 +2598,75 @@ function origIconAt(act, x, y) {
   const ic = itemAt(act, { x, y })?.icon;
   return ic && !/^custom:lv_/.test(ic) ? ic : null;
 }
+/** What the level is drawn with (for previews and the uploaded pictures). */
+const levelSpec = (lv, s) => ({ design: lv.design, color: lv.color, colors: lv.cmode === "one" ? [] : lv.colors || [], blend: lv.cmode === "blend", inner: !!lv.inner && lv.cmode !== "one",
+  scale: Number(lv.scale) || 1, fmt: lv.fmt || "pct", min: Number(s.min), max: Number(s.max) });
+/** The text label's button (relative to the area), kept inside it. */
+function labelCell(lv, rect) {
+  const L = lv.label || {};
+  let dx = Number.isInteger(L.dx) ? L.dx : Math.floor((rect.w - 1) / 2), dy = Number.isInteger(L.dy) ? L.dy : rect.h > rect.w ? 0 : Math.floor((rect.h - 1) / 2);
+  if (dx >= rect.w || dy >= rect.h) { dx = Math.floor((rect.w - 1) / 2); dy = rect.h > rect.w ? 0 : Math.floor((rect.h - 1) / 2); }
+  return { dx, dy };
+}
+const levelLabel = (lv, rect) => { const { dx, dy } = labelCell(lv, rect); return { on: !!lv.label?.on && !LEVEL_DESIGNS[lv.design]?.text, fmt: lv.label?.fmt || "pct", size: lv.label?.size || "m", x: rect.x0 + dx, y: rect.y0 + dy }; };
+
+/**
+ * The page with an orange frame for the level's area: drag the frame to move it, its edges or corner to resize it
+ * (snaps to the grid). The buttons inside show the level at the preview value.
+ */
+function levelArea(lv, s, act, usedByOther) {
+  const page = act.page, grid = page.grid || { width: 4, height: 6 }, COLS = grid.width, ROWS = grid.height;
+  const CELL = 56, GAP = 6, px = (n) => n * (CELL + GAP);
+  const rect = shapeRect(lv);
+  const box = el("div", { class: "lvarea", style: `width:${px(COLS) - GAP}px;height:${px(ROWS) - GAP}px` });
+  const items = page.items || [];
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) box.append(el("div", { class: "lvempty", style: `left:${px(x)}px;top:${px(y)}px;width:${CELL}px;height:${CELL}px` }));
+  for (const it of items) {
+    const x = it.location?.x ?? 0, y = it.location?.y ?? 0, w = it.size?.width ?? 1, h = it.size?.height ?? 1;
+    const other = usedByOther(x, y);
+    const look = it.type === "icon" ? (/^custom:lv_/.test(it.icon || "") ? "" : iconImg(it.icon)) : it.type === "text" ? (it.text || "text") : it.type.replace("_", " ");
+    box.append(el("div", { class: "lvit" + (it.type === "icon" || it.type === "text" ? "" : " big") + (other ? " other" : ""), title: other ? "Used by " + other : "", style: `left:${px(x)}px;top:${px(y)}px;width:${px(w) - GAP}px;height:${px(h) - GAP}px` }, look));
+  }
+  if (rect) {
+    const spec = levelSpec(lv, s), f = (lv._pv ?? 60) / 100, step = Math.round(f * 10) / 10;
+    const big = levelComposite(spec, step, rect);
+    const draw = { spec, rect, label: levelLabel(lv, rect) };
+    for (let y = rect.y0; y < rect.y0 + rect.h; y++) for (let x = rect.x0; x < rect.x0 + rect.w; x++) {
+      const c = cellFrame(draw, big, { x, y }, step);
+      box.append(el("img", { class: "lvcell", src: c.toDataURL("image/png"), alt: "", style: `left:${px(x)}px;top:${px(y)}px;width:${CELL}px;height:${CELL}px` }));
+    }
+    const fr = el("div", { class: "lvframe", style: `left:${px(rect.x0) - 4}px;top:${px(rect.y0) - 4}px;width:${px(rect.w) - GAP + 8}px;height:${px(rect.h) - GAP + 8}px`, title: "Drag to move; drag the edges or corner to resize" },
+      el("span", { class: "lab" }, `${rect.w} × ${rect.h}`), el("span", { class: "h e", "data-h": "e" }), el("span", { class: "h s", "data-h": "s" }), el("span", { class: "h se", "data-h": "se" }));
+    fr.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      const h = e.target.dataset?.h, sx = e.clientX, sy = e.clientY, o = { ...rect };
+      let last = "";
+      const move = (ev) => {
+        const dx = Math.round((ev.clientX - sx) / (CELL + GAP)), dy = Math.round((ev.clientY - sy) / (CELL + GAP));
+        let { x0, y0, w, h: hh } = o;
+        if (!h) { x0 = Math.max(0, Math.min(COLS - w, o.x0 + dx)); y0 = Math.max(0, Math.min(ROWS - hh, o.y0 + dy)); }
+        if (h === "e" || h === "se") w = Math.max(1, Math.min(COLS - x0, o.w + dx));
+        if (h === "s" || h === "se") hh = Math.max(1, Math.min(ROWS - y0, o.h + dy));
+        const k = [x0, y0, w, hh].join();
+        if (k === last) return;
+        last = k;
+        lv.location = { x: x0, y: y0 }; lv.location2 = { x: x0 + w - 1, y: y0 + hh - 1 };
+        requestAnimationFrame(() => extrasChanged(true));
+      };
+      const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); };
+      addEventListener("pointermove", move); addEventListener("pointerup", up);
+    });
+    box.append(fr);
+  }
+  return box;
+}
+/** First spot for a new area: an unused 1×1 icon/text button or an empty spot. */
+function firstSpot(act, usedByOther) {
+  const g = act.page.grid || { width: 4, height: 6 }, items = act.page.items || [];
+  const at = (x, y) => items.find((it) => { const ix = it.location?.x ?? 0, iy = it.location?.y ?? 0; return x >= ix && x < ix + (it.size?.width ?? 1) && y >= iy && y < iy + (it.size?.height ?? 1); });
+  for (let y = 0; y < g.height; y++) for (let x = 0; x < g.width; x++) { const it = at(x, y); if (usedByOther(x, y)) continue; if (!it || ((it.type === "icon" || it.type === "text") && (it.size?.width ?? 1) === 1 && (it.size?.height ?? 1) === 1)) return { x, y }; }
+  return { x: 0, y: 0 };
+}
 function sliderLevel(s, id) {
   const box = el("div", { class: "lines" });
   if (!iconsLoaded) { box.append(el("p", { class: "hint" }, "Loading your activities…")); return box; }
@@ -2475,29 +2674,75 @@ function sliderLevel(s, id) {
   const lv = s.level;
   const usable = ICON_ACTS.filter((a) => a.pageCount === 1);
   const actSel = select(id + "-la", [["", "None (no level picture)"], ...usable.map((a) => [a.id, a.name])], lv?.activity || "", (v) => {
-    s.level = v ? { design: "bar", color: "orange", colors: [], scale: 1, show: "always", showSec: 4, ...(s.level || {}), activity: v, location: null } : null;
+    s.level = v ? { design: "text", color: "#2ecc71", colors: [{ from: 50, color: "#f2c94c" }, { from: 100, color: "#ff5a4e" }], cmode: "blend", inner: true, fmt: "pct", label: { on: false, fmt: "pct", size: "m" },
+      scale: 1, when: "4", restart: true, ...(s.level || {}), activity: v, location: null, location2: null } : null;
     extrasChanged(true);
   }, "Activity for the level");
   for (const a of ICON_ACTS.filter((a) => a.pageCount !== 1)) actSel.append(el("option", { value: a.id, disabled: true }, `${a.name} (${a.pageCount} pages)`));
-  box.append(el("div", { class: "fields" }, field(id + "-la", "Show the level on a button of (one-page activities)", actSel)));
+  box.append(el("div", { class: "fields" }, field(id + "-la", "Show the level on (one-page activities)", actSel)));
   if (!lv) return box;
   const act = ICON_ACTS.find((a) => a.id === lv.activity);
-  if (act?.page) box.append(el("p", { class: "hint" }, lv.location ? "Selected. Click another button to change." : "Click the icon or text button that should show the level."),
-    pageDrawing(lv, act, (o) => o.slider === s.id, () => extrasChanged(true)));
+  if (!act?.page) { box.append(el("p", { class: "status err" }, "That activity isn't available any more.")); return box; }
+  const usedByOther = (x, y) => { const o = ICONS.find((b) => b.activity === act.id && b.slider !== s.id && spotsOfB(b).some((p) => p.x === x && p.y === y)); return o ? o.name || o.id : null; };
+  if (!lv.location) { lv.location = firstSpot(act, usedByOther); lv.location2 = { ...lv.location }; }
+  const rect = shapeRect(lv);
+  const sc = shapeCells(lv, act);
+  const taken = [];
+  for (let y = rect.y0; y < rect.y0 + rect.h; y++) for (let x = rect.x0; x < rect.x0 + rect.w; x++) { const o = usedByOther(x, y); if (o && !taken.includes(o)) taken.push(o); }
+  const sizeIn = (k, max) => input(id + "-a" + k, String(rect[k]), (v) => {
+    const n = Math.max(1, Math.min(max - (k === "w" ? rect.x0 : rect.y0), Math.round(Number(v) || 1)));
+    lv.location2 = k === "w" ? { x: rect.x0 + n - 1, y: lv.location2?.y ?? rect.y0 } : { x: lv.location2?.x ?? rect.x0, y: rect.y0 + n - 1 }; extrasChanged(true);
+  }, { label: k === "w" ? "Width" : "Height", type: "number", min: 1, max, cls: "num" });
+  const grid = act.page.grid || { width: 4, height: 6 };
+  const quick = el("div", { class: "row" }, el("span", { class: "hint" }, "Quick sizes:"), ...[[1, 1], [2, 2], [2, 4], [1, 4], [4, 1], [4, 2], [3, 1]].filter(([w, h]) => w <= grid.width && h <= grid.height).map(([w, h]) =>
+    el("button", { type: "button", class: "small", on: { click: () => { const x0 = Math.min(rect.x0, grid.width - w), y0 = Math.min(rect.y0, grid.height - h); lv.location = { x: x0, y: y0 }; lv.location2 = { x: x0 + w - 1, y: y0 + h - 1 }; extrasChanged(true); } } }, `${w} × ${h}`)));
+  const fitMsg = sc.blocked.length || taken.length
+    ? el("p", { class: "status err" }, `This area covers ${[...sc.blocked.map((it) => it.type === "media_player" ? "a media widget" : it.type === "sensor" ? "a sensor" : it.type === "select" ? "a select" : "a bigger button"), ...taken.map((t) => `a button used by ${t}`)].join(", ")}. Move or resize the frame.`)
+    : el("p", { class: "hint" }, `${rect.w * rect.h} button${rect.w * rect.h > 1 ? "s" : ""}${sc.cells.length ? `: ${sc.cells.length} of your buttons show the level${lv.when === "always" ? "" : " for a moment, then their own picture again"}` : ""}${sc.gaps ? `; ${sc.gaps} empty spot${sc.gaps > 1 ? "s get" : " gets"} a blank button (removable in the Page Editor)` : ""}.`);
+  const preview = el("div", { class: "row" }, el("span", { class: "hint" }, "Preview at"),
+    el("input", { type: "range", min: 0, max: 100, step: 10, value: lv._pv ?? 60, "aria-label": "Preview value", on: { input: (e) => { lv._pv = Number(e.target.value); extrasChanged(true); } } }), el("span", {}, `${lv._pv ?? 60} %`));
+  box.append(el("div", { class: "lvwrap" }, levelArea(lv, s, act, usedByOther),
+    el("div", { class: "lines" }, el("div", { class: "row" }, el("span", {}, "Width"), sizeIn("w", grid.width), el("span", {}, "× height"), sizeIn("h", grid.height), el("span", { class: "hint" }, `column ${rect.x0 + 1}, row ${rect.y0 + 1}`)), quick, fitMsg, preview,
+      el("p", { class: "hint" }, "Drag the orange frame to move it; drag its edges or corner to resize it. The picture is split over the buttons inside, in 11 steps (0 %, 10 % … 100 %)."))));
+  // design
+  const spec = levelSpec(lv, s);
   const gal = el("div", { class: "gallery", role: "radiogroup", "aria-label": "Level design" });
   for (const [k, d] of Object.entries(LEVEL_DESIGNS)) gal.append(el("button", { type: "button", class: "gpick" + (lv.design === k ? " sel" : ""), role: "radio", "aria-checked": String(lv.design === k), title: d.name,
-    on: { click: () => { lv.design = k; extrasChanged(true); } } }, asImg(levelFrame(k, colorAt(lv.color, lv.colors, 0.6), 0.6), 54, d.name), el("span", {}, d.name)));
+    on: { click: () => { lv.design = k; extrasChanged(true); } } }, asImg(levelFrame(k, null, 0.6, null, 1, { ...spec, design: k }), 54, d.name), el("span", {}, d.name)));
   const size = el("div", { class: "fields" }, field(id + "-sz", "Size", select(id + "-sz", [["1", "Full"], ["0.8", "Large"], ["0.6", "Medium"]], String(lv.scale || 1), (v) => { lv.scale = Number(v); extrasChanged(true); }, "Size")));
-  const strip = el("div", { class: "strip" });
-  for (const f of [0, 0.3, 0.6, 0.8, 1]) strip.append(el("figure", {}, asImg(levelFrame(lv.design, colorAt(lv.color, lv.colors, f), f, null, lv.scale || 1), 54), el("figcaption", {}, Math.round(f * 100) + " %")));
-  const showBox = el("div", { class: "fields" });
-  showBox.append(field(id + "-show", "Show the level", select(id + "-show", [["always", "Always"], ["change", "Only for a few seconds when the value changes"]], lv.show || "always", (v) => { lv.show = v; extrasChanged(true); }, "When to show")));
-  if (lv.show === "change") showBox.append(field(id + "-sec", "Seconds", input(id + "-sec", String(lv.showSec ?? 4), (v) => { lv.showSec = Number(v); extrasChanged(false); }, { label: "Seconds to show", type: "number", min: 1, max: 60 })));
-  box.append(el("div", { class: "subhead" }, "Design"), gal, el("div", { class: "subhead" }, "Color"), levelColors(lv, id), size,
-    el("div", { class: "subhead" }, "When"), showBox,
-    lv.show === "change" ? el("p", { class: "hint" }, "Between changes the button shows its own look. The level appears when the value changes (from any source, e.g. the remote's volume keys) and hides again after these seconds.") : "",
-    el("div", { class: "subhead" }, "Preview"), strip,
-    el("p", { class: "hint" }, `The picture follows the slider's range (${s.min}–${s.max}) in 11 steps and updates within about 2 seconds. Single-page activities only: changing a page of a multi-page activity sends the remote back to its first page.`));
+  // colour
+  const cm = el("div", { class: "row", role: "radiogroup", "aria-label": "Colour" }, ...[["one", "One colour"], ["steps", "Changes at values"], ["blend", "Smooth blend"]].map(([k, n]) =>
+    el("label", { class: "check" }, el("input", { type: "radio", name: id + "-cm", checked: (lv.cmode || "one") === k, on: { change: () => {
+      lv.cmode = k;
+      if (k !== "one" && !lv.colors?.length) lv.colors = [{ from: 50, color: "#f2c94c" }, { from: 100, color: "#ff5a4e" }];
+      extrasChanged(true); } } }), " " + n)));
+  const isText = !!LEVEL_DESIGNS[lv.design]?.text;
+  const inner = el("label", { class: "check", hidden: isText || lv.cmode === "one" }, el("input", { type: "checkbox", checked: !!lv.inner, on: { change: (e) => { lv.inner = e.target.checked; extrasChanged(true); } } }),
+    " Gradient inside the picture ", el("span", { class: "hint" }, "(the filled part runs through the colours, like a meter)"));
+  // text
+  const fmtSel = (val, set) => select(nid("fmt"), [["pct", "62 %"], ["num", "62"], ["raw", `The device's value (${s.min}–${s.max})`]], val || "pct", set, "Text shows");
+  const textBox = el("div", { class: "lines" });
+  if (isText) textBox.append(el("p", { class: "hint" }, "The Text design is the value itself, as big as the whole frame, in the level's colour."), el("div", { class: "row" }, el("span", {}, "Shows"), fmtSel(lv.fmt, (v) => { lv.fmt = v; extrasChanged(true); })));
+  else {
+    lv.label = lv.label || { on: false, fmt: "pct", size: "m" };
+    textBox.append(el("label", { class: "check" }, el("input", { type: "checkbox", checked: !!lv.label.on, on: { change: (e) => { lv.label.on = e.target.checked; extrasChanged(true); } } }), " Show the value as text"));
+    if (lv.label.on) {
+      const { dx, dy } = labelCell(lv, rect);
+      const pick = el("div", { class: "cellpick", style: `grid-template-columns:repeat(${rect.w},26px)` });
+      for (let y = 0; y < rect.h; y++) for (let x = 0; x < rect.w; x++) pick.append(el("button", { type: "button", class: x === dx && y === dy ? "on" : "", "aria-pressed": String(x === dx && y === dy), title: `Column ${x + 1}, row ${y + 1}`,
+        on: { click: () => { lv.label.dx = x; lv.label.dy = y; extrasChanged(true); } } }, x === dx && y === dy ? "Aa" : ""));
+      textBox.append(el("div", { class: "row" }, el("span", {}, "Shows"), fmtSel(lv.label.fmt, (v) => { lv.label.fmt = v; extrasChanged(true); }),
+        el("span", {}, "Size"), select(nid("lsz"), [["s", "Small"], ["m", "Medium"], ["l", "Large"]], lv.label.size || "m", (v) => { lv.label.size = v; extrasChanged(true); }, "Text size")),
+        el("div", { class: "row", style: "align-items:flex-start" }, el("span", {}, "In which button"), pick, el("span", { class: "hint" }, "Text stays inside one button, so it never falls across the gap between two.")));
+    }
+  }
+  // when
+  const whenBox = el("div", { class: "lines" }, el("div", { class: "row" }, select(id + "-show", LEVEL_WHEN, lv.when || "always", (v) => { lv.when = v; extrasChanged(true); }, "How long it shows"),
+    el("span", { class: "hint" }, "Afterwards the buttons show their own pictures again.")));
+  if (lv.when !== "always") whenBox.append(el("label", { class: "check" }, el("input", { type: "checkbox", checked: lv.restart !== false, on: { change: (e) => { lv.restart = e.target.checked; extrasChanged(false); } } }), " Each change starts the time again"));
+  box.append(el("div", { class: "subhead" }, "Design"), gal, size, el("div", { class: "subhead" }, "Colour"), cm, levelColors(lv, id, { onlyMain: lv.cmode === "one" }), inner,
+    el("div", { class: "subhead" }, "Text"), textBox, el("div", { class: "subhead" }, "How long it shows"), whenBox,
+    el("p", { class: "hint" }, `The picture follows the slider's range (${s.min}–${s.max}) and updates within about 2 seconds. Single-page activities only: changing a page of a multi-page activity sends the remote back to its first page.`));
   return box;
 }
 
@@ -2544,30 +2789,37 @@ function colorWheel(hex, onPick, label) {
   wrap.append(cv, el("div", { class: "wheel-side" }, el("label", {}, "Brightness", bright), el("label", {}, "Code", hexIn)));
   return wrap;
 }
-/** Main color + color steps by value, all edited with one wheel (click a swatch to choose what it edits). */
-function levelColors(lv, id) {
+/** Main colour + colours by value, all edited with one wheel (click a swatch to choose what it edits). */
+function levelColors(lv, id, { onlyMain = false } = {}) {
   lv.colors = lv.colors || [];
-  if (lv._pick === undefined || (lv._pick !== "main" && !lv.colors[lv._pick])) lv._pick = "main";
+  if (onlyMain || lv._pick === undefined || (lv._pick !== "main" && !lv.colors[lv._pick])) lv._pick = "main";
+  const blend = lv.cmode === "blend";
   const box = el("div", { class: "lines" });
   const sw = (hex, sel, label, onClick) => el("button", { type: "button", class: "swatch" + (sel ? " sel" : ""), "aria-label": label, title: label, style: "background:" + hex, on: { click: onClick } });
   const rows = el("div", { class: "lines" });
-  rows.append(el("div", { class: "row" }, sw(hexOf(lv.color), lv._pick === "main", "Main color", () => { lv._pick = "main"; extrasChanged(true); }), el("span", {}, lv.colors.length ? "Below the first step" : "Color")));
-  lv.colors.forEach((c, i) => rows.append(el("div", { class: "row" },
-    sw(c.color, lv._pick === i, `Color from ${c.from} %`, () => { lv._pick = i; extrasChanged(true); }),
-    el("span", {}, "From"), input(id + "-cf" + i, String(c.from), (v) => { c.from = Math.max(0, Math.min(100, Number(v) || 0)); extrasChanged(false); }, { label: "From percent", type: "number", min: 0, max: 100, cls: "num" }), el("span", {}, "%"),
-    el("button", { class: "ghost small", type: "button", on: { click: () => { lv.colors.splice(i, 1); lv._pick = "main"; extrasChanged(true); } } }, "Remove"))));
-  if (lv.colors.length < 5) rows.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => {
-    const last = lv.colors.at(-1);
-    lv.colors.push({ from: last ? Math.min(100, last.from + 20) : 80, color: "#ff5a4e" }); lv._pick = lv.colors.length - 1; extrasChanged(true); } } }, "Change color from a value…")));
+  rows.append(el("div", { class: "row" }, sw(hexOf(lv.color), lv._pick === "main", "Main colour", () => { lv._pick = "main"; extrasChanged(true); }),
+    el("span", {}, onlyMain || !lv.colors.length ? "Colour" : blend ? "At 0 %" : "Below the first step")));
+  if (!onlyMain) {
+    lv.colors.forEach((c, i) => rows.append(el("div", { class: "row" },
+      sw(c.color, lv._pick === i, `Colour ${blend ? "at" : "from"} ${c.from} %`, () => { lv._pick = i; extrasChanged(true); }),
+      el("span", {}, blend ? "At" : "From"), input(id + "-cf" + i, String(c.from), (v) => { c.from = Math.max(0, Math.min(100, Number(v) || 0)); extrasChanged(false); }, { label: "Percent", type: "number", min: 0, max: 100, cls: "num" }), el("span", {}, "%"),
+      el("button", { class: "ghost small", type: "button", on: { click: () => { lv.colors.splice(i, 1); lv._pick = "main"; if (!lv.colors.length && lv.cmode) lv.cmode = "one"; extrasChanged(true); } } }, "Remove"))));
+    if (lv.colors.length < 5) rows.append(el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => {
+      const last = lv.colors.at(-1);
+      lv.colors.push({ from: last ? Math.min(100, last.from + 20) : 80, color: "#ff5a4e" }); lv._pick = lv.colors.length - 1; extrasChanged(true); } } }, "+ Add a colour")));
+  }
   const cur = lv._pick === "main" ? hexOf(lv.color) : lv.colors[lv._pick].color;
   // the swatch follows while dragging; the card (gallery, preview) redraws when the drag ends
   const wheel = colorWheel(cur, (hx, done) => {
     if (lv._pick === "main") lv.color = hx; else lv.colors[lv._pick].color = hx;
     const selSw = rows.querySelector(".swatch.sel"); if (selSw) selSw.style.background = hx;
     if (done) extrasChanged(true);
-  }, lv._pick === "main" ? "Main color" : `Color from ${lv.colors[lv._pick].from} %`);
+  }, lv._pick === "main" ? "Main colour" : `Colour at ${lv.colors[lv._pick].from} %`);
   box.append(el("div", { class: "wheel-row" }, wheel, rows));
-  if (lv.colors.length) box.append(el("p", { class: "hint" }, "The level switches to each step's color once the value reaches its %, e.g. red from 80 %."));
+  if (!onlyMain && lv.colors.length) {
+    const ramp = el("div", { class: "lvramp", style: `background:linear-gradient(90deg,${Array.from({ length: 21 }, (_, i) => colorAt(lv.color, lv.colors, i / 20, blend) + " " + i * 5 + "%").join(",")})` });
+    box.append(ramp, el("p", { class: "hint" }, blend ? "The main colour is at 0 %; each colour is reached at its %, blended smoothly in between." : "The level switches to each colour once the value reaches its %, e.g. red from 80 %."));
+  }
   return box;
 }
 /** The picture to draw under a slider's gauge: the one stored before, or the clicked button's custom icon. */
@@ -2579,22 +2831,18 @@ function levelBgOf(lv, cur) {
   if (cur?.default?.icon && cur.activity === lv.activity && JSON.stringify(cur.location) === JSON.stringify(lv.location)) return cur.default.icon.startsWith("custom:") ? cur.default.icon : null;
   return ic && ic.startsWith("custom:") && !/^custom:lv_/.test(ic) ? ic : null;
 }
-/** After a slider is saved or deleted: create, update or remove its level graphic. Returns an error text or null. */
+/** A see-through picture for buttons added to empty spots of a level's area. */
+let BLANK_ICON = null;
+async function blankIcon() {
+  if (!BLANK_ICON) BLANK_ICON = await uploadCanvas("lv_blank.png", gfxCanvas(() => {}));
+  return BLANK_ICON;
+}
+/** After a slider is saved or deleted: create, update or remove its level picture. Returns an error text or null. */
 /** Custom pictures of the buttons in a shape, keyed "x,y" (only the ones with a custom picture). */
 function cellBgsOf(lv, act, sc) {
   const out = {};
   for (const c of sc.cells) { const ic = origIconAt(act, c.x, c.y); if (ic && ic.startsWith("custom:")) out[c.x + "," + c.y] = ic; }
   return out;
-}
-/** A preview of a multi-button graphic: the tiles with small gaps, as on the remote. */
-function compositePreview(design, color, f, o, cells, k) {
-  const big = levelComposite(design, color, f, o);
-  const gap = 3, t = Math.round(90 * k);
-  const c = document.createElement("canvas");
-  c.width = o.rect.w * (t + gap); c.height = o.rect.h * (t + gap);
-  const g = c.getContext("2d");
-  for (const p of cells) g.drawImage(big, (p.x - o.rect.x0) * 90, (p.y - o.rect.y0) * 90, 90, 90, (p.x - o.rect.x0) * (t + gap), (p.y - o.rect.y0) * (t + gap), t, t);
-  return el("img", { src: c.toDataURL("image/png"), width: c.width, height: c.height, alt: "Preview" });
 }
 async function syncSliderLevels() {
   if (!iconsLoaded) return null;
@@ -2603,16 +2851,42 @@ async function syncSliderLevels() {
     const cur = levelOf(s.id);
     const lv = s.level;
     if (!lv || !lv.activity || !lv.location) { if (cur && !lv) { ICONS.splice(ICONS.indexOf(cur), 1); changed = true; } continue; }
-    const showOut = lv.show === "change" ? { show: "change", showMs: Math.round(Math.min(60, Math.max(1, Number(lv.showSec) || 4)) * 1000) } : {};
-    const want = { id: cur?.id || ("lvl_" + s.id.replace(/^slider_/, "")).slice(0, 40), name: s.name + " level", activity: lv.activity, location: lv.location, entity: s.entity, attr: s.attr,
-      kind: "level", min: Number(s.min), max: Number(s.max), design: lv.design, color: lv.color, slider: s.id, states: [],
-      scale: Number(lv.scale) || 1, ...(lv.colors?.length ? { colors: lv.colors.map((c) => ({ from: Number(c.from), color: c.color })).sort((x, y) => x.from - y.from) } : {}), ...showOut };
-    want.frames = cur && !cur.cells?.length && cur.design === want.design && cur.color === want.color && !cur.bg && (cur.scale || 1) === want.scale && JSON.stringify(cur.colors || []) === JSON.stringify(want.colors || []) ? cur.frames : [];
+    const act = ICON_ACTS.find((a) => a.id === lv.activity);
+    if (!act?.page) return `${s.name}: the level's activity isn't available any more`;
+    let sc = shapeCells(lv, act);
+    if (sc.blocked.length) return `${s.name}: the level's area covers a widget or a bigger button. Move or resize the frame.`;
+    const rect = sc.rect, spots = [];
+    for (let y = rect.y0; y < rect.y0 + rect.h; y++) for (let x = rect.x0; x < rect.x0 + rect.w; x++) spots.push({ x, y });
+    const other = ICONS.find((b) => b.activity === act.id && b.slider !== s.id && spotsOfB(b).some((p) => spots.some((q) => q.x === p.x && q.y === p.y)));
+    if (other) return `${s.name}: the level's area covers a button used by ${other.name || other.id}. Move or resize the frame.`;
+    // empty spots get a see-through button, so every spot of the area can show its part of the picture
+    if (sc.empty.length) {
+      const icon = await blankIcon();
+      const items = [...(act.page.items || []), ...sc.empty.map((p) => ({ type: "icon", icon, location: { x: p.x, y: p.y }, size: { width: 1, height: 1 } }))];
+      const r = await api("POST", "/api/core", { method: "PATCH", path: `/activities/${encodeURIComponent(act.id)}/ui/pages/${encodeURIComponent(act.page.page_id)}`, body: { items } });
+      if (!r.ok) return `${s.name}: couldn't add buttons for the empty spots (${r.data.error || "HTTP " + r.status})`;
+      act.page.items = items;
+      sc = shapeCells(lv, act);
+    }
+    const spec = levelSpec(lv, s), label = levelLabel(lv, rect), bgs = cellBgsOf(lv, act, { cells: spots });
+    const sig = hashStr(JSON.stringify([spec, rect, label, bgs]));
+    const when = lv.when || "always";
+    const lab = label.on ? { on: true, fmt: label.fmt, size: label.size, dx: label.x - rect.x0, dy: label.y - rect.y0 } : null;
+    const want = { id: cur?.id || ("lvl_" + s.id.replace(/^slider_/, "")).slice(0, 40), name: s.name + " level", activity: lv.activity, location: { x: rect.x0, y: rect.y0 }, entity: s.entity, attr: s.attr,
+      kind: "level", min: Number(s.min), max: Number(s.max), design: lv.design, color: lv.color, slider: s.id, states: [], scale: spec.scale, sig,
+      ...(spec.colors.length ? { colors: spec.colors.map((c) => ({ from: Number(c.from), color: c.color })).sort((x, y) => x.from - y.from) } : {}),
+      ...(spec.blend ? { blend: true } : {}), ...(spec.inner ? { inner: true } : {}), ...(spec.fmt !== "pct" ? { fmt: spec.fmt } : {}), ...(lab ? { label: lab } : {}),
+      ...(when === "always" ? {} : { show: "change", showMs: Math.round(Number(when) * 1000), ...(lv.restart === false ? { noRestart: true } : {}) }) };
+    const many = spots.length > 1;
+    const same = !!cur && cur.sig === sig && (many ? cur.cells?.length === spots.length && cur.cells.every((c, k) => c.x === spots[k].x && c.y === spots[k].y && c.frames?.length === 11) : !cur.cells?.length && cur.frames?.length === 11);
+    if (many) want.cells = spots.map((p, k) => ({ x: p.x, y: p.y, frames: same ? cur.cells[k].frames : [] }));
+    want.frames = same ? (many ? cur.cells[0].frames : cur.frames) : [];
+    if (!same) want._draw = { spec, rect, cells: spots, sig, bgs, label };
     if (!cur) { ICONS.push(want); changed = true; }
     else {
-      const keys = ["name", "activity", "location", "entity", "attr", "min", "max", "design", "color", "colors", "frames", "bg", "scale", "show", "showMs", "cells"];
+      const keys = ["name", "activity", "location", "entity", "attr", "min", "max", "design", "color", "colors", "frames", "scale", "show", "showMs", "noRestart", "cells", "blend", "inner", "fmt", "label", "sig"];
       if (keys.some((k) => JSON.stringify(cur[k] ?? null) !== JSON.stringify(want[k] ?? null))) {
-        for (const k of ["bg", "colors", "show", "showMs", "cells", "cellDefaults", "sig", "fit", "_draw"]) if (!(k in want)) delete cur[k];
+        for (const k of ["bg", "colors", "show", "showMs", "noRestart", "cells", "cellDefaults", "sig", "fit", "_draw", "blend", "inner", "fmt", "label"]) if (!(k in want)) delete cur[k];
         Object.assign(cur, want); changed = true;
       }
     }

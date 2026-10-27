@@ -117,8 +117,18 @@ export function validateIcons(input) {
       }
       if (b.show === "change") {
         const ms = Number(b.showMs ?? 4000);
-        if (!(ms >= 1000 && ms <= 60000)) errors.push(`${at}: show the level for 1–60 seconds`);
+        if (!(ms >= 1000 && ms <= 300000)) errors.push(`${at}: show the level for 1 second to 5 minutes`);
         Object.assign(levelOut, { show: "change", showMs: ms });
+        if (b.noRestart === true) levelOut.noRestart = true; // a change while it shows doesn't start the time again
+      }
+      // how the builder drew it (kept for editing): smooth colours, gradient inside, text format, text label
+      if (b.blend === true) levelOut.blend = true;
+      if (b.inner === true) levelOut.inner = true;
+      if (["num", "raw"].includes(b.fmt)) levelOut.fmt = b.fmt;
+      if (b.label && typeof b.label === "object" && b.label.on === true) {
+        const L = b.label;
+        levelOut.label = { on: true, fmt: ["num", "raw"].includes(L.fmt) ? L.fmt : "pct", size: ["s", "l"].includes(L.size) ? L.size : "m",
+          dx: Number.isInteger(L.dx) && L.dx >= 0 && L.dx < 10 ? L.dx : 0, dy: Number.isInteger(L.dy) && L.dy >= 0 && L.dy < 20 ? L.dy : 0 };
       }
       if (b.fit === "keep") levelOut.fit = "keep";
       if (b.sig && /^[a-z0-9_]{1,64}$/.test(String(b.sig))) levelOut.sig = String(b.sig); // builder's fingerprint of the drawn frames
@@ -317,7 +327,7 @@ export class StateIcons {
       // "show on change": the level appears when the value changes and hides again after showMs
       let visible = true;
       if (b.kind === "level" && b.show === "change") {
-        if (st.seen && JSON.stringify(value) !== JSON.stringify(st.lastValue)) st.showUntil = now + (b.showMs || 4000);
+        if (st.seen && JSON.stringify(value) !== JSON.stringify(st.lastValue) && !(b.noRestart && (st.showUntil || 0) > now)) st.showUntil = now + (b.showMs || 4000);
         st.seen = true;
         st.lastValue = value;
         visible = (st.showUntil || 0) > now;
