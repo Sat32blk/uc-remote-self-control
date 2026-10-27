@@ -173,6 +173,7 @@ ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.command?.entity_id === 
   await http("POST", "/api/login", { pin: "1234" });
   h = await http("GET", "/api/return");
   ok(h.status === 200 && h.data.cfg.hosts.join() === TV_ACT && h.data.activities.length === 2 && h.data.current, "builder: reads the ↩ settings, activities and current activity");
+  ok(h.data.activities.some((a) => a.name === h.data.current) && !/^uc\./.test(h.data.current) && (!h.data.previous || !/^uc\./.test(h.data.previous)), `builder: now / previous shown by name (${h.data.current} / ${h.data.previous})`);
   h = await http("POST", "/api/return", { hosts: [TV_ACT], screen: "none", button: "NONE" });
   ok(h.status === 422 && /on-screen button, a physical button/.test(h.data.errors[0]), "builder: nothing to show is refused");
   h = await http("POST", "/api/return", { hosts: [TV_ACT, MUSIC, "uc.main.bogus"], screen: "icon", button: "RECORD", press: "long_press", buttonScope: "nofit" });

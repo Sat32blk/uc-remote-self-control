@@ -1610,17 +1610,25 @@ const webServer = startWebServer({
 
   stateIcons: () => stateIcons,
   // ↩ Return to previous activity, also editable in the builder
-  returnSettings: async () => ({
-    cfg: returnTracker.cfg,
-    activities: core ? (await listActivities(core).catch(() => [])).filter((a) => !launchers.isCopy(a.id)) : [],
-    groups: core ? await activityGroups(core).catch(() => []) : [],
-    targets: Object.fromEntries(returnTracker.cfg.hosts.map((h) => [h, returnTracker.nameOf(returnTracker.targetFor(h)) || null])),
-    noRoom: returnTracker.cfg.hosts.filter((h) => { const hs = returnTracker.hostState[h]; return hs?.placed && !hs.onScreen && returnTracker.optsFor(h).screen !== "none"; }),
-    current: returnTracker.nameOf(returnTracker.current) || null,
-    previous: returnTracker.nameOf(returnTracker.previous) || null,
-    groupError: returnTracker.groupError || null,
-    coreEvents: coreEvents ? coreEvents.status() : null
-  }),
+  returnSettings: async () => {
+    const all = core ? await listActivities(core).catch(() => null) : null;
+    // names come from the list read here: the tracker only learns them while a ↩ button is in use
+    if (all) for (const a of all) returnTracker.names[a.id] = a.name;
+    // activities deleted from the remote are left out of "now / previous"
+    const known = all ? returnTracker.history.filter((id) => all.some((a) => a.id === id)) : returnTracker.history;
+    const label = (id) => (id ? (all && !returnTracker.names[id] ? null : returnTracker.nameOf(id)) : null);
+    return {
+      cfg: returnTracker.cfg,
+      activities: (all || []).filter((a) => !launchers.isCopy(a.id)),
+      groups: core ? await activityGroups(core).catch(() => []) : [],
+      targets: Object.fromEntries(returnTracker.cfg.hosts.map((h) => [h, returnTracker.nameOf(returnTracker.targetFor(h)) || null])),
+      noRoom: returnTracker.cfg.hosts.filter((h) => { const hs = returnTracker.hostState[h]; return hs?.placed && !hs.onScreen && returnTracker.optsFor(h).screen !== "none"; }),
+      current: label(known[0]),
+      previous: label(known[1]),
+      groupError: returnTracker.groupError || null,
+      coreEvents: coreEvents ? coreEvents.status() : null
+    };
+  },
   saveReturn: async (body) => {
     const acts = await listActivities(core).catch(() => []);
     const known = new Set(acts.map((a) => a.id));
