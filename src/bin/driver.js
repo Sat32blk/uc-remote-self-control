@@ -21,6 +21,7 @@ import { DeviceStates } from "./states.js";
 import { CoreEvents } from "./coreevents.js";
 import { PageJumper, validateStarts } from "./pages.js";
 import { Launchers, validateLaunchers, LIMITS as LAUNCHER_LIMITS } from "./launcher.js";
+import { Stats } from "./stats.js";
 import { isReturnItem } from "./returnbtn.js";
 import { spotsOf } from "./stateicons.js";
 
@@ -935,6 +936,21 @@ function publishStates() {
 // ---------------------------------------------------------------------------
 
 let refreshTimer = null;
+let stats = null;
+/** Statistics: which activities are on, the screen and the battery, once per settings poll (about every 20 s). */
+async function statsTick() {
+  if (!stats?.cfg.on || !core || standby) return;
+  const acts = [];
+  for (let page = 1; page <= 20; page++) {
+    const part = await core.get(`/activities?limit=100&page=${page}`);
+    if (!Array.isArray(part) || !part.length) break;
+    acts.push(...part);
+    if (part.length < 100) break;
+  }
+  let screen = "unknown";
+  try { const p = await core.get("/system/power"); const m = String(p?.power_mode || p?.mode || "").toUpperCase(); if (m) screen = m === "NORMAL" ? "on" : "off"; } catch {}
+  stats.tick(Date.now(), acts, screen, battery);
+}
 
 async function refresh() {
   if (!core) return false;
@@ -944,6 +960,7 @@ async function refresh() {
     if (battery) next.battery = battery;
     cache = next; // swapped in whole, so readers never see the settings without the battery
     publishStates();
+    statsTick().catch((e) => warn("statistics:", e.message));
     controls?.refresh().catch(() => {});
     await api.setDeviceState(uc.DeviceStates.Connected);
     return true;
@@ -1505,11 +1522,13 @@ api.on(uc.Events.Connect, async () => {
 
 api.on(uc.Events.Disconnect, async () => {
   connected = false;
+  stats?.pause();
   stopPolling();
 });
 
 api.on(uc.Events.EnterStandby, async () => {
   standby = true;
+  stats?.pause();
   stopPolling();
 });
 
@@ -1534,6 +1553,8 @@ cfgFile = path.join(api.getConfigDirPath(), "self_control.json");
 stateIcons = new StateIcons({ getCore: () => core, file: path.join(api.getConfigDirPath(), "state_icons.json"), log, warn });
 returnTracker = new ReturnTracker({ getCore: () => core, file: path.join(api.getConfigDirPath(), "return.json"), log, warn, onChange: updatePreviousSensor });
 updatePreviousSensor();
+stats = new Stats({ file: path.join(api.getConfigDirPath(), "statistics.json"), log, warn, originalOf: (id) => returnTracker.alias.originalOf(id) });
+for (const sig of ["SIGTERM", "SIGINT"]) process.once(sig, () => { stats?.pause(); process.exit(0); });
 extras = new Extras({ getCore: () => core, engine: () => smart, file: path.join(api.getConfigDirPath(), "sliders_menus.json"), publish: publishExtra, log, warn });
 buildExtraEntities();
 controls = new Controls({
@@ -1597,6 +1618,7 @@ const webServer = startWebServer({
   editorPath: path.join(HERE, "web", "editor.html"),
   dataDir: api.getConfigDirPath(),
   onScreen: () => onScreen(),
+  statsApi: { data: () => stats.data(), setConfig: (c) => stats.setConfig(c), clear: () => stats.clear(), csv: () => stats.csv() },
   getCore: () => core,
   makePinClient: (pin) => new CoreClient(config?.address || "127.0.0.1", { pin }),
   smart: () => smart,

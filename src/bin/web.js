@@ -135,7 +135,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, statsApi = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
   /** Everything set up here as one backup; withPictures = include the custom pictures (base64). */
   async function buildBackup(withPictures) {
     const core = getCore();
@@ -340,6 +340,27 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       try { list = await core.get(`/activities/${encodeURI(id)}/buttons`); } catch {}
       const buttons = (Array.isArray(list) ? list : []).map((b) => ({ button: b.button, short: b.short_press?.entity_id || null, long: b.long_press?.entity_id || null }));
       send(res, 200, { buttons });
+    },
+    // statistics: activity use and battery, collected by the integration
+    "GET /api/stats": async (req, res) => {
+      if (!statsApi) return send(res, 404, { error: "Statistics aren't available." });
+      send(res, 200, statsApi.data());
+    },
+    "POST /api/stats/settings": async (req, res) => {
+      if (!statsApi) return send(res, 404, { error: "Statistics aren't available." });
+      const body = await readJson(req);
+      send(res, 200, { ok: true, cfg: statsApi.setConfig(body || {}) });
+    },
+    "POST /api/stats/clear": async (req, res) => {
+      if (!statsApi) return send(res, 404, { error: "Statistics aren't available." });
+      statsApi.clear();
+      log("statistics: cleared from the builder");
+      send(res, 200, { ok: true });
+    },
+    "GET /api/stats/csv": async (req, res) => {
+      if (!statsApi) return send(res, 404, { error: "Statistics aren't available." });
+      res.writeHead(200, { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="remote-statistics.csv"', "Cache-Control": "no-store" });
+      res.end(statsApi.csv());
     },
     "GET /api/return": async (req, res) => {
       if (!getCore()) return send(res, 503, { error: "The integration isn't connected to the remote." });

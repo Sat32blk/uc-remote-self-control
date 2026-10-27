@@ -69,6 +69,34 @@ header > div:last-child { flex-direction: row !important; align-items: center !i
 :root[data-theme="dark"] .pw-pic .tt, :root[data-theme="config"] .pw-pic .tt, :root[data-theme="midnight"] .pw-pic .tt { outline: 1px solid var(--line); }
 .glyph { font-family: ucicons; color: #fff; line-height: 1; font-weight: 400; }
 .picwin .status:empty { display: none; }
+/* Statistics: one hue, thin bars, one axis per chart */
+.pane.stats { max-width: none; } .stats { --series-1: #2a78d6; --band: rgba(27,175,122,.16); --band-edge: #1baf7a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .stats { --series-1: #3987e5; --band: rgba(25,158,112,.22); --band-edge: #199e70; } }
+:root[data-theme="dark"] .stats, :root[data-theme="config"] .stats, :root[data-theme="midnight"] .stats, :root[data-theme="contrast"] .stats { --series-1: #3987e5; --band: rgba(25,158,112,.22); --band-edge: #199e70; }
+#stats-body { display: flex; flex-direction: column; gap: 10px; }
+.st-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.st-range { display: inline-flex; gap: 0; }
+.st-range button { border-radius: 0; margin-left: -1px; }
+.st-range button:first-child { border-radius: 8px 0 0 8px; } .st-range button:last-child { border-radius: 0 8px 8px 0; }
+.st-range button.on { background: var(--inset); font-weight: 600; }
+.st-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.st-tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.st-tile .k, .st-tile .d { font-size: 12.5px; color: var(--muted); }
+.st-tile .v { font-size: 28px; font-weight: 600; line-height: 1.2; margin-top: 2px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.st-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+@media (max-width: 1000px) { .st-two { grid-template-columns: 1fr; } }
+.st-card { min-width: 0; }
+.st-card svg { display: block; width: 100%; height: auto; overflow: visible; }
+.st-ax { font-size: 11.5px; fill: var(--muted); } .st-lbl { font-size: 12.5px; fill: var(--fg); } .st-val { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.st-gl { stroke: var(--line); stroke-width: 1; opacity: .7; }
+.st-hit { fill: transparent; }
+.st-xh { stroke: var(--muted); stroke-dasharray: 3 3; opacity: 0; } .st-xd { fill: var(--series-1); stroke: var(--panel); stroke-width: 2; opacity: 0; }
+.st-legend { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.st-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+.st-note { background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; margin: 0; }
+.st-note ul { margin: 6px 0 0; padding-left: 18px; }
+.st-table { width: 100%; } .st-table td.n, .st-table th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.st-tip { position: fixed; pointer-events: none; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.15); opacity: 0; transition: opacity .1s; z-index: 50; max-width: 280px; }
 .pw-drop { border: 2px dashed var(--line); border-radius: 10px; padding: 14px; text-align: center; color: var(--muted); font-size: 13px; }
 .pw-drop.over { border-color: var(--accent); }
 .pslot { width: 72px; height: 72px; border: 2px dashed var(--line); border-radius: 10px; display: grid; place-items: center; font-size: 11px; line-height: 1.2; color: #9aa3ad; text-align: center; cursor: pointer; background: #0f1114; overflow: hidden; position: relative; padding: 0; min-height: 72px; container-type: inline-size; }
@@ -298,12 +326,13 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
   </section>
 
   <nav class="tabs" id="tabs" role="tablist" hidden>
-    <button type="button" role="tab" id="tab-editor" aria-selected="false" aria-controls="editor-app">Page Editor <span class="badge">beta</span></button>
+    <button type="button" role="tab" id="tab-editor" aria-selected="false" aria-controls="editor-app">Page Editor</button>
     <button type="button" role="tab" id="tab-smart" aria-selected="true" aria-controls="app">Smart Controls</button>
     <button type="button" role="tab" id="tab-icons" aria-selected="false" aria-controls="icons-app">Icons &amp; Sliders</button>
     <button type="button" role="tab" id="tab-ret" aria-selected="false" aria-controls="ret-app">Return &amp; Pages ↩</button>
     <button type="button" role="tab" id="tab-ctl" aria-selected="false" aria-controls="ctl-app">Controls ⇅</button>
     <button type="button" role="tab" id="tab-launch" aria-selected="false" aria-controls="launch-app">Smart Launchers</button>
+    <button type="button" role="tab" id="tab-stats" aria-selected="false" aria-controls="stats-app">Statistics</button>
   </nav>
 
   <div class="secbar" id="secbar" hidden></div>
@@ -457,6 +486,11 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
       </details>
     </aside>
   </section>
+
+  <section class="pane stats" id="stats-app" hidden aria-label="Statistics">
+    <div id="stats-body"></div>
+  </section>
+  <div class="st-tip" id="st-tip" role="tooltip"></div>
 </div>
 
 <script>
@@ -3016,7 +3050,7 @@ function picSlot(o) {
 // ---------------------------------------------------------------------------
 // Section bar (the Page Editor's): each tab's parts, its status, ⓘ for what the tab is for
 // ---------------------------------------------------------------------------
-const SECS = { smart: [["smart", "Smart controls"], ["menu", "Quick menus"]], icons: [["icon", "State icons"], ["slider", "Sliders"]], ret: [["ret", "↩ buttons"], ["starts", "Start pages"]], ctl: [["ctl", "Controls"], ["set", "Settings"]], launch: [["launch", "Launchers"]] };
+const SECS = { stats: [["overview", "Overview"], ["acts", "Activities"], ["battery", "Battery"], ["data", "Data"]], smart: [["smart", "Smart controls"], ["menu", "Quick menus"]], icons: [["icon", "State icons"], ["slider", "Sliders"]], ret: [["ret", "↩ buttons"], ["starts", "Start pages"]], ctl: [["ctl", "Controls"], ["set", "Settings"]], launch: [["launch", "Launchers"]] };
 const PIC_SECS = { smart: ["menu"], icons: ["icon", "slider"], ret: ["ret"], launch: ["launch"] };
 const SEC = {};
 try { Object.assign(SEC, JSON.parse(localStorage.getItem("scb_secs") || "{}")); } catch {}
@@ -3030,6 +3064,7 @@ function secStatus(tab) {
     if (tab === "ret") return $("#ret-status").textContent || (RET ? n(RET.cfg.hosts.length, "activity with ↩", "activities with ↩") : "");
     if (tab === "ctl") return CTL ? n(CTL.controls.length, "control", "controls") : "";
     if (tab === "launch") return LAUNCH ? n(LAUNCH.length, "launcher", "launchers") : "";
+    if (tab === "stats") return STATS && !STATS.error ? n(STATS.uses.length, "activity use", "activity uses") + " collected" : "";
   } catch {}
   return "";
 }
@@ -3059,6 +3094,7 @@ function applySec(tab) {
   }
   for (const b of $("#secbar").querySelectorAll(".sec")) b.setAttribute("aria-pressed", String(b.textContent === SECS[tab].find(([k]) => k === v)?.[1]));
   const st = $("#sec-status"); if (st) st.textContent = secStatus(tab);
+  if (tab === "stats") renderStats();
   const pics = !!PIC_SECS[tab]?.includes(v);
   const w = $("#picwin");
   for (const p of document.querySelectorAll(".pane.split")) p.classList.toggle("haspics", pics && p === pane);
@@ -3081,10 +3117,190 @@ function showSecFor(tab, kind) {
 }
 try { const s = localStorage.getItem("scb_pwsrc"); if (s) PW.src = s; } catch {}
 
+// ---------------------------------------------------------------------------
+// Statistics: activity use and battery, collected by the integration on the remote
+// ---------------------------------------------------------------------------
+let STATS = null, ST_RANGE = 30, ST_LOADING = null, ST_CLEAR = false;
+try { const r = Number(localStorage.getItem("scb_strange")); if ([7, 30, 0].includes(r)) ST_RANGE = r; } catch {}
+const ST_DAY = 864e5;
+const stHm = (ms) => { const m = Math.round(ms / 6e4), h = Math.floor(m / 60); return h ? `${h} h ${String(m % 60).padStart(2, "0")} min` : `${m} min`; };
+const stEsc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ST_REL = { good: "reliable", fair: "getting there", low: "not enough data yet" };
+async function loadStats() {
+  if (ST_LOADING) return ST_LOADING;
+  ST_LOADING = (async () => {
+    const r = await api("GET", "/api/stats");
+    STATS = r.ok ? r.data : { error: r.data.error || "HTTP " + r.status };
+    ST_LOADING = null;
+    if (CUR_TAB === "stats") { renderStats(); const st = $("#sec-status"); if (st) st.textContent = secStatus("stats"); }
+  })();
+  return ST_LOADING;
+}
+/** Days the chosen period covers (never more than has been collected). */
+function stDays() {
+  const have = Math.max(1 / 24, (STATS.now - STATS.since) / ST_DAY);
+  return ST_RANGE ? Math.min(ST_RANGE, have) : have;
+}
+function stUses() { const cut = STATS.now - stDays() * ST_DAY; return STATS.uses.filter((u) => u.end > cut); }
+function stPer(uses) {
+  const by = new Map();
+  for (const u of uses) {
+    const p = by.get(u.id) || { id: u.id, name: u.name, n: 0, on: 0, screen: 0, off: 0, drain: 0, hours: [] };
+    p.name = u.name; p.n++; p.on += u.end - u.start; p.screen += u.screen; p.off += u.off; p.drain += u.drain; p.hours.push(new Date(u.start).getHours());
+    by.set(u.id, p);
+  }
+  for (const p of by.values()) { const h = p.off / 36e5; p.rate = h >= 0.25 ? p.drain / h : null; p.rel = h >= 6 ? "good" : h >= 2 ? "fair" : "low"; p.offH = h; }
+  return [...by.values()];
+}
+function stTip(el, html) {
+  el.addEventListener("pointermove", (e) => { const t = $("#st-tip"); t.innerHTML = typeof html === "function" ? html() : html; t.style.opacity = 1; t.style.left = Math.min(innerWidth - t.offsetWidth - 8, e.clientX + 14) + "px"; t.style.top = e.clientY + 14 + "px"; });
+  el.addEventListener("pointerleave", () => ($("#st-tip").style.opacity = 0));
+}
+function stBars(rows, { value, fmt, extra = () => "", tip }) {
+  const W = 640, rowH = 30, L = 170, R = 160, H = rows.length * rowH + 22;
+  const top = Math.max(...rows.map((r) => value(r) || 0), 0.0001), raw = top / 4, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((k) => k >= raw), max = step * Math.max(1, Math.ceil(top / step));
+  const x = (v) => L + (v / max) * (W - L - R);
+  let g = `<svg viewBox="0 0 ${W} ${H}" role="img">`;
+  for (let v = 0; v <= max + 1e-9; v += step) { const X = x(v); g += `<line class="st-gl" x1="${X}" x2="${X}" y1="0" y2="${H - 20}"/><text class="st-ax" x="${X}" y="${H - 4}" text-anchor="middle">${fmt(v, true)}</text>`; }
+  rows.forEach((r, i) => {
+    const y = i * rowH + 6, v = value(r);
+    g += `<text class="st-lbl" x="${L - 10}" y="${y + 13}" text-anchor="end">${stEsc(r.name.length > 24 ? r.name.slice(0, 23) + "…" : r.name)}</text>`;
+    if (v != null && v > 0) { const X = Math.max(x(v), L + 5); g += `<path d="M${L} ${y + 3} H${X - 4} a4 4 0 0 1 4 4 v6 a4 4 0 0 1 -4 4 H${L} Z" fill="var(--series-1)"/>`; }
+    g += `<text class="st-val" x="${(v != null && v > 0 ? Math.max(x(v), L + 5) : L) + 8}" y="${y + 13}">${v != null ? fmt(v) : "–"}${extra(r)}</text>`;
+    g += `<rect class="st-hit" data-i="${i}" x="0" y="${y - 3}" width="${W}" height="${rowH}"/>`;
+  });
+  const wrap = el("div", {}); wrap.innerHTML = g + "</svg>";
+  wrap.querySelectorAll(".st-hit").forEach((h) => stTip(h, tip(rows[+h.dataset.i])));
+  return wrap;
+}
+function stBatteryLine() {
+  const pts = STATS.battery.filter((b) => b[0] >= STATS.now - 7 * ST_DAY);
+  if (pts.length < 2) return el("p", { class: "empty" }, "Battery readings appear here as they're collected (one every " + STATS.cfg.every + " minutes while the remote is awake).");
+  const W = 900, H = 230, L = 36, R = 10, T = 10, B = 26, t0 = pts[0][0], t1 = Math.max(pts[pts.length - 1][0], t0 + 36e5);
+  const x = (t) => L + ((t - t0) / (t1 - t0)) * (W - L - R), y = (v) => T + (1 - v / 100) * (H - T - B);
+  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Battery level, last 7 days">`;
+  let s = null;
+  for (const p of pts) { if (p[2] && s == null) s = p[0]; if (!p[2] && s != null) { g += `<rect x="${x(s)}" y="${T}" width="${Math.max(1, x(p[0]) - x(s))}" height="${H - T - B}" fill="var(--band)"/>`; s = null; } }
+  if (s != null) g += `<rect x="${x(s)}" y="${T}" width="${Math.max(1, x(t1) - x(s))}" height="${H - T - B}" fill="var(--band)"/>`;
+  for (const v of [0, 25, 50, 75, 100]) g += `<line class="st-gl" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="st-ax" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}%</text>`;
+  const spanD = (t1 - t0) / ST_DAY;
+  if (spanD >= 1.5) { const d0 = new Date(t0); d0.setHours(24, 0, 0, 0); for (let t = d0.getTime(); t < t1; t += ST_DAY) g += `<text class="st-ax" x="${x(t)}" y="${H - 6}" text-anchor="middle">${new Date(t).toLocaleDateString(undefined, { weekday: "short" })}</text>`; }
+  else for (let k = 0; k <= 4; k++) { const t = t0 + (k / 4) * (t1 - t0); g += `<text class="st-ax" x="${x(t)}" y="${H - 6}" text-anchor="middle">${new Date(t).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</text>`; }
+  // gaps (the remote slept, no readings): the line breaks
+  let d = "", prev = null;
+  for (const p of pts) { d += (prev && p[0] - prev[0] <= (STATS.cfg.every * 2 + 5) * 6e4 ? "L" : "M") + x(p[0]).toFixed(1) + " " + y(p[1]).toFixed(1) + " "; prev = p; }
+  g += `<path d="${d}" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round"/>`;
+  g += `<line class="st-xh" y1="${T}" y2="${H - B}"/><circle class="st-xd" r="4.5"/><rect class="st-hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"/></svg>`;
+  const wrap = el("div", {}); wrap.innerHTML = g;
+  const svg = wrap.querySelector("svg"), hit = wrap.querySelector(".st-hit"), xh = wrap.querySelector(".st-xh"), xd = wrap.querySelector(".st-xd");
+  let near = null;
+  hit.addEventListener("pointermove", (e) => {
+    const r = svg.getBoundingClientRect(), tt = t0 + ((e.clientX - r.left) / r.width * W - L) / (W - L - R) * (t1 - t0);
+    near = pts.reduce((a, b) => (Math.abs(b[0] - tt) < Math.abs(a[0] - tt) ? b : a));
+    xh.setAttribute("x1", x(near[0])); xh.setAttribute("x2", x(near[0])); xh.style.opacity = 1;
+    xd.setAttribute("cx", x(near[0])); xd.setAttribute("cy", y(near[1])); xd.style.opacity = 1;
+  });
+  hit.addEventListener("pointerleave", () => { xh.style.opacity = 0; xd.style.opacity = 0; });
+  stTip(hit, () => { if (!near) return ""; const u = STATS.uses.find((s) => s.start <= near[0] && s.end > near[0]); return `<b>${new Date(near[0]).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</b><br>Battery ${near[1]} %${near[2] ? " · on the dock" : ""}${u ? "<br>" + stEsc(u.name) : ""}`; });
+  wrap.append(el("div", { class: "st-legend" }, el("span", {}, el("i", { style: "background:var(--series-1);height:3px;vertical-align:3px" }), "Battery level"), el("span", {}, el("i", { style: "background:var(--band);border:1px solid var(--band-edge)" }), "On the dock (charging)")));
+  return wrap;
+}
+function stHeatmap(uses) {
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], M = days.map(() => Array(24).fill(0));
+  for (const u of uses) for (let t = u.start; t < u.end; t += 15 * 6e4) { const d = new Date(t); M[(d.getDay() + 6) % 7][d.getHours()] += Math.min(15 * 6e4, u.end - t) / 36e5; }
+  const weeks = Math.max(1, stDays() / 7), max = Math.max(...M.flat()) || 1;
+  const W = 1400, L = 40, T = 4, cw = (W - L) / 24, ch = 24, H = T + 7 * ch + 22;
+  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="When activities are on, by weekday and hour">`;
+  M.forEach((row, di) => { g += `<text class="st-ax" x="${L - 6}" y="${T + di * ch + 16}" text-anchor="end">${days[di]}</text>`;
+    row.forEach((v, h) => { const a = v / max; g += `<rect class="st-cell" data-d="${di}" data-h="${h}" x="${L + h * cw + 1}" y="${T + di * ch + 1}" width="${cw - 2}" height="${ch - 2}" rx="3" fill="${a ? `color-mix(in oklab, var(--series-1) ${Math.round(12 + a * 88)}%, var(--panel))` : "var(--inset)"}"/>`; }); });
+  for (const h of [0, 3, 6, 9, 12, 15, 18, 21]) g += `<text class="st-ax" x="${L + h * cw + cw / 2}" y="${H - 4}" text-anchor="middle">${h === 0 ? "12a" : h < 12 ? h + "a" : h === 12 ? "12p" : h - 12 + "p"}</text>`;
+  const wrap = el("div", {}); wrap.innerHTML = g + "</svg>";
+  wrap.querySelectorAll(".st-cell").forEach((c) => { const d = +c.dataset.d, h = +c.dataset.h; stTip(c, `<b>${days[d]} ${h}:00–${h + 1}:00</b><br>${Math.round((M[d][h] / weeks) * 60)} min a week on average`); });
+  wrap.append(el("div", { class: "st-legend" }, el("span", {}, "Less"), ...[15, 40, 65, 100].map((p) => el("i", { style: `background:color-mix(in oklab, var(--series-1) ${p}%, var(--panel))` })), el("span", {}, "More")));
+  return wrap;
+}
+const stCard = (title, sub, ...kids) => el("section", { class: "panel st-card" }, el("h2", {}, title), sub ? el("p", { class: "hint" }, sub) : null, ...kids);
+function stTiles(uses, per, only) {
+  const days = stDays();
+  const tot = uses.reduce((a, u) => a + (u.end - u.start), 0), scr = uses.reduce((a, u) => a + u.screen, 0);
+  const top = [...per].sort((a, b) => b.on - a.on)[0];
+  const offH = per.reduce((a, p) => a + p.offH, 0), drain = per.reduce((a, p) => a + p.drain, 0);
+  const rate = offH >= 0.25 ? drain / offH : null;
+  const idleH = STATS.idle.off / 36e5, idle = idleH >= 2 ? STATS.idle.drain / idleH : null;
+  const useH = offH / days;
+  const life = rate != null && idle != null ? 100 / (rate * useH + idle * Math.max(0, 24 - useH)) : null;
+  const all = {
+    on: ["Activities on", stHm(tot / days), `a day on average · ${uses.length} uses`],
+    screen: ["Screen on", stHm(scr / days), "a day: the part you were holding it"],
+    top: ["Most used", top ? stEsc(top.name) : "–", top ? `${stHm(top.on)} · ${top.n} uses` : "nothing yet"],
+    rate: ["Battery while in use", rate != null ? `${rate.toFixed(1)} %/h` : "–", rate != null ? "average, off the dock" : "needs 15 min off the dock"],
+    idle: ["Battery while idle", idle != null ? `${idle.toFixed(2)} %/h` : "–", idle != null ? "asleep or nothing on, off the dock" : "needs 2 h off the dock"],
+    life: ["One charge lasts", life != null ? `${life.toFixed(1)} days` : "–", life != null ? "at your usual use (estimate)" : "not enough data yet"]
+  };
+  return el("div", { class: "st-tiles" }, ...(only || Object.keys(all)).map((k) => { const [a, b, c] = all[k]; const t = el("div", { class: "st-tile" }, el("div", { class: "k" }, a), el("div", { class: "v" }), el("div", { class: "d" }, c)); t.querySelector(".v").innerHTML = b; return t; }));
+}
+function renderStats() {
+  const box = $("#stats-body");
+  if (!box) return;
+  if (!STATS) { box.replaceChildren(el("p", { class: "hint" }, "Loading…")); loadStats(); return; }
+  if (STATS.error) { box.replaceChildren(el("p", { class: "status err" }, "Couldn't read the statistics: " + STATS.error)); return; }
+  const sec = secOf("stats");
+  const range = el("div", { class: "st-range", role: "group", "aria-label": "Period" }, ...[[7, "7 days"], [30, "30 days"], [0, "All"]].map(([v, n]) =>
+    el("button", { type: "button", class: "small" + (ST_RANGE === v ? " on" : ""), "aria-pressed": String(ST_RANGE === v), on: { click: () => { ST_RANGE = v; try { localStorage.setItem("scb_strange", String(v)); } catch {} renderStats(); } } }, n)));
+  const head = el("div", { class: "st-head" }, el("span", { class: "hint" }, `Collecting since ${new Date(STATS.since).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}${STATS.cfg.on ? "" : " · paused"} · ${STATS.uses.length} uses · ${STATS.battery.length.toLocaleString()} battery readings`),
+    el("span", { style: "flex:1" }), el("button", { type: "button", class: "small", on: { click: () => { STATS = null; renderStats(); } } }, "Refresh"), sec === "data" ? null : range);
+  const uses = stUses(), per = stPer(uses), parts = [head];
+  const label = ST_RANGE ? `last ${ST_RANGE} days` : "since collecting started";
+  const few = !STATS.uses.length;
+  if (few && sec !== "data") parts.push(el("p", { class: "st-note" }, "Nothing collected yet. Statistics are gathered while the integration runs: start an activity and check back in a while. The longer it runs, the more reliable the figures get."));
+  const byTime = [...per].sort((a, b) => b.on - a.on);
+  const timeBars = () => stBars(byTime, { value: (r) => r.on / stDays() / 6e4, fmt: (v, ax) => (ax ? (v >= 60 ? Math.floor(v / 60) + "h" + (v % 60 ? " " + Math.round(v % 60) + "m" : "") : Math.round(v) + "m") : stHm(v * 6e4) + " a day"),
+    tip: (r) => `<b>${stEsc(r.name)}</b><br>${stHm(r.on)} · used ${r.n} times<br>screen on ${stHm(r.screen)}` });
+  const rated = [...per].sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1));
+  const drainBars = () => stBars(rated, { value: (r) => r.rate, fmt: (v, ax) => (ax ? +v.toFixed(1) + "%" : v.toFixed(1) + " %/h"), extra: (r) => `  ·  ${ST_REL[r.rel]}`,
+    tip: (r) => `<b>${stEsc(r.name)}</b><br>${r.rate != null ? r.rate.toFixed(1) + " % of the battery per hour" : "too little use off the dock yet"}<br>based on ${stHm(r.off)} off the dock (${ST_REL[r.rel]})` });
+  if (sec === "overview" && !few) {
+    parts.push(stTiles(uses, per), el("div", { class: "st-two" }, stCard("Time per activity", `On average per day, ${label}`, timeBars()), stCard("Battery used per activity", "Percent of the battery per hour of use, only while off the dock", drainBars())),
+      stCard("When you use the remote", `Activities on, by weekday and hour, ${label}`, stHeatmap(uses)));
+  } else if (sec === "acts" && !few) {
+    const t = el("table", { class: "stable st-table" });
+    t.innerHTML = `<thead><tr><th>Activity</th><th class="n">Uses</th><th class="n">Total on</th><th class="n">Screen on</th><th class="n">Average use</th><th>Usually</th></tr></thead><tbody>${byTime.map((p) => {
+      const ev = p.hours.filter((h) => h >= 17).length / p.hours.length;
+      return `<tr><td>${stEsc(p.name)}</td><td class="n">${p.n}</td><td class="n">${stHm(p.on)}</td><td class="n">${stHm(p.screen)}</td><td class="n">${stHm(p.on / p.n)}</td><td>${ev > 0.6 ? "evenings" : ev < 0.3 ? "daytime" : "all day"}</td></tr>`; }).join("")}</tbody>`;
+    const l = el("table", { class: "stable st-table" });
+    l.innerHTML = `<thead><tr><th>Started</th><th>Activity</th><th class="n">How long</th><th class="n">Battery</th></tr></thead><tbody>${uses.slice(-15).reverse().map((u) => `<tr><td>${new Date(u.start).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${u.open ? " (on now)" : ""}</td><td>${stEsc(u.name)}</td><td class="n">${stHm(u.end - u.start)}</td><td class="n">${u.off < 6e4 ? "on the dock" : u.drain >= 0.5 ? "−" + Math.round(u.drain) + " %" : "less than 1 %"}</td></tr>`).join("")}</tbody>`;
+    parts.push(stCard("Time per activity", `On average per day, ${label}`, timeBars()), stCard("All activities", label, t), stCard("Latest uses", "", l));
+  } else if (sec === "battery" && !few) {
+    const why = el("div", { class: "st-note" });
+    why.innerHTML = `<b>How reliable is it?</b> The battery only reports whole percents, so one evening says little. Each activity's figure firms up as hours off the dock add up: <b>reliable</b> after 6 h, <b>getting there</b> after 2 h. Time on the dock is left out. Time asleep or with nothing on counts as <b>idle</b>. When two activities are on at once, the battery used is shared between them.`;
+    parts.push(stTiles(uses, per, ["rate", "idle", "life"]), stCard("Battery level, last 7 days", "Drops while activities run; green while on the dock; gaps while the remote slept", stBatteryLine()),
+      el("div", { class: "st-two" }, stCard("Battery used per activity", "Percent per hour, only while off the dock", drainBars()), stCard("What the numbers mean", "", why)));
+  } else if (sec === "data") {
+    const sel = (label, key, opts) => el("label", { class: "f" }, label, select(nid("st"), opts.map(([v, n]) => [String(v), n]), String(STATS.cfg[key]), async (v) => {
+      const body = { [key]: key === "on" ? v === "true" : Number(v) };
+      const r = await api("POST", "/api/stats/settings", body);
+      if (r.ok) { STATS.cfg = r.data.cfg; renderStats(); }
+    }, label));
+    const clear = el("div", { class: "row" },
+      el("a", { class: "btn", href: "/api/stats/csv", download: "remote-statistics.csv" }, "Download as CSV"),
+      ST_CLEAR ? el("button", { type: "button", class: "danger", on: { click: async () => { const r = await api("POST", "/api/stats/clear"); ST_CLEAR = false; STATS = null; renderStats(); if (!r.ok) alert(r.data.error || "Couldn't clear."); } } }, "Yes, clear everything") : null,
+      el("button", { type: "button", class: ST_CLEAR ? "" : "danger", on: { click: () => { ST_CLEAR = !ST_CLEAR; renderStats(); } } }, ST_CLEAR ? "Cancel" : "Clear statistics…"));
+    parts.push(stCard("Data", "",
+      el("div", { class: "fields" }, sel("Collect statistics", "on", [[true, "On"], [false, "Off"]]), sel("Battery reading every", "every", [[5, "5 minutes"], [15, "15 minutes"], [30, "30 minutes"]]), sel("Keep", "keepDays", [[30, "30 days"], [90, "90 days"], [365, "1 year"]])),
+      el("p", { class: "hint" }, `Stored by the integration on the remote (${Math.max(1, Math.round((STATS.size || 0) / 1024))} KB now). Activity starts and stops and the screen are read about every 20 seconds while the remote is awake; battery readings come from the remote's battery status. Nothing leaves the remote.`), clear));
+    const lim = el("div", { class: "st-note" });
+    lim.innerHTML = `<b>Good to know</b><ul><li>Only while the integration runs and the remote is awake: time asleep counts as idle, not as activity use.</li><li>An activity that stays on after you put the remote down still counts as "on"; <b>Screen on</b> is the time the screen was actually on.</li><li>Uses shorter than 30 seconds (switching through) are left out.</li><li>Launcher copies count as their original activity.</li></ul>`;
+    parts.push(stCard("Limits", "", lim));
+  }
+  box.replaceChildren(...parts);
+}
+
 const TABS = {
   editor: { pane: "#editor-app", intro: "Edit your activities on a picture of your remote: pages, buttons and pictures, physical keys, start and off sequences, activity groups, macros, the home screen and your devices. Saved straight to the remote, after a copy of what it changes." },
   smart: { pane: "#app", intro: "Buttons and pop-up menus for the Remote Self-Control integration. A smart control checks your devices or the remote, then runs the first branch that matches; a quick menu runs the steps of the choice you pick." },
   ret: { pane: "#ret-app", intro: "A ↩ button in your activities that always opens the activity you used before, and start pages: the page an activity opens on, depending on your devices." },
+  stats: { pane: "#stats-app", intro: "Statistics: which activities you use, for how long and when, and how much battery they take while the remote is off the dock. Collected by the integration on the remote; the longer it runs, the more reliable the figures." },
   launch: { pane: "#launch-app", intro: "Smart launchers: one button that opens the activity your conditions pick, e.g. Watch ShieldTV if the Shield is on, otherwise Watch RokuTV." },
   ctl: { pane: "#ctl-app", intro: "Point the volume rocker and the touch slider at something else for a while: turn on a Control: <name> switch, and they change a light, a volume or one of your sliders, with the remote's own level pop-ups. Then they go back to the activity's defaults." },
   icons: { pane: "#icons-app", intro: "Show and control your devices: state icons make a button on a page follow a device's state (like a green power icon); sliders control a number like the receiver's volume with the remote's slider pop-up." }
@@ -3106,6 +3322,7 @@ function showTab(which) {
   if (which === "ret") { renderRet(); loadStarts(); }
   if (which === "ctl") renderCtl();
   if (which === "launch") loadLaunchers();
+  if (which === "stats") { STATS = null; renderStats(); }
   document.body.classList.toggle("wide", which === "editor");
   if (which === "editor" && !$("#editor-frame").getAttribute("src")) $("#editor-frame").setAttribute("src", "/editor");
   if (which === "editor") requestAnimationFrame(sizeEditor);
