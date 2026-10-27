@@ -919,6 +919,13 @@ const shortName = (id) => String(id).replace(/^(custom|ctv|uc):/, "").replace(/\
 const UCICONS = []; // [{ name, ch }]
 const UCMAP = {};
 let ICONFONT = false; // the font could be loaded from the remote: draw the real icons, else show their names
+let GLYPHS = null; // name -> character, read once from the configurator; reused when the remote is read again (after a save)
+/** Fill UCICONS / UCMAP from the glyphs read before. */
+function applyGlyphs() {
+  let found = 0;
+  for (const x of UCICONS) { const ch = (GLYPHS && GLYPHS[x.name]) || ""; x.ch = ch; if (ch) { UCMAP[x.name] = ch; found++; } }
+  return found;
+}
 const ucChar = (v) => { const t = String(v || ""); if (t.length === 1) return t; const m = /^\\?u([0-9a-f]{4,5})$/i.exec(t); return m ? String.fromCodePoint(parseInt(m[1], 16)) : ""; };
 /** The web configurator's way: uc:<name> -> its alias (if any) -> the character in Font Awesome 6 Pro light. */
 async function loadIconGlyphs() {
@@ -926,9 +933,8 @@ async function loadIconGlyphs() {
     const r = await fetch("/api/editor/iconmap", { credentials: "same-origin" });
     if (!r.ok) return;
     const { glyphs = {} } = await r.json();
-    let found = 0;
-    for (const x of UCICONS) { const ch = glyphs[x.name] || ""; x.ch = ch; if (ch) { UCMAP[x.name] = ch; found++; } }
-    if (!found) return;
+    GLYPHS = glyphs;
+    if (!applyGlyphs()) return;
     const f = new FontFace("ucicons", "url(/api/editor/iconfont)");
     document.fonts.add(await f.load());
     ICONFONT = true;
@@ -1104,6 +1110,7 @@ async function loadAll() {
   // with the character for each name read from the configurator (loaded in the background)
   for (const name of Object.keys(mapping || {})) UCICONS.push({ name, ch: "" });
   UCICONS.sort((a, b) => a.name.localeCompare(b.name));
+  if (UCICONS.length && GLYPHS) applyGlyphs(); // read again (e.g. after saving): keep drawing them, not their names
   if (UCICONS.length && !ICONFONT) loadIconGlyphs();
   for (const r of bgs) BGS.push({ id: "custom:" + r.id, file: r.id, name: r.id, css: `url("${imgUrl("BackgroundImage", r.id)}")` });
   // activities, in full (pages, keys, sequences)
