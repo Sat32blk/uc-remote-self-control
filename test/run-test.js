@@ -48,7 +48,7 @@ const send = (msg, msg_data) => ws.send(JSON.stringify({ kind: "event", msg, msg
 
 // --- before setup
 let r = await req("get_driver_version");
-ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.0.7", "driver_version 1.0.7");
+ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.0.8", "driver_version 1.0.8");
 send("connect");
 await sleep(300);
 r = await req("get_device_state");

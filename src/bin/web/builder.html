@@ -34,13 +34,47 @@
 .themepick { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .themepick select { min-height: 30px; padding: 3px 6px; font-size: 13px; }
 /* Page Editor tab: the editor runs in its own page, shown full width */
-body.wide .wrap { max-width: 1760px; gap: 10px; }
-body.wide #tab-intro { display: none; }
+/* One header for every tab (the Page Editor's): one row, full width; each tab's intro sits behind the ⓘ in its section bar */
+.wrap { max-width: 1760px !important; gap: 10px !important; }
+body { padding-block-start: 8px !important; }
 body.wide { padding-block-end: 8px; }
-body.wide header h1 { font-size: 20px; }
-body.wide { padding-block-start: 8px; }
-body.wide header { align-items: center; }
-body.wide header > div:last-child { flex-direction: row !important; align-items: center !important; gap: 12px !important; }
+header h1 { font-size: 20px !important; }
+header { align-items: center !important; }
+header > div:last-child { flex-direction: row !important; align-items: center !important; gap: 12px !important; flex-wrap: wrap; }
+#tab-intro { display: none; }
+.secbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
+.secbar .sec { border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 8px; padding: 6px 14px; font-weight: 500; }
+.secbar .sec[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+.secbar .grow { flex: 1; }
+.secbar .status { font-size: 13px; }
+.about { background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+/* Pictures window (the Page Editor's) beside every editor that takes a picture */
+.picwin { position: sticky; top: 8px; max-height: calc(100vh - 16px); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.picwin .pw-head { display: flex; align-items: baseline; gap: 8px; }
+.picwin .pw-head h2 { margin: 0 auto 0 0; font-size: 17px; }
+.picwin select, .picwin input[type=search] { width: 100%; }
+.pw-target { display: flex; gap: 8px; align-items: center; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 10px; padding: 6px 10px; font-size: 13px; }
+.pw-target.none { background: var(--inset); border-color: var(--line); color: var(--muted); }
+.pw-target .mini { width: 30px; height: 30px; border-radius: 6px; background: #000; display: grid; place-items: center; flex: none; overflow: hidden; }
+.pw-target .mini img { width: 100%; height: 100%; object-fit: contain; }
+.pw-grid { overflow-y: auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 2px; min-height: 80px; align-content: start; }
+.pw-pic { border: 1px solid var(--line); border-radius: 10px; padding: 5px 5px 2px; background: var(--panel); color: var(--muted); font-size: 11px; text-align: center; cursor: grab; min-height: 0; min-width: 0; display: block; }
+.pw-pic:hover, .pw-pic:focus-visible { border-color: var(--accent); }
+.pw-face { aspect-ratio: 1; border-radius: 8px; background: #000; display: grid; place-items: center; overflow: hidden; container-type: inline-size; }
+.pw-face img { width: 100%; height: 100%; object-fit: contain; }
+.pw-nm { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.glyph { font-family: ucicons; color: #fff; line-height: 1; }
+.pw-face .glyph { font-size: 56cqw; }
+.picwin .status:empty { display: none; }
+.pw-drop { border: 2px dashed var(--line); border-radius: 10px; padding: 14px; text-align: center; color: var(--muted); font-size: 13px; }
+.pw-drop.over { border-color: var(--accent); }
+.pslot { width: 72px; height: 72px; border: 2px dashed var(--line); border-radius: 10px; display: grid; place-items: center; font-size: 11px; line-height: 1.2; color: #9aa3ad; text-align: center; cursor: pointer; background: #0f1114; overflow: hidden; position: relative; padding: 0; min-height: 72px; container-type: inline-size; }
+.pslot.filled { border-style: solid; border-color: #333; }
+.pslot img { width: 62px; height: 62px; object-fit: contain; }
+.pslot .glyph { font-size: 50cqw; }
+.pslot.sel { border: 2px solid var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.pslot.over { border-color: var(--accent); }
+.pslot-wrap { display: inline-flex; align-items: center; gap: 6px; }
 #editor-app { padding: 0; max-width: none; }
 #editor-frame { width: 100%; height: calc(100vh - 210px); min-height: 560px; border: 0; border-radius: 12px; background: var(--bg); display: block; }
 * { box-sizing: border-box; }
@@ -138,7 +172,7 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .tpick { width: 48px; height: 48px; min-height: 48px; padding: 0; display: flex; align-items: center; justify-content: center; background: #0f1114; border: 2px solid transparent; border-radius: 10px; }
 .tpick.none { width: auto; padding: 0 10px; color: #c9ced5; font-size: 12px; }
 .tpick.sel { border-color: var(--accent); }
-.pane { display: flex; flex-direction: column; gap: 14px; max-width: 980px; width: 100%; }
+.pane { display: flex; flex-direction: column; gap: 14px; max-width: 1180px; width: 100%; }
 .createbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .createbar select { max-width: 320px; }
 .deftable { display: flex; flex-direction: column; gap: 6px; }
@@ -149,11 +183,15 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .drow .check { font-size: 13px; white-space: nowrap; }
 @media (max-width: 720px) { .drow { grid-template-columns: 1fr 1fr; } .drow .dact { grid-column: 1 / -1; } .drow.dhead { display: none; } }
 .subhead2 { margin: 6px 0 0; font-size: 14px; }
-.pane.split { flex-direction: row; flex-wrap: wrap; align-items: flex-start; max-width: 1440px; gap: 18px; }
+.pane.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); align-items: start; max-width: none; gap: 12px; }
+.pane.split.haspics { grid-template-columns: minmax(250px, 330px) minmax(0, 1fr) minmax(260px, 340px); }
+@media (max-width: 1150px) { .pane.split, .pane.split.haspics { grid-template-columns: 1fr; } .picwin { position: static; max-height: 70vh; } }
+.pane[data-show] [data-sec].secoff { display: none !important; }
+.bars[data-none]::after { content: attr(data-none) " Use + Create above."; color: var(--muted); font-size: 13px; font-style: italic; }
 .pane.split[hidden] { display: none; }
-.pane-main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
-.pane-side { flex: 1 1 340px; min-width: 0; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
-@media (max-width: 960px) { .pane-side { position: static; max-height: none; } }
+.pane-main { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.pane-side { min-width: 0; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
+@media (max-width: 1150px) { .pane-side { position: static; max-height: none; } }
 /* beside the editor the panel is narrow: name and current value on one line, the values below */
 .pane-side .stable thead { display: none; }
 .pane-side .stable tr { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; border-bottom: 1px solid var(--line); }
@@ -264,19 +302,23 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <button type="button" role="tab" id="tab-launch" aria-selected="false" aria-controls="launch-app">Smart Launchers</button>
   </nav>
 
+  <div class="secbar" id="secbar" hidden></div>
+  <div class="about" id="about" hidden></div>
+  <section class="panel picwin" id="picwin" aria-label="Pictures" hidden></section>
+
   <section class="pane" id="editor-app" hidden aria-label="Page editor">
     <iframe id="editor-frame" title="Page Editor"></iframe>
   </section>
 
   <section class="pane split" id="app" hidden aria-label="Smart controls">
     <div class="pane-main">
-    <div class="createbar">
+    <div class="createbar" data-sec="smart">
       <button class="primary" id="add-button" type="button">+ Create smart control</button>
       <select id="template" aria-label="Create from a template">
         <option value="">or start from a template…</option>
       </select>
     </div>
-    <div class="createbar">
+    <div class="createbar" data-sec="menu">
       <button class="primary" id="menu-add" type="button">+ Create quick menu</button>
       <select id="menu-fill" aria-label="Create a quick menu from a device's list">
         <option value="">or a quick menu from a device's list…</option>
@@ -286,7 +328,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <h2 class="list-title">Your smart controls and quick menus</h2>
     <div id="buttons" class="bars"></div>
     <p class="note">After saving a new control or menu, add it to the integration (Integrations → Remote Self-Control → add entities) and to the activities that use it. <b>Smart controls</b> are buttons; <b>quick menus</b> are lists that open a pop-up on a home tile or an activity page, and each choice runs its steps. Both run in the background, so they can't switch the remote's screen to another activity.</p>
-    <details class="panel">
+    <details class="panel" data-sec="smart">
       <summary>Rules text (backup / import)</summary>
       <p class="hint">Copy this to back up or share your controls, or paste rules here and load them (this replaces all your smart controls).</p>
       <div class="row"><button class="small" id="copy" type="button">Copy</button><span id="copy-status" class="status"></span></div>
@@ -310,13 +352,13 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
   <section class="pane split" id="icons-app" hidden aria-label="State icons">
     <div class="pane-main">
     <div class="createbar">
-      <button class="primary" id="icon-add" type="button">+ Create state icon</button>
-      <button class="primary" id="slider-add" type="button">+ Create slider</button>
+      <button class="primary" id="icon-add" type="button" data-sec="icon">+ Create state icon</button>
+      <button class="primary" id="slider-add" type="button" data-sec="slider">+ Create slider</button>
     </div>
     <div id="icons-editor"></div>
     <h2 class="list-title">Your state icons and sliders</h2>
     <div id="icons-list" class="bars"></div>
-    <p id="icons-check" class="hint"></p>
+    <p id="icons-check" class="hint" data-sec="icon"></p>
     <details class="panel">
       <summary>How state icons and sliders work</summary>
       <p class="note"><b>Sliders</b> are light entities for a number on one of your devices, like the receiver's volume. Put one on a home page: tapping the tile opens the remote's slider pop-up. On a Remote 3 you can also assign it to an activity's touch slider. New sliders are in the <b>Remote Sliders &amp; Menus</b> group when you add them to the integration.</p>
@@ -334,23 +376,23 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
 
   <section class="pane split" id="ret-app" hidden aria-label="Return and pages">
     <div class="pane-main">
-    <div class="createbar">
+    <div class="createbar" data-sec="ret">
       <button class="primary" id="ret-add" type="button">+ Add an activity</button>
     </div>
-    <div id="ret-editor"></div>
-    <h2 class="list-title">Activities with a ↩ button</h2>
-    <div id="ret-list" class="bars"></div>
-    <p class="status" id="ret-status" role="status"></p>
+    <div id="ret-editor" data-sec="ret"></div>
+    <h2 class="list-title" data-sec="ret">Activities with a ↩ button</h2>
+    <div id="ret-list" class="bars" data-sec="ret"></div>
+    <p class="status" id="ret-status" role="status" data-sec="ret"></p>
 
-    <h2 class="list-title">Start pages</h2>
-    <p class="hint">Pick the page an activity opens on, depending on your devices: e.g. <i>Watch TV</i> opens on <i>Apps</i> if the Shield is on, otherwise on <i>Live TV</i>. To jump to a page while you're in an activity, use the <b>Go to page</b> step in a smart control or quick menu.</p>
-    <div id="starts-list" class="lines"></div>
-    <div class="row"><button class="small" id="starts-add" type="button">+ Add a start page</button><button class="primary" id="starts-save" type="button" hidden>Save start pages</button><span class="status" id="starts-status" role="status"></span></div>
-    <details class="panel">
+    <h2 class="list-title" data-sec="starts">Start pages</h2>
+    <p class="hint" data-sec="starts">Pick the page an activity opens on, depending on your devices: e.g. <i>Watch TV</i> opens on <i>Apps</i> if the Shield is on, otherwise on <i>Live TV</i>. To jump to a page while you're in an activity, use the <b>Go to page</b> step in a smart control or quick menu.</p>
+    <div id="starts-list" class="lines" data-sec="starts"></div>
+    <div class="row" data-sec="starts"><button class="small" id="starts-add" type="button">+ Add a start page</button><button class="primary" id="starts-save" type="button" hidden>Save start pages</button><span class="status" id="starts-status" role="status"></span></div>
+    <details class="panel" data-sec="starts">
       <summary>How page jumps work</summary>
       <p class="note">The remote has no "go to page" command, but it always shows an activity's first page when it opens, and it jumps to the first page when the page order of the activity on screen changes. So the integration turns the page order around (keeping your swipe order, just starting at another page). When you leave the activity, your own order is put back, unless a start page picks another one. A jump takes about a second.</p>
     </details>
-    <details class="panel">
+    <details class="panel" data-sec="ret">
       <summary>How the ↩ button works</summary>
       <p class="note">The integration watches which activity you start (whether or not the old one turns off). In every activity listed here it keeps a ↩ button pointed at the activity you used before; pressing it opens that activity. The ↩ button can be on screen (text, back arrow or your own picture), on a physical button, or both.</p>
       <p class="note"><b>Turn off when leaving</b>: when you switch from a marked activity to any other one, the integration sends the marked activity a plain "turn off" (within about 2 seconds). It's meant for a single device's control page.</p>
@@ -365,7 +407,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
   </section>
 
   <section class="pane" id="ctl-app" hidden aria-label="Controls">
-    <section class="panel" aria-labelledby="ctl-set-h">
+    <section class="panel" aria-labelledby="ctl-set-h" data-sec="set">
       <h2 id="ctl-set-h">Settings</h2>
       <div class="fields" id="ctl-timeout-row"></div>
       <h3 class="subhead2">Defaults per activity</h3>
@@ -374,15 +416,15 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
       <div class="createbar" id="ctl-def-add"></div>
       <div class="createbar"><button class="primary" type="button" id="ctl-save-set">Save settings</button><span class="status" id="ctl-set-status" role="status"></span></div>
     </section>
-    <div class="createbar">
+    <div class="createbar" data-sec="ctl">
       <button class="primary" id="ctl-add" type="button">+ Create control</button>
       <span class="hint">Each control becomes a switch named <b>Control: &lt;name&gt;</b>.</span>
     </div>
-    <div id="ctl-editor"></div>
-    <h2 class="list-title">Controls</h2>
-    <div id="ctl-list" class="bars"></div>
-    <p class="status" id="ctl-status" role="status"></p>
-    <details class="panel">
+    <div id="ctl-editor" data-sec="ctl"></div>
+    <h2 class="list-title" data-sec="ctl">Controls</h2>
+    <div id="ctl-list" class="bars" data-sec="ctl"></div>
+    <p class="status" id="ctl-status" role="status" data-sec="ctl"></p>
+    <details class="panel" data-sec="ctl">
       <summary>How Controls work and what to set up on the remote</summary>
       <p class="note">This adds devices in the <b>Remote Controls</b> group: <b>Control</b> (a media player), <b>Control Level</b> (the same level as a light), <b>Control Active</b> (a sensor showing e.g. "Light · 60 %") and one <b>Control: &lt;name&gt;</b> switch per control. Add them to the integration and to your activities.</p>
       <p class="note"><b>Touch slider (Remote 3):</b> set it once in the web configurator to <b>Control</b> (or Control Level). <b>Volume rocker:</b> with <i>borrow</i> on, nothing to set up; otherwise map Vol + / Vol − to Control's volume up / down yourself. The remote's own pop-ups show the level: the vertical one for the rocker, the horizontal one for the touch slider. Other buttons work too but get no pop-up.</p>
@@ -816,6 +858,7 @@ function edMsg(tab, cls, text, errors) {
   ul.replaceChildren(...(errors || []).map((x) => el("li", {}, x))); ul.hidden = !(errors || []).length;
 }
 function openEdit(tab, item, { isNew = false, kind } = {}) {
+  showSecFor(tab, kind);
   if (ED[tab] && ED[tab].item !== item) cancelEdit(tab, false);
   // one editor per tab: close the other kind's editor in the same tab
   for (const t of Object.keys(ED)) if (t !== tab && ED[t] && paneOf(t, ED[t].kind) === paneOf(tab, kind)) cancelEdit(t, false);
@@ -863,8 +906,9 @@ function uniqueId(list, item, base) {
   while (list.some((x) => x !== item && x.id === id)) id = `${root}_${n++}`.slice(0, 43);
   item.id = id;
 }
+const BAR_SEC = { Smart: "smart", Menu: "menu", Icon: "icon", Slider: "slider" };
 function bar({ name, kind, sub, state, stateErr, editing, onEdit, flash }) {
-  return el("div", { class: "bar" + (editing ? " editing" : "") + (flash ? " flash" : "") },
+  return el("div", { class: "bar" + (editing ? " editing" : "") + (flash ? " flash" : ""), "data-sec": BAR_SEC[kind] },
     el("div", { class: "bar-main" },
       el("div", { class: "bar-top" }, kind ? el("span", { class: "kind" }, kind) : null, el("span", { class: "bar-name" }, name || "(no name)")),
       el("div", { class: "bar-sub", title: sub }, sub || "")),
@@ -960,34 +1004,6 @@ function describeHost(o) {
   return `${screen} · ${btn}${o.close ? " · turns off when you leave it" : ""}`;
 }
 
-// A drop zone for a picture: resized to 90×90 and uploaded to the remote as a custom icon.
-function imageDrop(current, prefix, onDone) {
-  const z = el("label", { class: "drop", title: "Drop an image or click to choose one" });
-  let busy = false, preview = null;
-  const show = () => {
-    z.replaceChildren();
-    if (preview) z.append(el("img", { src: preview, alt: "" }));
-    else if (current) z.append(iconImg(current));
-    else z.append(busy ? "Uploading…" : "Drop image");
-    z.append(el("input", { type: "file", accept: "image/png,image/jpeg,image/svg+xml,image/webp,image/gif", "aria-label": "Picture", on: { change: (e) => e.target.files[0] && take(e.target.files[0]) } }));
-  };
-  const take = async (file) => {
-    try {
-      busy = true; show();
-      const p = await processImage(file);
-      const r = await api("POST", "/api/icons/upload", { name: `${prefix}_${Math.random().toString(16).slice(2, 8)}.png`, data: p.base64 });
-      if (!r.ok) throw new Error(r.data.error || "upload failed");
-      preview = p.dataUrl; current = r.data.icon;
-      onDone(r.data.icon, null);
-    } catch (e) { onDone(null, e.message); }
-    finally { busy = false; show(); }
-  };
-  z.addEventListener("dragover", (e) => { e.preventDefault(); z.classList.add("over"); });
-  z.addEventListener("dragleave", () => z.classList.remove("over"));
-  z.addEventListener("drop", (e) => { e.preventDefault(); z.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) take(f); });
-  show();
-  return z;
-}
 
 function retCard(r) {
   const id = nid("rt");
@@ -1011,10 +1027,9 @@ function retCard(r) {
   }
   card.append(radios);
   if (r.screen === "custom") {
-    card.append(el("div", { class: "row" }, imageDrop(r.icon, "ret_" + slugPart(actName(r.activity)), (icon, err) => {
-      if (err) return edMsg("ret", "err", "Couldn't use that image: " + err);
-      r.icon = icon; edMsg("ret", "ok", "Picture uploaded to the remote. Save to use it.");
-    }), el("span", { class: "hint" }, "Drop a picture (PNG, JPG, SVG…) or click to choose one. It's resized to 90×90 and pressing it opens the previous activity.")));
+    card.append(el("div", { class: "row" }, picSlot({ key: "ret|" + (r.activity || "new"), label: "↩ " + (actName(r.activity) || "button"), prefix: "ret_" + slugPart(actName(r.activity)), own: true, clear: false,
+      get: () => r.icon, set: (icon) => { r.icon = icon; edMsg("ret", "ok", "Picture set. Save to use it."); renderRet(); } }),
+      el("span", { class: "hint" }, "Click the box, then pick any picture in the Pictures window (or drop one on it). The ↩ button gets its own copy of it, so it's never mixed up with your other buttons.")));
   }
   card.append(el("p", { class: "hint" }, "It's placed on the first free spot of the activity's first page (never adding rows); move it anywhere in the web configurator. Changing the look here updates the button where it is."));
 
@@ -1224,7 +1239,7 @@ function renderLaunchers() {
   box.replaceChildren(...LAUNCH.map((l, li) => {
     const id = "ln" + li;
     const card = el("article", { class: "card", "aria-label": "Launcher " + (l.name || li + 1) });
-    const pic = imageDrop(l.icon && l.icon.startsWith("custom:") ? l.icon : null, "ln", (icon, err) => { if (icon) { l.icon = icon; launchDirty(); } else if (err) { $("#launch-status").className = "status err"; $("#launch-status").textContent = err; } });
+    const pic = picSlot({ key: "ln|" + li, label: (l.name || "Launcher") + " picture", prefix: "ln", get: () => l.icon || null, set: (icon) => { l.icon = icon || ""; launchDirty(); renderLaunchers(); } });
     card.append(el("div", { class: "fields" },
       field(id + "-n", "Name", input(id + "-n", l.name, (v) => { l.name = v; launchDirty(); }, { label: "Name", placeholder: "Watch TV" })),
       el("div", { class: "f" }, "Picture (optional)", pic)));
@@ -2041,7 +2056,7 @@ const iconsOut = () => ICONS.map((b) => {
     ...(b.show === "change" ? { show: "change", showMs: b.showMs || 4000 } : {}), ...(b.fit === "keep" ? { fit: "keep" } : {}), ...(b.sig ? { sig: b.sig } : {}) });
   return o;
 });
-const iconImg = (icon, alt) => el("img", { src: iconUrl(icon), alt: alt || "", on: { error: (e) => e.target.replaceWith(document.createTextNode(String(icon || "").replace(/^custom:/, "").replace(/\.png$/, "").slice(0, 14))) } });
+const iconImg = (icon, alt) => String(icon || "").startsWith("uc:") ? picFace(icon) : el("img", { src: iconUrl(icon), alt: alt || "", on: { error: (e) => e.target.replaceWith(document.createTextNode(String(icon || "").replace(/^custom:/, "").replace(/\.png$/, "").slice(0, 14))) } });
 const iconUrl = (icon) => (icon && icon.startsWith("custom:") ? "/api/icons/image?id=" + encodeURIComponent(icon.slice(7)) : null);
 const actById = (id) => ICON_ACTS.find((a) => a.id === id);
 const itemAt = (act, loc) => act?.page?.items?.find((it) => (it.location?.x ?? 0) === loc?.x && (it.location?.y ?? 0) === loc?.y);
@@ -2111,37 +2126,9 @@ async function processImage(file) {
 }
 
 function dropZone(b, st) {
-  const z = el("label", { class: "drop", title: "Drop an image or click to choose one" });
-  const show = () => {
-    z.replaceChildren();
-    if (st.preview) z.append(el("img", { src: st.preview, alt: "" }));
-    else if (st.icon) z.append(iconImg(st.icon));
-    else z.append(st.busy ? "Uploading…" : "Drop image");
-    const inp = el("input", { type: "file", accept: "image/png,image/jpeg,image/svg+xml,image/webp,image/gif", "aria-label": "Image for " + (st.value || "state"),
-      on: { change: (e) => e.target.files[0] && take(e.target.files[0]) } });
-    z.append(inp);
-  };
-  const take = async (file) => {
-    try {
-      st.busy = true; show();
-      const p = await processImage(file);
-      const dev = DEV[b.entity];
-      const name = `si_${slugPart(dev?.name || b.entity)}_${slugPart(st.value)}_${Math.random().toString(16).slice(2, 6)}.png`;
-      const r = await api("POST", "/api/icons/upload", { name, data: p.base64 });
-      if (!r.ok) throw new Error(r.data.error || "upload failed");
-      st.icon = r.data.icon; st.preview = p.dataUrl;
-      edMsg("icons", "ok", "Image uploaded to the remote. Save to use it.");
-    } catch (e) {
-      edMsg("icons", "err", "Couldn't use that image: " + e.message);
-    } finally {
-      st.busy = false; show(); iconsChanged(false);
-    }
-  };
-  z.addEventListener("dragover", (e) => { e.preventDefault(); z.classList.add("over"); });
-  z.addEventListener("dragleave", () => z.classList.remove("over"));
-  z.addEventListener("drop", (e) => { e.preventDefault(); z.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) take(f); });
-  show();
-  return z;
+  const dev = DEV[b.entity];
+  return picSlot({ key: `si|${b.id || "new"}|${b.states.indexOf(st)}`, label: `${b.name || "State icon"}: ${st.value || "state"}`, prefix: `si_${slugPart(dev?.name || b.entity)}_${slugPart(st.value)}`,
+    get: () => st.icon || null, set: (icon) => { st.icon = icon || ""; st.preview = null; iconsChanged(true); if (icon) edMsg("icons", "ok", "Picture set. Save to use it."); } });
 }
 
 function finishIconCard(card, b) {
@@ -2412,20 +2399,9 @@ async function tryIt(body) {
 // Tile icon picker: the 12 drawn icons, uploaded to the remote when picked (ti_<key>.png).
 const TILE_PREFIX = "custom:ti_";
 function tilePicker(x, label) {
-  const row = el("div", { class: "tiles", role: "radiogroup", "aria-label": label });
-  const current = x.icon && x.icon.startsWith(TILE_PREFIX) ? x.icon.slice(TILE_PREFIX.length).replace(/\.png$/, "") : x.icon ? "other" : "";
-  row.append(el("button", { type: "button", class: "tpick none" + (!x.icon ? " sel" : ""), role: "radio", "aria-checked": String(!x.icon), title: "The remote's default icon",
-    on: { click: () => { x.icon = ""; extrasChanged(true); } } }, "Default"));
-  for (const [k, t] of Object.entries(TILE_ICONS)) {
-    row.append(el("button", { type: "button", class: "tpick" + (current === k ? " sel" : ""), role: "radio", "aria-checked": String(current === k), title: t.name, "aria-label": t.name,
-      on: { click: async (e) => {
-        try { e.currentTarget.disabled = true; x.icon = await uploadCanvas(`ti_${k}.png`, tileCanvas(k)); ED.extras && (ED.extras.msg = { cls: "", text: "Icon uploaded. Save to use it." }); }
-        catch (err) { ED.extras && (ED.extras.msg = { cls: "err", text: "Couldn't upload the icon: " + err.message }); }
-        extrasChanged(true);
-      } } }, asImg(tileCanvas(k), 34, t.name)));
-  }
-  if (current === "other") row.append(el("span", { class: "hint" }, "Custom: " + x.icon));
-  return row;
+  return el("div", { class: "row" }, picSlot({ key: "tile|" + (x.id || "new") + "|" + (x.options ? "menu" : "slider"), label: (x.name || label), prefix: "tile_" + slugPart(x.name), clearText: "Default", clearTitle: "The remote's default icon",
+    get: () => x.icon || null, set: (icon) => { x.icon = icon || ""; extrasChanged(true); } }),
+    el("span", { class: "hint" }, x.icon ? "Default puts back the remote's own icon." : "Empty: the remote's default icon. Pick one in the Pictures window: the drawn tile icons are there too."));
 }
 
 // A slider's level graphic: a button on a single-page activity whose picture shows the slider's value
@@ -2831,6 +2807,258 @@ async function loadExtras() {
   renderExtras();
 }
 
+// ---------------------------------------------------------------------------
+// Pictures window (the Page Editor's), beside every editor that takes a picture, and the
+// picture boxes it fills: click a box (orange frame), then a picture; or drag a picture onto a box.
+// ---------------------------------------------------------------------------
+const PW = { src: "remote", q: "", target: null, remote: [], made: [], builtin: [], font: false, loading: null, note: "" };
+const PW_MADE = /^(lv_|si_|smart_|ret_|ti_)/; // pictures this integration drew
+const pwShort = (id) => String(id).replace(/^(custom|uc):/, "").replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim().slice(0, 24) || String(id);
+async function coreAll(path) {
+  const out = [];
+  for (let p = 1; p <= 30; p++) {
+    const r = await api("POST", "/api/core", { method: "GET", path: `${path}?limit=100&page=${p}` });
+    if (!r.ok) throw new Error(r.data.error || "HTTP " + r.status);
+    const part = r.data.data;
+    if (!Array.isArray(part) || !part.length) break;
+    out.push(...part);
+    if (part.length < 100) break;
+  }
+  return out;
+}
+/** Reads the pictures on the remote (again with force, e.g. after an upload) and, once, the built-in icons and their font. */
+function pwLoad(force) {
+  if (PW.loading && !force) return PW.loading;
+  PW.loading = (async () => {
+    try {
+      const icons = await coreAll("/resources/Icon");
+      PW.remote = []; PW.made = [];
+      for (const r of icons) if (r?.id) (PW_MADE.test(r.id) ? PW.made : PW.remote).push({ id: "custom:" + r.id, name: pwShort(r.id) });
+      PW.remote.sort((a, b) => a.name.localeCompare(b.name)); PW.made.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (e) { PW.note = "Couldn't read the remote's pictures: " + e.message; }
+    if (!PW.builtin.length) {
+      try {
+        const m = await (await fetch("/api/editor/iconmap", { credentials: "same-origin" })).json();
+        const g = m.glyphs || {};
+        PW.builtin = [...new Set([...Object.keys(g), ...(m.missing || [])])].sort().map((n) => ({ id: "uc:" + n, name: n, glyph: g[n] || "" }));
+        if (PW.builtin.some((x) => x.glyph) && !PW.font) { const f = new FontFace("ucicons", "url(/api/editor/iconfont)"); document.fonts.add(await f.load()); PW.font = true; }
+      } catch {}
+    }
+    pwRender(); pwRefreshFaces();
+  })();
+  return PW.loading;
+}
+const pwGlyph = (name) => PW.builtin.find((x) => x.name === name)?.glyph || "";
+/** What a picture id looks like: the picture, a built-in icon drawn with the remote's font, or its name. */
+function picFace(id) {
+  id = String(id || "");
+  if (id.startsWith("uc:")) { const ch = PW.font ? pwGlyph(id.slice(3)) : ""; return ch ? el("span", { class: "glyph", "data-uc": id.slice(3) }, ch) : el("span", { class: "hint", "data-uc": id.slice(3) }, id.slice(3)); }
+  if (id.startsWith("tile:")) return asImg(tileCanvas(id.slice(5)), 60, TILE_ICONS[id.slice(5)]?.name);
+  return el("img", { src: iconUrl(id), alt: "", loading: "lazy", on: { error: (e) => e.target.replaceWith(document.createTextNode(pwShort(id))) } });
+}
+/** Built-in icons shown by name before the font arrived: draw them now. */
+function pwRefreshFaces() {
+  if (!PW.font) return;
+  for (const s of document.querySelectorAll("span.hint[data-uc]")) { const ch = pwGlyph(s.dataset.uc); if (ch) s.replaceWith(el("span", { class: "glyph", "data-uc": s.dataset.uc }, ch)); }
+}
+const PW_SOURCES = () => [
+  ["remote", `Icons on the remote (${PW.remote.length})`],
+  ["builtin", `The remote's built-in icons (${PW.builtin.length})`],
+  ["made", `Level pictures & state icons (${PW.made.length})`],
+  ["tiles", `Drawn tile icons (${Object.keys(TILE_ICONS).length})`],
+  ["local", "From this computer"]
+];
+function pwList() {
+  const q = PW.q.trim().toLowerCase();
+  const l = PW.src === "builtin" ? PW.builtin : PW.src === "made" ? PW.made : PW.src === "tiles" ? Object.entries(TILE_ICONS).map(([k, t]) => ({ id: "tile:" + k, name: t.name, tile: k })) : PW.remote;
+  return q ? l.filter((p) => p.name.toLowerCase().includes(q)) : l;
+}
+function pwRender() {
+  const w = $("#picwin");
+  if (!w || w.hidden) return;
+  const t = PW.target;
+  const head = el("div", { class: "pw-head" }, el("h2", {}, "Pictures"), el("span", { class: "hint" }, "drag onto a box, or click one"));
+  const src = el("select", { "aria-label": "Pictures from", on: { change: (e) => { PW.src = e.target.value; try { localStorage.setItem("scb_pwsrc", PW.src); } catch {} pwRender(); } } },
+    ...PW_SOURCES().map(([v, n]) => el("option", { value: v, selected: v === PW.src }, n)));
+  const cur = t ? t.get() : null;
+  const tgt = t ? el("div", { class: "pw-target", role: "status" }, el("span", { class: "mini" }, cur ? picFace(cur) : ""), el("span", {}, "Picking for: ", el("b", {}, t.label)), el("span", { class: "grow", style: "flex:1" }),
+    el("button", { type: "button", class: "small", on: { click: () => { PW.target = null; pwMark(); pwRender(); } } }, "Done"))
+    : el("div", { class: "pw-target none" }, "Click a picture box to choose what it shows.");
+  const note = el("p", { class: "status" + (PW.note ? " err" : ""), role: "status" }, PW.note || "");
+  const parts = [head, src, tgt];
+  if (PW.src === "local") {
+    const inp = el("input", { type: "file", accept: "image/png,image/jpeg,image/svg+xml,image/webp,image/gif", multiple: true, hidden: true, on: { change: (e) => pwUpload([...e.target.files]) } });
+    const z = el("label", { class: "pw-drop" }, "Drop pictures here, or click to choose them. They're resized to 90 × 90 and uploaded to the remote", t ? "; the first one goes in the box you picked." : ".", inp);
+    z.addEventListener("dragover", (e) => { e.preventDefault(); z.classList.add("over"); });
+    z.addEventListener("dragleave", () => z.classList.remove("over"));
+    z.addEventListener("drop", (e) => { e.preventDefault(); z.classList.remove("over"); pwUpload([...e.dataTransfer.files]); });
+    parts.push(z, note);
+  } else {
+    const search = el("input", { type: "search", placeholder: "Search: netflix, hdmi, light…", value: PW.q, "aria-label": "Search pictures", on: { input: (e) => { PW.q = e.target.value; pwGridFill(); } } });
+    parts.push(search, note, el("div", { class: "pw-grid", id: "pw-grid" }));
+  }
+  w.replaceChildren(...parts);
+  pwGridFill();
+}
+function pwGridFill() {
+  const g = $("#pw-grid");
+  if (!g) return;
+  const list = pwList();
+  g.replaceChildren(...list.map((p) => {
+    const b = el("button", { type: "button", class: "pw-pic", draggable: "true", title: p.name, "aria-label": "Picture " + p.name, on: { click: () => pwPick(p) } }, el("span", { class: "pw-face" }, picFace(p.id)), el("span", { class: "pw-nm" }, p.name));
+    b.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/x-pic", p.id); e.dataTransfer.effectAllowed = "copy"; });
+    return b;
+  }));
+  if (!list.length) g.append(el("p", { class: "empty", style: "grid-column:1/-1" }, PW.loading ? (PW.q ? "No picture matches." : "Nothing here yet.") : "Loading…"));
+}
+const pwFind = (id) => [...PW.remote, ...PW.made, ...PW.builtin].find((p) => p.id === id) || (id.startsWith("tile:") ? { id, tile: id.slice(5), name: TILE_ICONS[id.slice(5)]?.name } : { id, name: pwShort(id) });
+function pwSay(text) { PW.note = text; const n = $("#picwin .status"); if (n) { n.textContent = text; n.className = "status" + (text ? " err" : ""); } }
+/** Use a picture for the box being picked for. */
+async function pwPick(p, target = PW.target) {
+  if (!target) { pwSay("Click a picture box first (it gets an orange frame), or drag the picture onto one."); return; }
+  try {
+    pwSay("");
+    let icon = p.id;
+    if (p.tile) icon = await uploadCanvas(`ti_${p.tile}.png`, tileCanvas(p.tile));
+    if (target.own) icon = await ownCopy(icon, target.prefix);
+    target.set(icon);
+    PW.target = target;
+    pwRender();
+    if (p.tile || target.own) pwLoad(true);
+  } catch (e) { pwSay("Couldn't use that picture: " + e.message); }
+}
+/** Pictures from this computer: uploaded; the first goes in the box being picked for. */
+async function pwUpload(files) {
+  const t = PW.target;
+  for (const [i, f] of files.entries()) {
+    try {
+      pwSay(""); $("#picwin .pw-drop")?.replaceChildren("Uploading " + f.name + "…");
+      const p = await processImage(f);
+      const name = `${t && i === 0 ? t.prefix || "pic" : slugPart(f.name.replace(/\.[a-z0-9]+$/i, ""))}_${Math.random().toString(16).slice(2, 8)}.png`;
+      const r = await api("POST", "/api/icons/upload", { name, data: p.base64 });
+      if (!r.ok) throw new Error(r.data.error || "upload failed");
+      if (t && i === 0) t.set(r.data.icon);
+    } catch (e) { pwSay(`Couldn't use ${f.name}: ${e.message}`); }
+  }
+  await pwLoad(true);
+}
+/**
+ * A picture of its own for a ↩ button (prefix "ret"): the ↩ button is recognised on a page by its picture,
+ * so it gets a copy instead of sharing one with your other buttons. Built-in icons are drawn with the remote's font.
+ */
+async function ownCopy(icon, prefix) {
+  if (icon.startsWith(`custom:${prefix}_`)) return icon;
+  const c = document.createElement("canvas");
+  c.width = c.height = 90;
+  const g = c.getContext("2d");
+  if (icon.startsWith("uc:")) {
+    const ch = pwGlyph(icon.slice(3));
+    if (!ch || !PW.font) throw new Error("this built-in icon can't be drawn here");
+    g.fillStyle = "#fff"; g.font = "54px ucicons"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(ch, 45, 47);
+  } else {
+    const img = await new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => fail(new Error("the picture couldn't be read")); i.src = iconUrl(icon); });
+    const w = img.naturalWidth || 90, h = img.naturalHeight || 90, k = Math.min(90 / w, 90 / h);
+    g.drawImage(img, (90 - w * k) / 2, (90 - h * k) / 2, w * k, h * k);
+  }
+  g.fillStyle = "rgba(0,0,0,0.004)"; g.fillRect(0, 0, 1, 1); g.fillRect(89, 89, 1, 1);
+  return uploadCanvas(`${prefix}_${Math.random().toString(16).slice(2, 8)}.png`, c);
+}
+/** Orange frame on the box being picked for. */
+function pwMark() { for (const b of document.querySelectorAll(".pslot")) { const on = PW.target?.key === b.dataset.key; b.classList.toggle("sel", on); b.setAttribute("aria-pressed", String(on)); } }
+/**
+ * A picture box: { key, label, get(), set(icon), prefix, own, clear }.
+ * Click it, then a picture in the Pictures window; or drop a picture (or a file) on it. ✕ empties it.
+ */
+function picSlot(o) {
+  const cur = o.get();
+  if (PW.target?.key === o.key) PW.target = o; // the same box drawn again: keep picking for it
+  const sel = PW.target?.key === o.key;
+  const b = el("button", { type: "button", class: "pslot" + (cur ? " filled" : "") + (sel ? " sel" : ""), "data-key": o.key, "aria-pressed": String(sel), "aria-label": o.label + ": picture",
+    title: "Click, then pick a picture in the Pictures window; or drop one here", on: { click: () => { PW.target = PW.target?.key === o.key ? null : o; pwMark(); pwRender(); } } },
+    cur ? picFace(cur) : "Pick a picture");
+  b.addEventListener("dragover", (e) => { e.preventDefault(); b.classList.add("over"); });
+  b.addEventListener("dragleave", () => b.classList.remove("over"));
+  b.addEventListener("drop", (e) => {
+    e.preventDefault(); b.classList.remove("over");
+    const id = e.dataTransfer.getData("text/x-pic");
+    PW.target = o; pwMark();
+    if (id) pwPick(pwFind(id), o);
+    else if (e.dataTransfer.files.length) pwUpload([e.dataTransfer.files[0]]);
+  });
+  const wrap = el("span", { class: "pslot-wrap" }, b);
+  if (cur && o.clear !== false) wrap.append(el("button", { type: "button", class: "small ghost", title: o.clearTitle || "Empty this box", "aria-label": "Remove the picture of " + o.label, on: { click: () => o.set(null) } }, o.clearText || "✕"));
+  return wrap;
+}
+
+// ---------------------------------------------------------------------------
+// Section bar (the Page Editor's): each tab's parts, its status, ⓘ for what the tab is for
+// ---------------------------------------------------------------------------
+const SECS = { smart: [["smart", "Smart controls"], ["menu", "Quick menus"]], icons: [["icon", "State icons"], ["slider", "Sliders"]], ret: [["ret", "↩ buttons"], ["starts", "Start pages"]], ctl: [["ctl", "Controls"], ["set", "Settings"]], launch: [["launch", "Launchers"]] };
+const PIC_SECS = { smart: ["menu"], icons: ["icon", "slider"], ret: ["ret"], launch: ["launch"] };
+const SEC = {};
+try { Object.assign(SEC, JSON.parse(localStorage.getItem("scb_secs") || "{}")); } catch {}
+let ABOUT = false, CUR_TAB = null, PW_SHOWN = "";
+const secOf = (tab) => (SECS[tab]?.some(([v]) => v === SEC[tab]) ? SEC[tab] : SECS[tab]?.[0][0]);
+function secStatus(tab) {
+  const n = (x, one, many) => `${x} ${x === 1 ? one : many}`;
+  try {
+    if (tab === "smart") return `${n(buttons.length, "smart control", "smart controls")} · ${n((MENUS || []).length, "quick menu", "quick menus")}`;
+    if (tab === "icons") return iconsLoaded ? `${n(ICONS.filter((b) => b.kind !== "level").length, "state icon", "state icons")} · ${n((SLIDERS || []).length, "slider", "sliders")}` : "";
+    if (tab === "ret") return $("#ret-status").textContent || (RET ? n(RET.cfg.hosts.length, "activity with ↩", "activities with ↩") : "");
+    if (tab === "ctl") return CTL ? n(CTL.controls.length, "control", "controls") : "";
+    if (tab === "launch") return LAUNCH ? n(LAUNCH.length, "launcher", "launchers") : "";
+  } catch {}
+  return "";
+}
+function renderSecbar(tab) {
+  const bar = $("#secbar");
+  if (!SECS[tab]) { bar.hidden = true; $("#about").hidden = true; return; }
+  bar.hidden = false;
+  const v = secOf(tab);
+  bar.replaceChildren(
+    ...SECS[tab].map(([k, name]) => el("button", { type: "button", class: "sec", "aria-pressed": String(k === v), on: { click: () => { SEC[tab] = k; try { localStorage.setItem("scb_secs", JSON.stringify(SEC)); } catch {} applySec(tab); } } }, name)),
+    el("button", { type: "button", class: "small ghost", title: "What is this tab for?", "aria-label": "What is this tab for?", "aria-expanded": String(ABOUT), on: { click: () => { ABOUT = !ABOUT; renderSecbar(tab); } } }, "ⓘ"),
+    el("span", { class: "grow" }),
+    el("span", { class: "status", id: "sec-status" }, secStatus(tab)));
+  $("#about").hidden = !ABOUT;
+  $("#about").textContent = TABS[tab].intro;
+}
+/** Shows the open section's blocks and list rows, and the Pictures window where that section takes pictures. */
+function applySec(tab) {
+  if (!SECS[tab]) return;
+  const v = secOf(tab), pane = $(TABS[tab].pane);
+  pane.dataset.show = v;
+  for (const e of pane.querySelectorAll("[data-sec]")) e.classList.toggle("secoff", e.dataset.sec !== v);
+  for (const l of pane.querySelectorAll(".bars")) {
+    const rows = l.querySelectorAll(".bar[data-sec]");
+    const none = rows.length && ![...rows].some((r) => r.dataset.sec === v);
+    if (none) l.setAttribute("data-none", "None yet."); else l.removeAttribute("data-none");
+  }
+  for (const b of $("#secbar").querySelectorAll(".sec")) b.setAttribute("aria-pressed", String(b.textContent === SECS[tab].find(([k]) => k === v)?.[1]));
+  const st = $("#sec-status"); if (st) st.textContent = secStatus(tab);
+  const pics = !!PIC_SECS[tab]?.includes(v);
+  const w = $("#picwin");
+  for (const p of document.querySelectorAll(".pane.split")) p.classList.toggle("haspics", pics && p === pane);
+  const key = pics ? tab + "|" + v : "";
+  if (pics) { if (w.parentNode !== pane) pane.prepend(w); w.hidden = false; if (key !== PW_SHOWN) { PW_SHOWN = key; pwLoad(); pwRender(); } }
+  else { w.hidden = true; PW.target = null; PW_SHOWN = ""; }
+}
+/** An editor opened from a list: show its section. */
+function showSecFor(tab, kind) {
+  const s = tab === "extras" ? (kind === "menu" ? ["smart", "menu"] : ["icons", "slider"]) : tab === "smart" ? ["smart", "smart"] : tab === "icons" ? ["icons", "icon"] : tab === "ret" ? ["ret", "ret"] : tab === "ctl" ? ["ctl", "ctl"] : null;
+  if (!s || SEC[s[0]] === s[1]) return;
+  SEC[s[0]] = s[1];
+  if (CUR_TAB === s[0]) applySec(s[0]);
+}
+// lists are drawn again often: keep the open section's filter on them
+{
+  let queued = false;
+  const mo = new MutationObserver((recs) => { if (queued || recs.every((r) => $("#picwin").contains(r.target))) return; queued = true; requestAnimationFrame(() => { queued = false; if (CUR_TAB) applySec(CUR_TAB); }); });
+  for (const id of ["#app", "#icons-app", "#ret-app", "#ctl-app", "#launch-app"]) mo.observe($(id), { childList: true, subtree: true });
+}
+try { const s = localStorage.getItem("scb_pwsrc"); if (s) PW.src = s; } catch {}
+
 const TABS = {
   editor: { pane: "#editor-app", intro: "Edit your activities on a picture of your remote: pages, buttons and pictures, physical keys, start and off sequences, activity groups, macros, the home screen and your devices. Saved straight to the remote, after a copy of what it changes." },
   smart: { pane: "#app", intro: "Buttons and pop-up menus for the Remote Self-Control integration. A smart control checks your devices or the remote, then runs the first branch that matches; a quick menu runs the steps of the choice you pick." },
@@ -2847,6 +3075,9 @@ function showTab(which) {
     $(t.pane).hidden = k !== which;
   }
   $("#tab-intro").textContent = TABS[which].intro;
+  CUR_TAB = which; PW.target = null; PW_SHOWN = "";
+  renderSecbar(which);
+  if (SECS[which]) applySec(which); else { $("#picwin").hidden = true; for (const p of document.querySelectorAll(".pane.split")) p.classList.remove("haspics"); }
   try { localStorage.setItem("scb_tab", which); } catch {}
   if (which === "icons") { if (!iconsLoaded) loadIcons(); else renderIcons(); }
   if (which === "smart") render();
@@ -2880,6 +3111,7 @@ for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () =
 function showLogin(msg) {
   $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = ED.ret = ED.ctl = null; RET = null; CTL = null; STARTS = null; LAUNCH = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
   $("#editor-app").hidden = true; $("#editor-frame").removeAttribute("src"); document.body.classList.remove("wide");
+  $("#secbar").hidden = true; $("#about").hidden = true; $("#picwin").hidden = true; CUR_TAB = null;
   $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
   $("#pin").focus();
 }
