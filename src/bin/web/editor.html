@@ -149,6 +149,25 @@ h3{margin:0;font-size:15px}
 .insp{display:flex;flex-direction:column;gap:10px}
 .hint{font-size:13px;color:var(--mute);margin:0}
 .homecols{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+/* Home screen: Pictures (the Page Editor's window, moved here) | groups | what to add */
+.homegrid{display:grid;grid-template-columns:var(--libw,minmax(230px,0.8fr)) minmax(0,1.6fr) minmax(250px,0.8fr);gap:14px;align-items:start}
+.homegrid .left,.homegrid .right{flex:none;min-width:0}
+.homegrid .right{position:sticky;top:8px}
+@media (max-width:1150px){.homegrid{grid-template-columns:1fr}.homegrid .right{position:static}}
+.homepics{min-width:0}
+.homepics #libcard{position:sticky;top:8px;max-height:calc(100vh - 16px);display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box}
+.homepics .lib:not(.hidden){display:flex;flex-direction:column;min-height:0;flex:1 1 auto}
+.homepics .pics{grid-template-columns:repeat(var(--cols,4),minmax(0,1fr));gap:10px;overflow-y:auto;align-content:start;padding:2px 4px 2px 2px;min-height:0;flex:1 1 auto;max-height:none}
+.homepics .pic{padding:6px}
+.tile .ticon{width:46px;height:46px;border-radius:10px;overflow:hidden;flex:none;container-type:inline-size;display:flex}
+.tile .ticon .tt{width:100%;font-size:46cqw}
+.tile .ticon.none{border:1px dashed #4b5563;color:#6b7280;font-size:10px;align-items:center;justify-content:center;text-align:center;line-height:1.1}
+.tile .trow{display:flex;gap:8px;align-items:center;min-width:0}
+.tile .trow strong{overflow:hidden;text-overflow:ellipsis}
+.tile.picover{outline:2px solid var(--acc);outline-offset:2px}
+.tile.changed .ticon{outline:2px solid #f59e0b;outline-offset:2px}
+.src .sic{width:26px;height:26px;border-radius:6px;overflow:hidden;flex:none;container-type:inline-size;display:flex}
+.src .sic .tt{width:100%}
 .room{flex:1 1 230px;min-width:0;background:#0b0b0d;border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:180px}
 .room h3{color:#f3f4f6;display:flex;justify-content:space-between;align-items:center;gap:6px}
 .room h3 input{background:#1c1c20;color:#f3f4f6;border:1px solid #2f2f35;width:100%}
@@ -655,14 +674,15 @@ details.more summary{cursor:pointer;font-weight:600}
   </div>
 
   <!-- ================= HOME SCREEN ================= -->
-  <div class="cols hidden" id="view-home">
+  <div class="homegrid hidden" id="view-home">
+    <div class="homepics" id="homepics"></div>
     <div class="left">
       <section class="card">
         <div class="row" style="justify-content:space-between;align-items:center">
           <h2>Home screen groups</h2>
           <button class="btn" id="addroom" type="button">+ Add a group</button>
         </div>
-        <p class="hint" style="margin:6px 0 12px">Drag activities and devices from the right into a group. Drag tiles to reorder or move them to another group. Each group can have its own background picture (275 × 480, up to 1 MB on the remote).</p>
+        <p class="hint" style="margin:6px 0 12px">Drag activities and devices from the right into a group; drag tiles to reorder or move them. <b>Pictures:</b> drag one from the Pictures window onto a tile, or click a picture and then the tile: it becomes that activity's or device's icon (everywhere on the remote). Each group can have its own background picture (275 × 480, up to 1 MB on the remote).</p>
         <div class="homecols" id="rooms"></div>
       </section>
       <section class="card">
@@ -1053,6 +1073,7 @@ async function loadAll() {
   // macros and home screen changes that aren't saved yet survive a reload of the rest
   const keepMac = MAC.length && macDirtyNow() ? clone(MAC) : null;
   const keepHome = S.home.length && homeDirty() ? clone(S.home) : null;
+  const keepIcons = hiconDirty() ? clone(HICON) : null;
   $("#loading").classList.remove("hidden");
   $("#loading").replaceChildren(el("p", {}, "Loading your activities, pages and pictures from the remote…"));
   for (const k of Object.keys(DEV)) delete DEV[k];
@@ -1152,6 +1173,11 @@ async function loadAll() {
   Object.assign(ASETSAVED, clone(ASET));
   HSAVED = JSON.stringify(S.home);
   if (keepHome) S.home = keepHome;
+  for (const k of Object.keys(HICON)) delete HICON[k];
+  for (const d of DEVICES) HICON[d.id] = d.icon || "";
+  for (const a of full.filter(Boolean)) HICON[a.entity_id] = a.icon || HICON[a.entity_id] || "";
+  HICONSAVED = JSON.stringify(HICON);
+  if (keepIcons) Object.assign(HICON, keepIcons);
   if (keepMac) { MAC = keepMac; if (!MAC.some((m) => m.id === macId)) macId = MAC[0]?.id || null; }
   LOG.length = 0;
   if (!S.activities.some((a) => a.id === actId)) actId = (S.activities.find((a) => a.editable) || S.activities[0])?.id || null;
@@ -2015,7 +2041,7 @@ function renderPics() {
   const list = PICS.filter((p) => !q || p.id.toLowerCase().includes(q) || p.short.toLowerCase().includes(q)).filter((p) => filter === "all" || (filter === "used") === used.has(p.id));
   selBar("icons", list.filter((p) => !p.local).map((p) => p.id), renderPics);
   $("#pics").replaceChildren(...list.map((p) => selTile("icons", p.id, el("div", { class: "pic" + (picked === p.id ? " on" : ""), draggable: "true", title: p.id, role: "button", tabindex: "0", "aria-pressed": String(picked === p.id),
-    on: { dragstart: (e) => startDrag(e, { kind: "pic", id: p.id }), dragend: endDrag, click: () => { picked = picked === p.id ? null : p.id; renderPics(); msg(picked ? `Now click an empty spot or an icon button on the page.` : "", ""); }, keydown: (e) => { if (e.key === "Enter") { picked = p.id; renderPics(); } } } },
+    on: { dragstart: (e) => startDrag(e, { kind: "pic", id: p.id }), dragend: endDrag, click: () => { picked = picked === p.id ? null : p.id; renderPics(); msg(picked ? (mode === "home" ? "Now click a tile to give it this picture." : "Now click an empty spot or an icon button on the page.") : "", ""); }, keydown: (e) => { if (e.key === "Enter") { picked = p.id; renderPics(); } } } },
     tileThumb(p), el("span", { class: "nm" }, p.short), p.local ? sdot("local", "from this computer: uploaded on save") : sdot(used.has(p.id) ? "used" : "free", used.has(p.id) ? "In use" : "Not on any page")))));
   if (!list.length) $("#pics").append(el("p", { class: "hint" }, "No pictures match."));
   const free = PICS.filter((p) => !used.has(p.id)).length;
@@ -2037,7 +2063,7 @@ function renderMade() {
   $("#madepics").replaceChildren(...list.slice(0, 400).map((p) => {
     const ok = madeFree(p, used);
     const tile = el("div", { class: "pic" + (picked === p.id ? " on" : ""), draggable: "true", title: `${p.file} (${MADE_KIND(p.file)})${ok ? "" : " · kept: still used"}`, role: "button", tabindex: "0", "aria-pressed": String(picked === p.id),
-      on: { dragstart: (e) => startDrag(e, { kind: "pic", id: p.id }), dragend: endDrag, click: () => { picked = picked === p.id ? null : p.id; renderMade(); msg(picked ? "Now click an empty spot or an icon button on the page." : "", ""); }, keydown: (e) => { if (e.key === "Enter") { picked = p.id; renderMade(); } } } },
+      on: { dragstart: (e) => startDrag(e, { kind: "pic", id: p.id }), dragend: endDrag, click: () => { picked = picked === p.id ? null : p.id; renderMade(); msg(picked ? (mode === "home" ? "Now click a tile to give it this picture." : "Now click an empty spot or an icon button on the page.") : "", ""); }, keydown: (e) => { if (e.key === "Enter") { picked = p.id; renderMade(); } } } },
       tileThumb(p), el("span", { class: "nm" }, p.file.replace(/^(lv|si|ret|smart)_/, "").replace(/\.png$/, "").replace(/_/g, " ")), sdot(ok ? "free" : "used", ok ? "Not used: can be deleted" : "Kept: still used"));
     return ok ? selTile("made", p.id, tile) : tile;
   }));
@@ -2103,7 +2129,7 @@ function renderChannels() {
   $("#ch-info").textContent = CHANNELS.length ? "TV channel logos kept separately on the remote (up to 256)." : "TV channel logos kept separately on the remote (up to 256). Your remote has none yet.";
   selBar("ch", list.map((c) => c.id), renderChannels);
   $("#chpics").replaceChildren(...list.map((c) => selTile("ch", c.id, el("div", { class: "pic" + (picked === c.id ? " on" : ""), draggable: "true", title: c.id, role: "button", tabindex: "0",
-    on: { dragstart: (e) => startDrag(e, { kind: "pic", id: c.id }), dragend: endDrag, click: () => { picked = picked === c.id ? null : c.id; renderChannels(); dropMsg(picked ? "Now click an empty spot or an icon button on the remote." : ""); } } },
+    on: { dragstart: (e) => startDrag(e, { kind: "pic", id: c.id }), dragend: endDrag, click: () => { picked = picked === c.id ? null : c.id; renderChannels(); (mode === "home" ? msg : dropMsg)(picked ? (mode === "home" ? "Now click a tile to give it this picture." : "Now click an empty spot or an icon button on the remote.") : "", ""); } } },
     tileThumb(c), el("span", { class: "nm" }, c.short), used.has(c.id) ? sdot("used", "In use") : ""))));
   if (!list.length) $("#chpics").append(el("p", { class: "hint" }, "No channel icons match."));
 }
@@ -2128,7 +2154,7 @@ function fitPictures(off) {
 /** The builder's other tabs show their Pictures window like this one: as many across, as wide and as tall. */
 function savePicsLayout() {
   const lib = $("#libcard");
-  if (!lib || !lib.offsetWidth) return;
+  if (!lib || !lib.offsetWidth || mode !== "pages") return;
   const cols = Number(getComputedStyle($("#view-pages")).getPropertyValue("--cols")) || 4;
   try { localStorage.setItem("pe_pics", JSON.stringify({ cols, w: lib.offsetWidth, h: lib.offsetHeight })); } catch {}
 }
@@ -2157,7 +2183,7 @@ function renderBuiltin() {
   $("#bipics").replaceChildren(...shown.map((x) => {
     const id = "uc:" + x.name, p = picOf(id);
     return el("div", { class: "pic" + (picked === id ? " on" : ""), draggable: "true", title: id, role: "button", tabindex: "0", "aria-pressed": String(picked === id),
-      on: { dragstart: (e) => startDrag(e, { kind: "pic", id }), dragend: endDrag, click: () => { picked = picked === id ? null : id; renderBuiltin(); dropMsg(picked ? "Now click an empty spot or an icon button on the remote." : ""); }, keydown: (e) => { if (e.key === "Enter") { picked = id; renderBuiltin(); } } } },
+      on: { dragstart: (e) => startDrag(e, { kind: "pic", id }), dragend: endDrag, click: () => { picked = picked === id ? null : id; renderBuiltin(); (mode === "home" ? msg : dropMsg)(picked ? (mode === "home" ? "Now click a tile to give it this picture." : "Now click an empty spot or an icon button on the remote.") : "", ""); }, keydown: (e) => { if (e.key === "Enter") { picked = id; renderBuiltin(); } } } },
       tileThumb(p), el("span", { class: "nm" }, x.name));
   }));
   $("#bi-more").textContent = list.length > shown.length ? `Showing ${shown.length} of ${list.length}: search to narrow it down.` : !list.length && UCICONS.length ? "No icons match." : "";
@@ -2240,7 +2266,7 @@ function renderLocal() {
     const onRemote = !!PIC["custom:" + remoteName(x.name)];
     return el("div", { class: "pic" + (picked === x.id ? " on" : ""), draggable: "true", title: `${x.folder}/${x.name} · ${Math.round(x.size / 1024)} KB`, role: "button", tabindex: "0",
       on: { dragstart: (e) => { const p = localAsPic(x); startDrag(e, { kind: "pic", id: p.id }); }, dragend: () => { endDrag(); renderPics(); },
-        click: () => { const p = localAsPic(x); picked = picked === p.id ? null : p.id; renderLocal(); renderPics(); dropMsg(picked ? "Now click an empty spot or an icon button on the remote." : ""); } } },
+        click: () => { const p = localAsPic(x); picked = picked === p.id ? null : p.id; renderLocal(); renderPics(); (mode === "home" ? msg : dropMsg)(picked ? (mode === "home" ? "Now click a tile to give it this picture." : "Now click an empty spot or an icon button on the remote.") : "", ""); } } },
       el("img", { class: "tt", src: x.url, alt: "" }), el("span", { class: "nm" }, x.name.replace(/\.[a-z0-9]+$/i, "")),
       onRemote ? sdot("used", "same name already on the remote: the remote's copy is used") : x.size > 32 * 1024 ? sdot("free", "over 32 KB: shrunk before uploading") : "");
   }));
@@ -2263,7 +2289,11 @@ for (const sec of document.querySelectorAll(".fold")) {
 // ---------------------------------------------------------------------------------------------
 const LOG = [];
 function log(t) { LOG.unshift(t); dirty(); }
-function msg(t, cls) { const s = $("#savestatus"); s.className = "status " + (cls || ""); s.textContent = t || statusText(); }
+function msg(t, cls) {
+  const s = $("#savestatus"); s.className = "status " + (cls || ""); s.textContent = t || statusText();
+  // the Home screen has its own status line (the Interface view's isn't shown there)
+  if (mode === "home" && $("#hstatus")) { const h = $("#hstatus"); h.className = "status " + (cls || ""); h.textContent = t || (homeDirty() ? "Changes not saved yet." : "No changes."); }
+}
 function changedPages() {
   const out = [];
   for (const a of S.activities) {
@@ -2509,9 +2539,13 @@ window.addEventListener("beforeunload", (e) => { if (changedPages().length || gr
 // Home screen: the active profile's home pages ("groups" here) with their tiles and background
 // ---------------------------------------------------------------------------------------------
 let HDRAG = null; // { from: groupId|null, index, tile }
+const HICON = {}; // entity id -> its icon (activities, macros, devices), as edited on the Home screen
+let HICONSAVED = "{}";
+const hiconDirty = () => JSON.stringify(HICON) !== HICONSAVED;
+const iconable = (t) => t.kind !== "group";
 let bgOpen = null;
 let HSAVED = "[]";
-const homeDirty = () => JSON.stringify(S.home) !== HSAVED;
+const homeDirty = () => JSON.stringify(S.home) !== HSAVED || hiconDirty();
 function tileName(t) { if (t.kind === "activity") return S.activities.find((a) => a.id === t.ref)?.name || DEV[t.ref]?.name || t.ref; if (t.kind === "group") return t.name || HGROUPS[t.ref] || "Device group"; return devName(t.ref); }
 function bgCss(id) { const b = BGS.find((x) => x.id === id); return b ? b.css : null; }
 function renderHome() {
@@ -2519,14 +2553,22 @@ function renderHome() {
   if (!PROFILE) { rooms.replaceChildren(el("p", { class: "hint" }, "The remote's home screen couldn't be read.")); return; }
   rooms.replaceChildren(...S.home.map((r, ri) => {
     const tiles = el("div", { class: "tiles" });
-    r.tiles.forEach((t, ti) => tiles.append(el("div", { class: "tile" + (t.kind === "group" ? " group" : ""), draggable: "true",
-      on: { dragstart: (e) => { HDRAG = { from: r.id, index: ti, tile: t }; try { e.dataTransfer.setData("text/plain", "tile"); } catch {} }, dragend: () => { HDRAG = null; },
-        dragover: (e) => { if (HDRAG) e.preventDefault(); }, drop: (e) => { e.preventDefault(); e.stopPropagation(); dropTile(r, ti); } } },
-      el("span", { class: "k" }, t.kind === "activity" ? "Activity" : t.kind === "group" ? "Device group" : DEV[t.ref]?.type === "macro" ? "Macro" : "Device"), el("strong", {}, tileName(t)),
-      el("button", { class: "x", type: "button", "aria-label": `Remove ${tileName(t)} from ${r.name}`, on: { click: () => { r.tiles.splice(ti, 1); renderHome(); } } }, "×"))));
+    r.tiles.forEach((t, ti) => {
+      const changed = iconable(t) && (HICON[t.ref] || "") !== (JSON.parse(HICONSAVED)[t.ref] || "");
+      const tile = el("div", { class: "tile" + (t.kind === "group" ? " group" : "") + (changed ? " changed" : ""), draggable: "true", title: iconable(t) ? "Drop a picture here, or click a picture and then this tile" : "",
+        on: { dragstart: (e) => { HDRAG = { from: r.id, index: ti, tile: t }; try { e.dataTransfer.setData("text/plain", "tile"); } catch {} }, dragend: () => { HDRAG = null; },
+          dragover: (e) => { if (HDRAG || (DRAG?.kind === "pic" && iconable(t))) { e.preventDefault(); if (DRAG) tile.classList.add("picover"); } },
+          dragleave: () => tile.classList.remove("picover"),
+          drop: (e) => { e.preventDefault(); e.stopPropagation(); tile.classList.remove("picover"); if (DRAG?.kind === "pic") { if (iconable(t)) setTileIcon(t, DRAG.id); endDrag(); return; } dropTile(r, ti); },
+          click: () => { if (picked && iconable(t)) { setTileIcon(t, picked); picked = null; renderPics(); if (LIB === "builtin") renderBuiltin(); if (LIB === "made") renderMade(); } } } },
+        el("div", { class: "trow" }, iconable(t) ? tileIcon(t) : null, el("div", { style: "display:flex;flex-direction:column;min-width:0" },
+          el("span", { class: "k" }, t.kind === "activity" ? "Activity" : t.kind === "group" ? "Device group" : DEV[t.ref]?.type === "macro" ? "Macro" : "Device"), el("strong", {}, tileName(t)))),
+        el("button", { class: "x", type: "button", "aria-label": `Remove ${tileName(t)} from ${r.name}`, on: { click: (e) => { e.stopPropagation(); r.tiles.splice(ti, 1); renderHome(); } } }, "×"));
+      tiles.append(tile);
+    });
     tiles.addEventListener("dragover", (e) => { if (HDRAG) { e.preventDefault(); tiles.classList.add("over"); } });
     tiles.addEventListener("dragleave", () => tiles.classList.remove("over"));
-    tiles.addEventListener("drop", (e) => { e.preventDefault(); tiles.classList.remove("over"); dropTile(r, r.tiles.length); });
+    tiles.addEventListener("drop", (e) => { e.preventDefault(); tiles.classList.remove("over"); if (DRAG?.kind === "pic") { endDrag(); return; } dropTile(r, r.tiles.length); });
     if (!r.tiles.length) tiles.append(el("span", { class: "k", style: "color:#6b7280;padding:8px" }, "Drop tiles here"));
     const css = bgCss(r.bg);
     const pick = el("div", { class: "bgpick" + (bgOpen === r.id ? "" : " hidden") },
@@ -2543,8 +2585,21 @@ function renderHome() {
   const srcs = [...S.activities.map((a) => ({ kind: "activity", ref: a.id })), ...DEVICES.filter((d) => HOME_TYPES.includes(d.type)).map((d) => ({ kind: "device", ref: d.id })),
     ...Object.entries(HGROUPS).map(([id, name]) => ({ kind: "group", ref: id, name }))];
   $("#srcs").replaceChildren(...srcs.map((t) => el("div", { class: "src", draggable: "true", on: { dragstart: (e) => { HDRAG = { from: null, tile: { ...t } }; try { e.dataTransfer.setData("text/plain", "src"); } catch {} }, dragend: () => { HDRAG = null; } } },
-    el("span", {}, tileName(t)), el("span", { class: "k" }, t.kind === "activity" ? "Activity" : t.kind === "group" ? "Device group" : (DEV[t.ref]?.type || "").replace("_", " ")))));
+    el("span", { style: "display:flex;gap:8px;align-items:center;min-width:0" }, iconable(t) && HICON[t.ref] ? el("span", { class: "sic" }, tileThumb(picOf(HICON[t.ref]))) : null, el("span", {}, tileName(t))),
+    el("span", { class: "k" }, t.kind === "activity" ? "Activity" : t.kind === "group" ? "Device group" : (DEV[t.ref]?.type || "").replace("_", " ")))));
   renderHomeSave();
+}
+/** A tile's picture: its activity's or device's icon. */
+function tileIcon(t) {
+  const ic = HICON[t.ref];
+  return ic ? el("span", { class: "ticon" }, tileThumb(picOf(ic))) : el("span", { class: "ticon none" }, "no picture");
+}
+function setTileIcon(t, id) {
+  if (!id || id === "__file__") return;
+  HICON[t.ref] = id;
+  $("#hstatus").className = "status";
+  renderHome();
+  $("#hstatus").textContent = `${tileName(t)} gets the picture ${picOf(id).short}: save to put it on the remote.`;
 }
 function dropTile(room, at) {
   if (!HDRAG) return;
@@ -2580,12 +2635,35 @@ $("#hsave").addEventListener("click", async () => {
     }
     for (const old of saved) if (!S.home.some((r) => r.id === old.id)) try { await api("DELETE", `/profiles/${enc(PROFILE)}/pages/${enc(old.id)}`); } catch (e) { fails.push(`${old.name}: ${e.message}`); }
     if (!fails.length) HSAVED = JSON.stringify(S.home);
+    // pictures of activities, macros and devices: their own icon
+    const was = JSON.parse(HICONSAVED);
+    for (const [id, icon] of Object.entries(HICON)) {
+      if ((icon || "") === (was[id] || "") || !icon) continue;
+      const name = DEV[id]?.name || S.activities.find((a) => a.id === id)?.name || id;
+      try {
+        let use = icon;
+        if (use.startsWith("local:")) {
+          const p = PIC[use];
+          if (!p?.file) throw new Error("the picture isn't available any more: drop it again");
+          const { name: fn, data } = await pictureFor(p.file, "Icon");
+          const rid = await upload("Icon", fn, data);
+          use = "custom:" + rid;
+          if (!PIC[use]) { const q = { id: use, file: rid, short: shortName(rid), mono: "", bg: "#374151", src: imgUrl("Icon", rid) }; PICS.push(q); PIC[use] = q; }
+          for (const k of Object.keys(HICON)) if (HICON[k] === icon) HICON[k] = use;
+        }
+        const type = DEV[id]?.type || (S.activities.some((a) => a.id === id) ? "activity" : "");
+        await api("PATCH", type === "activity" ? `/activities/${enc(id)}` : type === "macro" ? `/macros/${enc(id)}` : `/entities/${enc(id)}`, { icon: use });
+        if (DEV[id]) DEV[id].icon = use;
+        was[id] = use;
+      } catch (e) { fails.push(`${name} picture: ${e.message}`); HICON[id] = was[id] || ""; }
+    }
+    HICONSAVED = JSON.stringify(was);
     renderHome();
     st.className = "status " + (fails.length ? "err" : "ok");
     st.textContent = fails.length ? "Not saved: " + fails.join(" | ") : "Saved to the remote.";
   });
 });
-$("#hundo").addEventListener("click", () => { S.home = JSON.parse(HSAVED); renderHome(); });
+$("#hundo").addEventListener("click", () => { S.home = JSON.parse(HSAVED); for (const k of Object.keys(HICON)) delete HICON[k]; Object.assign(HICON, JSON.parse(HICONSAVED)); renderHome(); });
 
 // =============================================================================================
 // Macros
@@ -3068,7 +3146,22 @@ $("#dv-addintg").addEventListener("click", async () => {
 });
 
 const MODES = ["pages", "macros", "groups", "home", "dev"];
+let LIBHOME = null; // where the Pictures window lives on the Interface view (it moves to the Home screen while that's open)
+function placeLibrary(home) {
+  const lib = $("#libcard");
+  if (!lib) return;
+  if (!LIBHOME) LIBHOME = { parent: lib.parentNode, next: lib.nextSibling };
+  if (home && lib.parentNode !== $("#homepics")) {
+    $("#view-home").style.setProperty("--cols", getComputedStyle($("#view-pages")).getPropertyValue("--cols") || "4");
+    const w = lib.offsetWidth;
+    if (w > 150) $("#view-home").style.setProperty("--libw", w + "px");
+    $("#homepics").append(lib);
+  } else if (!home && lib.parentNode !== LIBHOME.parent) {
+    LIBHOME.parent.insertBefore(lib, LIBHOME.next);
+  }
+}
 function setMode(m) {
+  placeLibrary(m === "home");
   mode = m;
   for (const k of MODES) { $("#view-" + k).classList.toggle("hidden", k !== m); $("#mode-" + k)?.classList.toggle("sel", k === m); }
   // Interface, Start/Stop and Activity groups all live under the Activities drop-down

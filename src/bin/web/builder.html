@@ -2842,9 +2842,12 @@ function pwLoad(force) {
     } catch (e) { PW.note = "Couldn't read the remote's pictures: " + e.message; }
     if (!PW.builtin.length) {
       try {
-        const m = await (await fetch("/api/editor/iconmap", { credentials: "same-origin" })).json();
-        const g = m.glyphs || {};
-        PW.builtin = [...new Set([...Object.keys(g), ...(m.missing || [])])].sort().map((n) => ({ id: "uc:" + n, name: n, glyph: g[n] || "" }));
+        // every built-in icon name (the remote's list), each drawn with the character the configurator uses (if found)
+        const [mr, names] = await Promise.all([
+          fetch("/api/editor/iconmap", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
+          api("POST", "/api/core", { method: "GET", path: "/cfg/device/icon_mapping" }).then((r) => (r.ok ? Object.keys(r.data.data || {}) : [])).catch(() => [])]);
+        const g = (mr && mr.glyphs) || {};
+        PW.builtin = [...new Set([...names, ...Object.keys(g)])].sort().map((n) => ({ id: "uc:" + n, name: n, glyph: g[n] || "" }));
         if (PW.builtin.some((x) => x.glyph) && !PW.font) { const f = new FontFace("ucicons", "url(/api/editor/iconfont)"); document.fonts.add(await f.load()); PW.font = true; }
       } catch {}
     }

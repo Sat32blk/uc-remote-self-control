@@ -138,7 +138,7 @@ export function startMockEditorCore(port = 0) {
         if (p === "/cfg/device/button_layout") return send(200, { type: "keypad", grid: { width: 3, height: 9 }, buttons: [] });
         if (p === "/cfg/device/screen_layout") return send(200, { grid: { default: { width: 4, height: 6 }, min: { width: 1, height: 1 }, max: { width: 10, height: 12 } } });
         if (p === "/cfg/entity/commands") return send(200, CMDS);
-        if (p === "/cfg/device/icon_mapping") return send(200, { home: "uE900", tv: "uE901", light: "uE902", play: "uE903", "hdmi-1": "uE904" });
+        if (p === "/cfg/device/icon_mapping") return send(200, { home: "uE900", tv: "uE901", light: "uE902", play: "uE903", "hdmi-1": "uE904", "zz-no-glyph": "uE9FF" });
         if (p === "/system/backup/export") return bin("application/zip", Buffer.from("PK-fake-backup"), { "Content-Disposition": 'attachment; filename="UCR3_backup.zip"' });
         // entities
         if (p === "/entities" && M === "GET") {
