@@ -57,21 +57,25 @@ header > div:last-child { flex-direction: row !important; align-items: center !i
 .pw-target.none { background: var(--inset); border-color: var(--line); color: var(--muted); }
 .pw-target .mini { width: 30px; height: 30px; border-radius: 6px; background: #000; display: grid; place-items: center; flex: none; overflow: hidden; }
 .pw-target .mini img { width: 100%; height: 100%; object-fit: contain; }
-.pw-grid { overflow-y: auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 2px; min-height: 80px; align-content: start; }
-.pw-pic { border: 1px solid var(--line); border-radius: 10px; padding: 5px 5px 2px; background: var(--panel); color: var(--muted); font-size: 11px; text-align: center; cursor: grab; min-height: 0; min-width: 0; display: block; }
-.pw-pic:hover, .pw-pic:focus-visible { border-color: var(--accent); }
-.pw-face { aspect-ratio: 1; border-radius: 8px; background: #000; display: grid; place-items: center; overflow: hidden; container-type: inline-size; }
-.pw-face img { width: 100%; height: 100%; object-fit: contain; }
-.pw-nm { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.glyph { font-family: ucicons; color: #fff; line-height: 1; }
-.pw-face .glyph { font-size: 56cqw; }
+/* the Page Editor's picture tiles: as many across as its page, at its size (read from it: pe_pics) */
+.pw-grid { overflow-y: auto; display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 10px; padding: 2px 4px 2px 2px; min-height: 80px; align-content: start; flex: 1 1 auto; }
+.pw-pic { position: relative; container-type: inline-size; display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 6px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: grab; font-size: 11px; font-weight: 400; text-align: center; min-width: 0; }
+.pw-pic:hover, .pw-pic:focus-visible { border-color: var(--accent); outline: none; }
+.pw-pic.on { border: 2px solid var(--accent); background: var(--accent-soft); }
+.tt { width: 100%; aspect-ratio: 1 / 1; border-radius: 18%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 26cqw; overflow: hidden; object-fit: cover; background: #111; }
+.tt.glyph { font-family: ucicons; font-weight: 400; font-size: 46cqw; line-height: 1; background: #2b2f36; }
+.tt.uc { font-size: 10px; line-height: 1.1; word-break: break-all; padding: 2px; background: #2b2f36; font-weight: 400; }
+.pw-nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+:root[data-theme="dark"] .pw-pic .tt, :root[data-theme="config"] .pw-pic .tt, :root[data-theme="midnight"] .pw-pic .tt { outline: 1px solid var(--line); }
+.glyph { font-family: ucicons; color: #fff; line-height: 1; font-weight: 400; }
 .picwin .status:empty { display: none; }
 .pw-drop { border: 2px dashed var(--line); border-radius: 10px; padding: 14px; text-align: center; color: var(--muted); font-size: 13px; }
 .pw-drop.over { border-color: var(--accent); }
 .pslot { width: 72px; height: 72px; border: 2px dashed var(--line); border-radius: 10px; display: grid; place-items: center; font-size: 11px; line-height: 1.2; color: #9aa3ad; text-align: center; cursor: pointer; background: #0f1114; overflow: hidden; position: relative; padding: 0; min-height: 72px; container-type: inline-size; }
 .pslot.filled { border-style: solid; border-color: #333; }
 .pslot img { width: 62px; height: 62px; object-fit: contain; }
-.pslot .glyph { font-size: 50cqw; }
+.pslot .glyph { font-size: 46cqw; }
+.pslot .tt { width: 62px; height: 62px; }
 .pslot.sel { border: 2px solid var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
 .pslot.over { border-color: var(--accent); }
 .pslot-wrap { display: inline-flex; align-items: center; gap: 6px; }
@@ -184,7 +188,7 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 @media (max-width: 720px) { .drow { grid-template-columns: 1fr 1fr; } .drow .dact { grid-column: 1 / -1; } .drow.dhead { display: none; } }
 .subhead2 { margin: 6px 0 0; font-size: 14px; }
 .pane.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); align-items: start; max-width: none; gap: 12px; }
-.pane.split.haspics { grid-template-columns: minmax(250px, 330px) minmax(0, 1fr) minmax(260px, 340px); }
+.pane.split.haspics { grid-template-columns: var(--pw-col, minmax(250px, 330px)) minmax(0, 1fr) minmax(260px, 340px); }
 @media (max-width: 1150px) { .pane.split, .pane.split.haspics { grid-template-columns: 1fr; } .picwin { position: static; max-height: 70vh; } }
 .pane[data-show] [data-sec].secoff { display: none !important; }
 .bars[data-none]::after { content: attr(data-none) " Use + Create above."; color: var(--muted); font-size: 13px; font-style: italic; }
@@ -2852,14 +2856,14 @@ const pwGlyph = (name) => PW.builtin.find((x) => x.name === name)?.glyph || "";
 /** What a picture id looks like: the picture, a built-in icon drawn with the remote's font, or its name. */
 function picFace(id) {
   id = String(id || "");
-  if (id.startsWith("uc:")) { const ch = PW.font ? pwGlyph(id.slice(3)) : ""; return ch ? el("span", { class: "glyph", "data-uc": id.slice(3) }, ch) : el("span", { class: "hint", "data-uc": id.slice(3) }, id.slice(3)); }
-  if (id.startsWith("tile:")) return asImg(tileCanvas(id.slice(5)), 60, TILE_ICONS[id.slice(5)]?.name);
-  return el("img", { src: iconUrl(id), alt: "", loading: "lazy", on: { error: (e) => e.target.replaceWith(document.createTextNode(pwShort(id))) } });
+  if (id.startsWith("uc:")) { const ch = PW.font ? pwGlyph(id.slice(3)) : ""; return ch ? el("span", { class: "tt glyph", "data-uc": id.slice(3) }, ch) : el("span", { class: "tt uc", "data-uc": id.slice(3) }, id.slice(3)); }
+  if (id.startsWith("tile:")) return el("img", { class: "tt", src: tileCanvas(id.slice(5)).toDataURL("image/png"), alt: "" });
+  return el("img", { class: "tt", src: iconUrl(id), alt: "", loading: "lazy", on: { error: (e) => e.target.replaceWith(el("span", { class: "tt", style: "background:#7f1d1d" }, pwShort(id).slice(0, 4))) } });
 }
 /** Built-in icons shown by name before the font arrived: draw them now. */
 function pwRefreshFaces() {
   if (!PW.font) return;
-  for (const s of document.querySelectorAll("span.hint[data-uc]")) { const ch = pwGlyph(s.dataset.uc); if (ch) s.replaceWith(el("span", { class: "glyph", "data-uc": s.dataset.uc }, ch)); }
+  for (const s of document.querySelectorAll("span.tt.uc[data-uc]")) { const ch = pwGlyph(s.dataset.uc); if (ch) s.replaceWith(el("span", { class: "tt glyph", "data-uc": s.dataset.uc }, ch)); }
 }
 const PW_SOURCES = () => [
   ["remote", `Icons on the remote (${PW.remote.length})`],
@@ -2871,11 +2875,24 @@ const PW_SOURCES = () => [
 function pwList() {
   const q = PW.q.trim().toLowerCase();
   const l = PW.src === "builtin" ? PW.builtin : PW.src === "made" ? PW.made : PW.src === "tiles" ? Object.entries(TILE_ICONS).map(([k, t]) => ({ id: "tile:" + k, name: t.name, tile: k })) : PW.remote;
-  return q ? l.filter((p) => p.name.toLowerCase().includes(q)) : l;
+  return (q ? l.filter((p) => p.name.toLowerCase().includes(q)) : l).slice(0, 400);
 }
+/** Columns, width and height of the Page Editor's Pictures window (it saves them whenever it lays itself out). */
+function pwLayout() {
+  let L = null;
+  try { L = JSON.parse(localStorage.getItem("pe_pics") || "null"); } catch {}
+  const w = $("#picwin");
+  const cols = Math.max(1, Math.min(10, Number(L?.cols) || 4));
+  w.style.setProperty("--cols", String(cols));
+  const width = Number(L?.w) > 150 ? Math.round(Number(L.w)) : 0;
+  for (const p of document.querySelectorAll(".pane.split")) p.style.setProperty("--pw-col", width ? width + "px" : "minmax(250px, 330px)");
+  w.style.height = Number(L?.h) > 200 ? `min(${Math.round(Number(L.h))}px, calc(100vh - 16px))` : "";
+}
+addEventListener("storage", (e) => { if (e.key === "pe_pics") { pwLayout(); } });
 function pwRender() {
   const w = $("#picwin");
   if (!w || w.hidden) return;
+  pwLayout();
   const t = PW.target;
   const head = el("div", { class: "pw-head" }, el("h2", {}, "Pictures"), el("span", { class: "hint" }, "drag onto a box, or click one"));
   const src = el("select", { "aria-label": "Pictures from", on: { change: (e) => { PW.src = e.target.value; try { localStorage.setItem("scb_pwsrc", PW.src); } catch {} pwRender(); } } },
@@ -2905,7 +2922,9 @@ function pwGridFill() {
   if (!g) return;
   const list = pwList();
   g.replaceChildren(...list.map((p) => {
-    const b = el("button", { type: "button", class: "pw-pic", draggable: "true", title: p.name, "aria-label": "Picture " + p.name, on: { click: () => pwPick(p) } }, el("span", { class: "pw-face" }, picFace(p.id)), el("span", { class: "pw-nm" }, p.name));
+    const on = PW.target && PW.target.get() === p.id;
+    const b = el("div", { class: "pw-pic" + (on ? " on" : ""), role: "button", tabindex: "0", draggable: "true", title: p.id.startsWith("tile:") ? p.name : p.id, "aria-label": "Picture " + p.name,
+      on: { click: () => pwPick(p), keydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pwPick(p); } } } }, picFace(p.id), el("span", { class: "pw-nm" }, p.name));
     b.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/x-pic", p.id); e.dataTransfer.effectAllowed = "copy"; });
     return b;
   }));

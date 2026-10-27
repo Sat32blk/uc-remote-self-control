@@ -1291,6 +1291,7 @@ function renderGrid() {
   const pg = page(), g = $("#grid");
   const cell = Math.max(20, Math.min(58, Math.floor((256 - 6 * (pg.grid.w - 1)) / pg.grid.w)));
   $("#view-pages").style.setProperty("--cols", String(pg.grid.w));
+  savePicsLayout();
   g.classList.toggle("tiny", cell < 40); // picture windows: as many across as the page
   g.style.gridTemplateColumns = `repeat(${pg.grid.w}, ${cell}px)`;
   g.style.gridTemplateRows = `repeat(${pg.grid.h}, ${cell}px)`;
@@ -2122,6 +2123,14 @@ function fitPictures(off) {
   if (!pics) return;
   const over = lib.scrollHeight - lib.clientHeight;
   if (over > 0) pics.style.maxHeight = Math.max(120, pics.offsetHeight - over - 4) + "px";
+  savePicsLayout();
+}
+/** The builder's other tabs show their Pictures window like this one: as many across, as wide and as tall. */
+function savePicsLayout() {
+  const lib = $("#libcard");
+  if (!lib || !lib.offsetWidth) return;
+  const cols = Number(getComputedStyle($("#view-pages")).getPropertyValue("--cols")) || 4;
+  try { localStorage.setItem("pe_pics", JSON.stringify({ cols, w: lib.offsetWidth, h: lib.offsetHeight })); } catch {}
 }
 function setLib(v) {
   LIB = ["icons", "builtin", "ch", "local", "made"].includes(v) ? v : "icons";
