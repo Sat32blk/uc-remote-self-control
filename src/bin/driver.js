@@ -514,8 +514,11 @@ const SNAPSHOT_FIELDS = {
   haptic: ["enabled"]
 };
 
+/** A slider of this integration as a control ("slider:<id>"): up / down one step (or "up 5"), or a value. */
+const sliderOf = (key) => (String(key).startsWith("slider:") ? extras?.slider(key.slice(7)) : null);
+const sliderStep = (s) => (s.mode === "steps" ? Number(s.per_press) || 1 : Number(s.step) || 1);
 const selfApi = {
-  keys: [...Object.keys(SELECTS), ...Object.keys(SWITCHES)],
+  get keys() { return [...Object.keys(SELECTS), ...Object.keys(SWITCHES), ...(extras?.sliders || []).map((s) => "slider:" + s.id)]; },
   // "Go to page" step: activity null = the one on screen
   async page(activity, spec) {
     if (!pageJumper) throw new Error("pages not ready");
@@ -530,6 +533,8 @@ const selfApi = {
       return v === undefined ? "" : def.label(v);
     }
     if (SWITCHES[key]) return SWITCHES[key].get(cache || {}) ? "on" : "off";
+    const sl = sliderOf(key);
+    if (sl) { const v = extras.values[sl.id]; return typeof v === "number" ? String(v) : ""; }
     return "";
   },
   snapshot() {
@@ -580,6 +585,17 @@ const selfApi = {
       const on = st === "on" ? true : st === "off" ? false : st === "toggle" ? !def.get(cache || {}) : null;
       if (on === null) throw new Error(`state must be on, off or toggle`);
       await def.set(on);
+    } else if (sliderOf(key)) {
+      // a slider: "up" / "down" one step (or "up 5"), or a value in its range
+      const sl = sliderOf(key);
+      const want = String(step.option ?? "").trim().toLowerCase();
+      const cur = typeof extras.values[sl.id] === "number" ? extras.values[sl.id] : sl.min;
+      const m = /^(up|down)(?:\s+(\d+(?:\.\d+)?))?$/.exec(want);
+      let target;
+      if (m) target = cur + (m[1] === "up" ? 1 : -1) * (m[2] ? Number(m[2]) : sliderStep(sl));
+      else if (want !== "" && Number.isFinite(Number(want))) target = Number(want);
+      else throw new Error(`"${step.option}" isn't up, down or a value for ${sl.name}`);
+      await extras.setValue(sl.id, Math.max(sl.min, Math.min(sl.max, target)));
     } else {
       throw new Error(`unknown control ${key}`);
     }
@@ -1626,6 +1642,10 @@ const webServer = startWebServer({
     const out = {};
     for (const [id, def] of Object.entries(SELECTS)) out[id] = { name: CONTROL_NAMES[id] || def.name, options: selectOptions(def, undefined).map((o) => o.label), current: selfApi.control(id) };
     for (const [id, def] of Object.entries(SWITCHES)) out[id] = { name: CONTROL_NAMES[id] || def.name, switch: true, current: selfApi.control(id) };
+    for (const sl of extras?.sliders || []) {
+      const span = sl.max - sl.min, pts = [0, 0.25, 0.5, 0.75, 1].map((k) => String(Math.round((sl.min + span * k) * 100) / 100));
+      out["slider:" + sl.id] = { name: "Slider: " + sl.name, slider: true, step: sliderStep(sl), options: [...new Set(pts)], current: selfApi.control("slider:" + sl.id) };
+    }
     return out;
   },
   settings: SETTING_LABELS,

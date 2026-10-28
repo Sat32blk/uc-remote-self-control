@@ -565,6 +565,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.2.4:** smart controls and quick menus can move your sliders: step **This remote's control → Your sliders → Slider: <name>** with *up one step*, *down one step*, *up / down 5 steps* or *set to* a value (the slider then sends the device's own commands, e.g. volume up presses). Sliders can also be checked in conditions. Map two smart controls to the volume keys for "Samsung volume up / down".
 - **1.2.3:** everything this integration made (sliders, quick menus, smart controls, switches…) is listed together, sorted by kind, in its own group **Remote Self-Control (made here)**: in the device states (live) panel right after "This remote", and in the device pickers (smart controls, state icons).
 - **1.2.2:** sliders that press up / down on a device that doesn't report its value: they start at the bottom, and setting the bottom presses down the whole range (and a little more), so the device really is at its lowest and the guess starts from zero again. Every move up counts from there. Can be turned off per slider.
 - **1.2.1:** Smart Controls: the integration's own entities (sliders, quick menus, other smart controls, switches) can be used in steps, conditions and "wait until", listed in their own group **Remote Self-Control (made here)**. They show once they're added to the remote.

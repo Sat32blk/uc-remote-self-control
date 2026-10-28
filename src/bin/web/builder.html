@@ -658,6 +658,12 @@ function input(id, value, onInput, { label, list, cls, placeholder, type = "text
 }
 const datalist = (id, items) => el("datalist", { id }, (items || []).map((x) => el("option", { value: String(x) })));
 const TYPE_NAMES = { media_player: "Media players", activity: "Activities", macro: "Macros", remote: "Remotes", light: "Lights", switch: "Switches", select: "Lists", cover: "Covers", climate: "Climate", button: "Buttons", sensor: "Sensors", ir_emitter: "IR emitters", voice_assistant: "Voice" };
+/** "This remote's control": the remote's settings and Controls, then your sliders (up, down or a value). */
+function controlOptions() {
+  const all = Object.entries(CAT.controls || {});
+  const sl = all.filter(([, d]) => d.slider);
+  return [{ group: "This remote", items: all.filter(([, d]) => !d.slider).map(([k, d]) => [k, d.name]) }, ...(sl.length ? [{ group: "Your sliders", items: sl.map(([k, d]) => [k, d.name]) }] : [])];
+}
 const OWN_GROUP = "Remote Self-Control (made here)";
 /** This integration's own entities, together: by kind (sliders, quick menus, smart controls…), then by name. */
 const ownSorted = () => [...(CAT.own || [])].sort((a, b) => (OWN_TYPES[a.type] || a.type).localeCompare(OWN_TYPES[b.type] || b.type) || a.name.localeCompare(b.name));
@@ -718,7 +724,7 @@ function condRow(cond, list, idx) {
       el("span", { class: "sep" }, "and"), input(id + "-t", cond.to, (v) => { cond.to = v; notify(false); }, { label: "To", type: "time" }));
   } else if (cond.t === "control") {
     const c = CAT.controls[cond.key];
-    row.append(select(id + "-c", Object.entries(CAT.controls).map(([k, d]) => [k, d.name]), cond.key, (v) => { cond.key = v; cond.val = ""; notify(true); }, "Control"));
+    row.append(select(id + "-c", controlOptions(), cond.key, (v) => { cond.key = v; cond.val = ""; notify(true); }, "Control"));
     row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; notify(false); }, "Comparison"));
     const lid = id + "-l";
     const cv = input(id + "-v", cond.val, (v) => { cond.val = v; notify(false); }, { label: "Value", list: lid });
@@ -774,9 +780,12 @@ function stepRow(step, list, idx) {
   if (step.t === "cmd") {
     row.append(...cmdFields(id, step));
   } else if (step.t === "self") {
-    row.append(select(id + "-c", Object.entries(CAT.controls).map(([k, d]) => [k, d.name]), step.key, (v) => { step.key = v; const c = CAT.controls[v]; step.val = c.switch ? "on" : c.options[0]; notify(true); }, "Control"));
+    row.append(select(id + "-c", controlOptions(), step.key, (v) => { step.key = v; const c = CAT.controls[v]; step.val = c.switch ? "on" : c.slider ? "up" : c.options[0]; notify(true); }, "Control"));
     const c = CAT.controls[step.key];
-    const opts = !c ? [] : c.switch ? [["on", "on"], ["off", "off"], ["toggle", "toggle"]] : [["next", "next (wraps)"], ["previous", "previous (wraps)"], ["up", "up one step"], ["down", "down one step"], ...c.options.map((o) => [o, o])];
+    const opts = !c ? [] : c.switch ? [["on", "on"], ["off", "off"], ["toggle", "toggle"]]
+      : c.slider ? [["up", `up one step (+${c.step})`], ["down", `down one step (−${c.step})`], [`up ${c.step * 5}`, `up 5 steps (+${c.step * 5})`], [`down ${c.step * 5}`, `down 5 steps (−${c.step * 5})`],
+          ...c.options.map((o) => [o, "set to " + o]), ...(step.val && !/^(up|down)( [\d.]+)?$/.test(step.val) && !c.options.includes(step.val) ? [[step.val, "set to " + step.val]] : [])]
+      : [["next", "next (wraps)"], ["previous", "previous (wraps)"], ["up", "up one step"], ["down", "down one step"], ...c.options.map((o) => [o, o])];
     row.append(select(id + "-v", opts, step.val, (v) => { step.val = v; notify(false); }, "Set to"));
   } else if (step.t === "delay") {
     row.append(input(id + "-m", step.ms, (v) => { step.ms = v; notify(false); }, { label: "Milliseconds", type: "number", cls: "num" }), el("span", { class: "sep" }, "ms"));
