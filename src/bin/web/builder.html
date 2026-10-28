@@ -658,14 +658,17 @@ function input(id, value, onInput, { label, list, cls, placeholder, type = "text
 }
 const datalist = (id, items) => el("datalist", { id }, (items || []).map((x) => el("option", { value: String(x) })));
 const TYPE_NAMES = { media_player: "Media players", activity: "Activities", macro: "Macros", remote: "Remotes", light: "Lights", switch: "Switches", select: "Lists", cover: "Covers", climate: "Climate", button: "Buttons", sensor: "Sensors", ir_emitter: "IR emitters", voice_assistant: "Voice" };
+const OWN_GROUP = "Remote Self-Control (made here)";
+/** This integration's own entities, together: by kind (sliders, quick menus, smart controls…), then by name. */
+const ownSorted = () => [...(CAT.own || [])].sort((a, b) => (OWN_TYPES[a.type] || a.type).localeCompare(OWN_TYPES[b.type] || b.type) || a.name.localeCompare(b.name));
 const OWN_TYPES = { light: "slider", select: "quick menu / setting", button: "smart control", switch: "switch", sensor: "sensor", media_player: "media player" };
 /** Devices for a picker, grouped by kind; with own, also this integration's own entities (sliders, quick menus…) in their own group. */
-function deviceOptions(filter, { own = false } = {}) {
+function deviceOptions(filter, { own = true } = {}) {
   const groups = {};
   for (const d of CAT.devices) { if (filter && !filter(d)) continue; (groups[d.type] = groups[d.type] || []).push([d.id, d.name]); }
   const out = Object.entries(groups).map(([t, items]) => ({ group: TYPE_NAMES[t] || t, items }));
-  const mine = own ? (CAT.own || []).filter((d) => !filter || filter(d)) : [];
-  if (mine.length) out.push({ group: "Remote Self-Control (made here)", items: mine.map((d) => [d.id, `${d.name} (${OWN_TYPES[d.type] || d.type})`]) });
+  const mine = own ? ownSorted().filter((d) => !filter || filter(d)) : [];
+  if (mine.length) out.push({ group: OWN_GROUP, items: mine.map((d) => [d.id, `${d.name} (${OWN_TYPES[d.type] || d.type})`]) });
   return out;
 }
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
@@ -1581,7 +1584,9 @@ function statesDeviceOptions() {
     const g = CAT.integrations?.[d.integration] || String(d.integration || "Other").replace(/\.main$/, "");
     (groups[g] = groups[g] || []).push([d.id, d.name + (TYPE_NAMES[d.type] ? " · " + TYPE_NAMES[d.type].replace(/s$/, "").toLowerCase() : "")]);
   }
+  const mine = ownSorted();
   return [{ group: "This remote", items: [[REMOTE_ID, "This remote: settings and controls"]] },
+    ...(mine.length ? [{ group: OWN_GROUP, items: mine.map((d) => [d.id, `${d.name} · ${OWN_TYPES[d.type] || d.type}`]) }] : []),
     ...Object.keys(groups).sort((a, b) => a.localeCompare(b)).map((g) => ({ group: g, items: groups[g].sort((x, y) => x[1].localeCompare(y[1])) }))];
 }
 function renderStatesBody(where) {
@@ -2920,7 +2925,7 @@ function sliderCard(s, si) {
   card.append(el("div", { class: "subhead" }, "1 · Device"));
   const attrs = numAttrs(dev);
   card.append(el("div", { class: "fields" },
-    field(id + "-d", "Device", select(id + "-d", [["", "Pick a device…"], ...deviceOptions((d) => d.type !== "activity" && d.type !== "macro")], s.entity, (v) => {
+    field(id + "-d", "Device", select(id + "-d", [["", "Pick a device…"], ...deviceOptions((d) => d.type !== "activity" && d.type !== "macro", { own: false })], s.entity, (v) => {
       const keep = { id: s.id, name: s.name };
       const auto = !s.name || s.name === sliderFor(DEV[s.entity]).name;
       Object.assign(s, sliderFor(DEV[v]));
