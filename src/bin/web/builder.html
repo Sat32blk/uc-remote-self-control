@@ -2235,12 +2235,14 @@ async function uploadCellFrames(draw, onProgress) {
     bgs[k] = img;
   }
   const frames = draw.cells.map(() => []);
+  const N = [11, 21, 51, 101].includes(draw.steps) ? draw.steps : 11;
   let n = 0;
-  for (let i = 0; i <= 10; i++) {
-    const big = levelComposite(draw.spec, i / 10, draw.rect, bgs);
+  for (let i = 0; i < N; i++) {
+    const f = i / (N - 1);
+    const big = levelComposite(draw.spec, f, draw.rect, bgs);
     for (const [k, c] of draw.cells.entries()) {
-      frames[k].push(await uploadCanvas(`lv_${draw.sig}_${c.x}_${c.y}_${String(i * 10).padStart(3, "0")}.png`, cellFrame(draw, big, c, i / 10)));
-      onProgress && onProgress(++n, 11 * draw.cells.length);
+      frames[k].push(await uploadCanvas(`lv_${draw.sig}_${c.x}_${c.y}_${N === 11 ? String(i * 10).padStart(3, "0") : N + "s" + String(i).padStart(3, "0")}.png`, cellFrame(draw, big, c, f)));
+      onProgress && onProgress(++n, N * draw.cells.length);
     }
   }
   return frames;
@@ -2491,13 +2493,14 @@ $("#icon-add").addEventListener("click", () => {
   openEdit("icons", item, { isNew: true });
 });
 async function postIcons(onProgress) {
-  for (const b of ICONS) if (b.kind === "level" && b.cells?.length && b.cells.some((c) => !c.frames || c.frames.length !== 11)) {
+  const want = (b) => b._draw?.steps || 11;
+  for (const b of ICONS) if (b.kind === "level" && b.cells?.length && b.cells.some((c) => !c.frames || ![11, 21, 51, 101].includes(c.frames.length) || (b._draw && c.frames.length !== want(b)))) {
     if (!b._draw) throw new Error(`open "${b.name}" in its slider and save it again`);
     const fr = await uploadCellFrames(b._draw, (n, t) => onProgress && onProgress(b, n, t));
     b.cells.forEach((c, k) => { c.frames = fr[k]; });
     b.frames = fr[0];
   }
-  for (const b of ICONS) if (b.kind === "level" && !b.cells?.length && (!b.frames || b.frames.length !== 11)) {
+  for (const b of ICONS) if (b.kind === "level" && !b.cells?.length && (!b.frames || ![11, 21, 51, 101].includes(b.frames.length) || (b._draw && b.frames.length !== want(b)))) {
     if (b._draw) { b.frames = (await uploadCellFrames(b._draw, (n, t) => onProgress && onProgress(b, n, t)))[0]; continue; }
     b.frames = await uploadLevelFrames(b.design, b.color, (n) => onProgress && onProgress(b, n), { bg: b.bg || null, scale: b.scale || 1, colors: b.colors || null });
   }
@@ -2629,7 +2632,8 @@ function attachLevels() {
     const colors = (b.colors || []).map((c) => ({ ...c }));
     s.level = { activity: b.activity, location: loc, location2: loc2, design: b.design, color: b.color, colors, cmode: colors.length ? (b.blend ? "blend" : "steps") : "one",
       inner: !!b.inner, fmt: b.fmt || "pct", label: b.label ? { ...b.label } : { on: false, fmt: "pct", size: "m" },
-      scale: b.scale || 1, when: b.show === "change" ? String(Math.round((b.showMs || 4000) / 1000)) : "always", restart: !b.noRestart };
+      scale: b.scale || 1, when: b.show === "change" ? String(Math.round((b.showMs || 4000) / 1000)) : "always", restart: !b.noRestart,
+      steps: (b.cells?.[0]?.frames || b.frames || []).length || 11 };
   }
 }
 /** The button's own look at a spot (before any state icon or level graphic changed it). */
@@ -2674,7 +2678,7 @@ function levelArea(lv, s, act, usedByOther) {
     box.append(el("div", { class: "lvit" + (it.type === "icon" || it.type === "text" ? "" : " big") + (other ? " other" : ""), title: other ? "Used by " + other : "", style: `left:${px(x)}px;top:${px(y)}px;width:${px(w) - GAP}px;height:${px(h) - GAP}px` }, look));
   }
   if (rect) {
-    const spec = levelSpec(lv, s), f = (lv._pv ?? 60) / 100, step = Math.round(f * 10) / 10;
+    const N = Number(lv.steps) || 11, spec = levelSpec(lv, s), f = (lv._pv ?? 60) / 100, step = Math.round(f * (N - 1)) / (N - 1);
     const big = levelComposite(spec, step, rect);
     const draw = { spec, rect, label: levelLabel(lv, rect) };
     for (let y = rect.y0; y < rect.y0 + rect.h; y++) for (let x = rect.x0; x < rect.x0 + rect.w; x++) {
@@ -2745,10 +2749,12 @@ function sliderLevel(s, id) {
     ? el("p", { class: "status err" }, `This area covers ${[...sc.blocked.map((it) => it.type === "media_player" ? "a media widget" : it.type === "sensor" ? "a sensor" : it.type === "select" ? "a select" : "a bigger button"), ...taken.map((t) => `a button used by ${t}`)].join(", ")}. Move or resize the frame.`)
     : el("p", { class: "hint" }, `${rect.w * rect.h} button${rect.w * rect.h > 1 ? "s" : ""}${sc.cells.length ? `: ${sc.cells.length} of your buttons show the level${lv.when === "always" ? "" : " for a moment, then their own picture again"}` : ""}${sc.gaps ? `; ${sc.gaps} empty spot${sc.gaps > 1 ? "s get" : " gets"} a blank button (removable in the Page Editor)` : ""}.`);
   const preview = el("div", { class: "row" }, el("span", { class: "hint" }, "Preview at"),
-    el("input", { type: "range", min: 0, max: 100, step: 10, value: lv._pv ?? 60, "aria-label": "Preview value", on: { input: (e) => { lv._pv = Number(e.target.value); extrasChanged(true); } } }), el("span", {}, `${lv._pv ?? 60} %`));
+    el("input", { type: "range", min: 0, max: 100, step: 100 / ((Number(lv.steps) || 11) - 1), value: lv._pv ?? 60, "aria-label": "Preview value", on: { input: (e) => { lv._pv = Number(e.target.value); extrasChanged(true); } } }), el("span", {}, `${lv._pv ?? 60} %`));
   box.append(el("div", { class: "lvwrap" }, levelArea(lv, s, act, usedByOther),
     el("div", { class: "lines" }, el("div", { class: "row" }, el("span", {}, "Width"), sizeIn("w", grid.width), el("span", {}, "× height"), sizeIn("h", grid.height), el("span", { class: "hint" }, `column ${rect.x0 + 1}, row ${rect.y0 + 1}`)), quick, fitMsg, preview,
-      el("p", { class: "hint" }, "Drag the orange frame to move it; drag its edges or corner to resize it. The picture is split over the buttons inside, in 11 steps (0 %, 10 % … 100 %)."))));
+      el("p", { class: "hint" }, "Drag the orange frame to move it; drag its edges or corner to resize it. The picture is split over the buttons inside."),
+      el("div", { class: "row" }, el("span", {}, "Steps"), select(id + "-st", [["11", "11 (every 10 %)"], ["21", "21 (every 5 %)"], ["51", "51 (every 2 %)"], ["101", "101 (every 1 %)"]], String(lv.steps || 11), (v) => { lv.steps = Number(v); extrasChanged(true); }, "Level steps"),
+        el("span", { class: "hint" }, `${(Number(lv.steps) || 11) * rect.w * rect.h} pictures to upload. More steps: the picture follows every press (a 0–100 volume moves 1 per press), but the first save takes longer.`)))));
   // design
   const spec = levelSpec(lv, s);
   const gal = el("div", { class: "gallery", role: "radiogroup", "aria-label": "Level design" });
@@ -2914,7 +2920,8 @@ async function syncSliderLevels() {
       sc = shapeCells(lv, act);
     }
     const spec = levelSpec(lv, s), label = levelLabel(lv, rect), bgs = cellBgsOf(lv, act, { cells: spots });
-    const sig = hashStr(JSON.stringify([spec, rect, label, bgs]));
+    const steps = [11, 21, 51, 101].includes(Number(lv.steps)) ? Number(lv.steps) : 11;
+    const sig = hashStr(JSON.stringify([spec, rect, label, bgs, steps]));
     const when = lv.when || "always";
     const lab = label.on ? { on: true, fmt: label.fmt, size: label.size, dx: label.x - rect.x0, dy: label.y - rect.y0 } : null;
     // no value read from the device: the level shows the slider's own remembered value
@@ -2925,10 +2932,10 @@ async function syncSliderLevels() {
       ...(spec.blend ? { blend: true } : {}), ...(spec.inner ? { inner: true } : {}), ...(spec.fmt !== "pct" ? { fmt: spec.fmt } : {}), ...(lab ? { label: lab } : {}),
       ...(when === "always" ? {} : { show: "change", showMs: Math.round(Number(when) * 1000), ...(lv.restart === false ? { noRestart: true } : {}) }) };
     const many = spots.length > 1;
-    const same = !!cur && cur.sig === sig && (many ? cur.cells?.length === spots.length && cur.cells.every((c, k) => c.x === spots[k].x && c.y === spots[k].y && c.frames?.length === 11) : !cur.cells?.length && cur.frames?.length === 11);
+    const same = !!cur && cur.sig === sig && (many ? cur.cells?.length === spots.length && cur.cells.every((c, k) => c.x === spots[k].x && c.y === spots[k].y && c.frames?.length === steps) : !cur.cells?.length && cur.frames?.length === steps);
     if (many) want.cells = spots.map((p, k) => ({ x: p.x, y: p.y, frames: same ? cur.cells[k].frames : [] }));
     want.frames = same ? (many ? cur.cells[0].frames : cur.frames) : [];
-    if (!same) want._draw = { spec, rect, cells: spots, sig, bgs, label };
+    if (!same) want._draw = { spec, rect, cells: spots, sig, bgs, label, steps };
     if (!cur) { ICONS.push(want); changed = true; }
     else {
       const keys = ["name", "activity", "location", "entity", "attr", "min", "max", "design", "color", "colors", "frames", "scale", "show", "showMs", "noRestart", "cells", "blend", "inner", "fmt", "label", "sig"];

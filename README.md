@@ -565,6 +565,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.2.9:** level pictures keep up with the slider: a new **Steps** choice (11, 21, 51 or 101 pictures, so every 10 %, 5 %, 2 % or 1 %) lets single presses show, and a slider's level picture now updates the page within about 0.8 s (a quick press during the wait is shown right after it instead of being skipped).
 - **1.2.8:** no more lock-up at zero: stepping down to the bottom (volume down) sends only the presses needed plus one, and a "down" at the bottom sends one more press. The whole-range re-sync now only runs when the slider is *set* to the bottom (dragged, turned off, "set to 0"), and it stops as soon as you press or move it again.
 - **1.2.7:** sliders moved by smart controls respond faster: the smart control no longer waits for the device commands, so quick presses aren't ignored, and quick presses add up from where the slider is heading (3 fast "up" presses = +3).
 - **1.2.6:** Smart Controls: picking one of your sliders as the device of a **Device command** step now offers **Step up**, **Step down**, **Step up 5**, **Step down 5** and **Set to a value** (instead of the light's on / off).

@@ -21,6 +21,9 @@ export const MAX_ICONS = 60;
 export const MAX_DEVICES = 25; // different devices the state icons watch (each is read every 2 s)
 export const MAX_STATES = 24;
 export const LEVEL_FRAMES = 11;
+export const LEVEL_STEPS = [11, 21, 51, 101]; // pictures per level: every 10 %, 5 %, 2 % or 1 %
+// level pictures of sliders change while you press: their page may be written this often (instead of MIN_WRITE_MS)
+export const FAST_WRITE_MS = Number(process.env.UC_SELF_FAST_WRITE_MS ?? 800);
 export const MAX_CELLS = 24;
 
 /**
@@ -45,7 +48,8 @@ export function levelIndex(binding, value) {
   const v = typeof value === "number" ? value : parseFloat(String(value ?? "").replace(/[^0-9.+-]/g, ""));
   if (!Number.isFinite(v)) return null;
   const f = (v - binding.min) / (binding.max - binding.min);
-  return Math.round(Math.max(0, Math.min(1, f)) * (LEVEL_FRAMES - 1));
+  const n = (Array.isArray(binding.frames) && LEVEL_STEPS.includes(binding.frames.length) ? binding.frames.length : LEVEL_FRAMES) - 1;
+  return Math.round(Math.max(0, Math.min(1, f)) * n);
 }
 
 /** Look of a button for a value: the matching state (or level frame) over the default. */
@@ -54,7 +58,7 @@ export function lookFor(binding, value) {
   if (binding.kind === "level") {
     const i = levelIndex(binding, value);
     if (i === null) return { type: d.type, icon: d.icon, text: d.text, state: null };
-    return { type: "icon", icon: binding.frames[i], text: d.text, state: `${i * 10} %` };
+    return { type: "icon", icon: binding.frames[i], text: d.text, state: `${Math.round((i * 100) / (binding.frames.length - 1))} %` };
   }
   const st = (binding.states || []).find((s) => norm(s.value) === norm(value));
   if (!st) return { type: d.type, icon: d.icon, text: d.text, state: null };
@@ -97,13 +101,14 @@ export function validateIcons(input) {
     if (level) {
       const min = Number(b.min), max = Number(b.max);
       if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) errors.push(`${at}: the level's highest value must be above the lowest`);
-      const okFrames = (f) => Array.isArray(f) && f.length === LEVEL_FRAMES && f.every((x) => ICON_RE.test(String(x)));
+      const okFrames = (f) => Array.isArray(f) && LEVEL_STEPS.includes(f.length) && f.every((x) => ICON_RE.test(String(x)));
       let cells = null;
       if (Array.isArray(b.cells) && b.cells.length) {
         if (b.cells.length > MAX_CELLS) errors.push(`${at}: at most ${MAX_CELLS} buttons for one level graphic`);
         cells = b.cells.map((c) => ({ x: c?.x, y: c?.y, frames: Array.isArray(c?.frames) ? c.frames.map(String) : [] }));
         if (!cells.every((c) => Number.isInteger(c.x) && Number.isInteger(c.y) && c.x >= 0 && c.y >= 0)) errors.push(`${at}: invalid button positions`);
         if (!cells.every((c) => okFrames(c.frames))) errors.push(`${at}: pick a level design (its images are missing)`);
+        else if (!cells.every((c) => c.frames.length === cells[0].frames.length)) errors.push(`${at}: every button needs the same number of level pictures`);
       }
       const frames = cells ? cells[0].frames : Array.isArray(b.frames) ? b.frames.map(String) : [];
       if (!cells && !okFrames(frames)) errors.push(`${at}: pick a level design (its ${LEVEL_FRAMES} images are missing)`);
@@ -179,6 +184,7 @@ export class StateIcons {
     this.known = {}; // activity -> hash of its page as this integration last saw / wrote it
     this.paused = {}; // activity -> reason (its page was changed by someone else)
     this.lastWrite = {}; // activity -> time of the last page write by state icons
+    this.retry = {}; // activity -> timer for a write that had to wait
     // smart launcher copies show the same state icons as their original (set by the driver)
     this.alias = { copiesOf: () => [] };
     this.local = null; // (entity) -> attributes the integration knows itself, or null (set by the driver)
@@ -342,7 +348,7 @@ export class StateIcons {
         if (b.kind === "level") {
           const i = levelIndex(b, value);
           if (i === null) return { type: sp.def?.type, icon: sp.def?.icon, text: sp.def?.text, state: null };
-          return { type: "icon", icon: sp.frames[i], text: spots.length > 1 ? null : sp.def?.text, state: `${i * 10} %` };
+          return { type: "icon", icon: sp.frames[i], text: spots.length > 1 ? null : sp.def?.text, state: `${Math.round((i * 100) / (sp.frames.length - 1))} %` };
         }
         return lookFor(b, value);
       });
@@ -357,7 +363,10 @@ export class StateIcons {
         continue;
       }
       // gentle on the remote's storage: one write per activity every MIN_WRITE_MS (the next check catches up)
-      if (!force && now - (this.lastWrite[activity] || 0) < MIN_WRITE_MS) {
+      const wait = changes.some((c) => c.b.kind === "level" && c.b.slider) ? FAST_WRITE_MS : MIN_WRITE_MS;
+      if (!force && now - (this.lastWrite[activity] || 0) < wait) {
+        // try again as soon as allowed (not only at the next check), so a slider's level keeps up while you press
+        if (!this.retry[activity]) this.retry[activity] = setTimeout(() => { delete this.retry[activity]; this.refresh(false); }, wait - (now - (this.lastWrite[activity] || 0)) + 20);
         for (const c of changes) this.status[c.b.id].key = null;
         continue;
       }

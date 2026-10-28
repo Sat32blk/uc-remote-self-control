@@ -40,5 +40,17 @@ ok(v.icons[0].cells?.length === 4 && v.icons[0].sig === "abc123", "an area of 2 
   val = 20; await SI.refresh(true);
   ok(page.items[0].icon === frames[2], "the slider moves to 20: frame 2");
 }
+// finer steps: 21, 51 or 101 pictures; the right one is picked for each value
+{
+  const { levelIndex } = await import("../src/bin/stateicons.js");
+  const f101 = Array.from({ length: 101 }, (_, i) => `custom:lv_y_${i}.png`), f21 = f101.slice(0, 21);
+  let v3 = validateIcons({ icons: [{ ...base, frames: f101 }] });
+  ok(!v3.errors.length && v3.icons[0].frames.length === 101, "101 pictures (every 1 %) are accepted");
+  ok(levelIndex({ min: 0, max: 100, frames: f101 }, 37) === 37 && levelIndex({ min: 0, max: 100, frames: f21 }, 37) === 7 && levelIndex({ min: 0, max: 100, frames }, 37) === 4, "37 shows picture 37 of 101, 7 of 21, 4 of 11");
+  v3 = validateIcons({ icons: [{ ...base, frames: f101.slice(0, 30) }] });
+  ok(v3.errors.length > 0, "30 pictures is refused");
+  v3 = validateIcons({ icons: [{ ...base, cells: [{ x: 2, y: 2, frames: f21 }, { x: 3, y: 2, frames }] }] });
+  ok(v3.errors.some((e) => /same number/.test(e)), "buttons with different numbers of pictures are refused");
+}
 console.log(fails ? `${fails} FAILED` : "ALL PASSED");
 process.exit(fails ? 1 : 0);
