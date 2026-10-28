@@ -2689,7 +2689,6 @@ function firstSpot(act, usedByOther) {
 function sliderLevel(s, id) {
   const box = el("div", { class: "lines" });
   if (!iconsLoaded) { box.append(el("p", { class: "hint" }, "Loading your activities…")); return box; }
-  if (!s.attr) { box.append(el("p", { class: "hint" }, "Needs a value to read (step 1).")); return box; }
   const lv = s.level;
   const usable = ICON_ACTS.filter((a) => a.pageCount === 1);
   const actSel = select(id + "-la", [["", "None (no level picture)"], ...usable.map((a) => [a.id, a.name])], lv?.activity || "", (v) => {
@@ -2891,7 +2890,9 @@ async function syncSliderLevels() {
     const sig = hashStr(JSON.stringify([spec, rect, label, bgs]));
     const when = lv.when || "always";
     const lab = label.on ? { on: true, fmt: label.fmt, size: label.size, dx: label.x - rect.x0, dy: label.y - rect.y0 } : null;
-    const want = { id: cur?.id || ("lvl_" + s.id.replace(/^slider_/, "")).slice(0, 40), name: s.name + " level", activity: lv.activity, location: { x: rect.x0, y: rect.y0 }, entity: s.entity, attr: s.attr,
+    // no value read from the device: the level shows the slider's own remembered value
+    const src = s.attr ? { entity: s.entity, attr: s.attr } : { entity: "slider:" + s.id, attr: "value" };
+    const want = { id: cur?.id || ("lvl_" + s.id.replace(/^slider_/, "")).slice(0, 40), name: s.name + " level", activity: lv.activity, location: { x: rect.x0, y: rect.y0 }, ...src,
       kind: "level", min: Number(s.min), max: Number(s.max), design: lv.design, color: lv.color, slider: s.id, states: [], scale: spec.scale, sig,
       ...(spec.colors.length ? { colors: spec.colors.map((c) => ({ from: Number(c.from), color: c.color })).sort((x, y) => x.from - y.from) } : {}),
       ...(spec.blend ? { blend: true } : {}), ...(spec.inner ? { inner: true } : {}), ...(spec.fmt !== "pct" ? { fmt: spec.fmt } : {}), ...(lab ? { label: lab } : {}),

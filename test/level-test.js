@@ -20,5 +20,25 @@ v = validateIcons({ icons: [{ ...base, fmt: "weird", label: { on: false } }] });
 ok(!v.icons[0].fmt && !v.icons[0].label, "unknown text format and a label that's off are left out");
 v = validateIcons({ icons: [{ ...base, cells: [{ x: 2, y: 2, frames }, { x: 3, y: 2, frames }, { x: 2, y: 3, frames }, { x: 3, y: 3, frames }], sig: "abc123" }] });
 ok(v.icons[0].cells?.length === 4 && v.icons[0].sig === "abc123", "an area of 2 × 2 buttons");
+// a slider that doesn't read its device: the level shows the slider's own remembered value
+{
+  const { StateIcons } = await import("../src/bin/stateicons.js");
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  let page = { page_id: "p1", items: [{ type: "icon", icon: "custom:own.png", location: { x: 0, y: 0 }, size: { width: 1, height: 1 } }] };
+  const asked = [];
+  const core = { get: async (p) => { asked.push(p); if (/\/ui\/pages$/.test(p)) return [JSON.parse(JSON.stringify(page))]; throw new Error("not found"); },
+    patch: async (p, body) => { page = { ...page, items: body.items }; return {}; } };
+  const SI = new StateIcons({ getCore: () => core, file: path.join(fs.mkdtempSync(path.join(os.tmpdir(), "si-")), "si.json"), log: () => {}, warn: () => {} });
+  let val = 70;
+  SI.local = (e) => (e === "slider:slider_amp" ? { value: val, state: "ON" } : null);
+  const v2 = validateIcons({ icons: [{ ...base, entity: "slider:slider_amp", attr: "value", location: { x: 0, y: 0 }, activity: "uc.main.a", slider: "slider_amp", colors: undefined }] });
+  ok(!v2.errors.length, "a level on the slider's own value is valid: " + v2.errors.join("; "));
+  const r = await SI.replace(v2.icons);
+  ok(!r.errors.length, "saved: " + r.errors.join("; "));
+  await SI.refresh(true);
+  ok(page.items[0].icon === frames[7] && !asked.some((p) => p.startsWith("/entities/")), "70 of 0–100 shows frame 7, without asking the remote for a device");
+  val = 20; await SI.refresh(true);
+  ok(page.items[0].icon === frames[2], "the slider moves to 20: frame 2");
+}
 console.log(fails ? `${fails} FAILED` : "ALL PASSED");
 process.exit(fails ? 1 : 0);

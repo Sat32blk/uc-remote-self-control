@@ -181,6 +181,7 @@ export class StateIcons {
     this.lastWrite = {}; // activity -> time of the last page write by state icons
     // smart launcher copies show the same state icons as their original (set by the driver)
     this.alias = { copiesOf: () => [] };
+    this.local = null; // (entity) -> attributes the integration knows itself, or null (set by the driver)
     this.busy = Promise.resolve();
     this.load();
   }
@@ -306,6 +307,9 @@ export class StateIcons {
     const t0 = Date.now();
     const values = new Map();
     for (const id of new Set(this.icons.map((b) => b.entity))) {
+      // values the integration keeps itself (a slider's remembered value: "slider:<id>"), not read from the remote
+      const own = this.local ? this.local(id) : null;
+      if (own) { values.set(id, own); continue; }
       try {
         const e = await core.get(`/entities/${encodeURI(id)}`);
         values.set(id, e?.attributes || {});

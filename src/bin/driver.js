@@ -747,6 +747,8 @@ const AREA_SLIDERS = "Remote Sliders & Menus";
 const extraEntities = {};
 
 function publishExtra(id, attrs) {
+  // a level picture that shows this slider's own value: update it right away
+  if (stateIcons?.icons.some((b) => b.entity === "slider:" + id)) stateIcons.refresh(false);
   const e = extraEntities[id];
   if (!e) return;
   const changed = {};
@@ -1567,6 +1569,12 @@ const driverJson = fs.existsSync(path.join(HERE, "driver.json")) ? path.join(HER
 api.init(driverJson, setupHandler);
 cfgFile = path.join(api.getConfigDirPath(), "self_control.json");
 stateIcons = new StateIcons({ getCore: () => core, file: path.join(api.getConfigDirPath(), "state_icons.json"), log, warn });
+// a slider's own value for level pictures of sliders that don't read the device ("slider:<id>")
+stateIcons.local = (entity) => {
+  if (!String(entity).startsWith("slider:")) return null;
+  const v = extras?.values?.[entity.slice(7)];
+  return { value: typeof v === "number" ? v : null, state: "ON" };
+};
 returnTracker = new ReturnTracker({ getCore: () => core, file: path.join(api.getConfigDirPath(), "return.json"), log, warn, onChange: updatePreviousSensor });
 updatePreviousSensor();
 stats = new Stats({ file: path.join(api.getConfigDirPath(), "statistics.json"), log, warn, originalOf: (id) => returnTracker.alias.originalOf(id) });
