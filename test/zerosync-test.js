@@ -47,5 +47,27 @@ ok(count("media_player.volume_down") === 5, "a slider that reads the value press
   await Promise.all([Y.nudge("slider_amp", -1), Y.nudge("slider_amp", -1)]); await new Promise((r) => setTimeout(r, 300));
   ok(Y.values.slider_amp === 11 && count("media_player.volume_down") === 2, `two quick presses down: → ${Y.values.slider_amp}`);
 }
+// stepping down to the bottom is quick (no whole-range sweep); a press at the bottom still presses down once
+{
+  const Z = new Extras({ getCore: () => core, engine: () => null, file: file + ".3", publish: () => {}, log: () => {}, warn: () => {} });
+  Z.replace(validateExtras({ sliders: [base] }).extras); Z.values.slider_amp = 1; sent.length = 0;
+  await Z.nudge("slider_amp", -1);
+  ok(Z.values.slider_amp === 0 && count("media_player.volume_down") === 2, `step down from 1 to the bottom: ${count("media_player.volume_down")} presses (1 + 1 to be sure), not the whole range`);
+  sent.length = 0;
+  await Z.nudge("slider_amp", -1);
+  ok(Z.values.slider_amp === 0 && count("media_player.volume_down") === 1, "down again at the bottom: one more press down, still 0");
+}
+// a whole-range sweep stops as soon as something new is asked
+{
+  const slow = { request: async (m, p, body) => { await new Promise((r) => setTimeout(r, 10)); sent.push(body.cmd_id); return {}; }, get: async () => ({}) };
+  const Y = new Extras({ getCore: () => slow, engine: () => null, file: file + ".4", publish: () => {}, log: () => {}, warn: () => {} });
+  Y.replace(validateExtras({ sliders: [base] }).extras); Y.values.slider_amp = 30; sent.length = 0;
+  const p1 = Y.setValue("slider_amp", 0);
+  await new Promise((r) => setTimeout(r, 120));
+  const p2 = Y.nudge("slider_amp", 1);
+  await Promise.all([p1, p2]); await new Promise((r) => setTimeout(r, 100));
+  const downs = count("media_player.volume_down");
+  ok(downs < 52 && downs > 0 && Y.values.slider_amp === Math.max(1, 30 - downs), `the sweep stopped after ${downs} of 52 presses when "up" was pressed; the slider is at ${Y.values.slider_amp}`);
+}
 console.log(fails ? `${fails} FAILED` : "ALL PASSED");
 process.exit(fails ? 1 : 0);

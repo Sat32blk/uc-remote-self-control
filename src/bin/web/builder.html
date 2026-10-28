@@ -2984,8 +2984,8 @@ function sliderCard(s, si) {
     if (!s.attr) modeRow.append(el("div", { class: "lines", style: "grid-column:1/-1" },
       el("p", { class: "hint" }, "This device doesn't report its value, so the slider counts your presses: it starts at the bottom (" + s.min + ") and is a guess after that."),
       el("label", { class: "check" }, el("input", { type: "checkbox", checked: s.zeroSync !== false, on: { change: (e) => { s.zeroSync = e.target.checked; extrasChanged(false); } } }),
-        " Setting it to the bottom presses down the whole range, so it starts counting from zero again"),
-      el("p", { class: "hint" }, `Slide it to ${s.min} (or turn it off) whenever the guess is wrong: about ${Math.min(150, Math.ceil((Number(s.max) - Number(s.min)) / (Number(s.per_press) || 1)) + 2)} down presses, then every move up counts from zero.`)));
+        " Dragging it to the bottom (or turning it off) presses down the whole range, so it starts counting from zero again"),
+      el("p", { class: "hint" }, `Slide it to ${s.min} (or turn it off) whenever the guess is wrong: about ${Math.min(150, Math.ceil((Number(s.max) - Number(s.min)) / (Number(s.per_press) || 1)) + 2)} down presses, stopped by your next press; then every move up counts from zero. Stepping down to ${s.min} with a button only sends the presses needed (plus one).`)));
   } else {
     const ncs = numCommands(dev);
     const spec = ncs.find((c) => c.id === s.cmd);

@@ -255,11 +255,11 @@ export class Extras {
     if (!s) throw new Error(`no slider ${id}`);
     const q = this.queue[id];
     const base = q && q.next !== null && q.next !== undefined ? q.next : q && isNum(q.going) ? q.going : isNum(this.values[id]) ? this.values[id] : s.min;
-    return this.setValue(id, Math.max(s.min, Math.min(s.max, base + delta)));
+    return this.setValue(id, Math.max(s.min, Math.min(s.max, base + delta)), { step: true });
   }
 
   /** Sets a slider to a value (snapped to the range). Latest value wins while commands are running. */
-  setValue(id, value) {
+  setValue(id, value, { step = false } = {}) {
     const s = this.slider(id);
     if (!s) throw new Error(`no slider ${id}`);
     const target = snap(toNum(value), s);
@@ -269,14 +269,15 @@ export class Extras {
     this.hold[id] = Date.now() + HOLD_MS;
     const q = (this.queue[id] = this.queue[id] || { busy: null, next: null });
     q.next = target;
+    q.nextStep = step; // a step (up / down press) or a value set directly (drag, off, "set to")
     if (!q.busy) {
       q.busy = (async () => {
         while (q.next !== null) {
-          const t = q.next;
+          const t = q.next, step = !!q.nextStep;
           q.next = null;
           q.going = t;
           try {
-            await this.apply(s, t);
+            await this.apply(s, t, { step, q });
             this.errors[id] = null;
           } catch (e) {
             this.errors[id] = e.message;
@@ -298,7 +299,7 @@ export class Extras {
     await core.request("PUT", `/entities/${encodeURI(entity)}/command`, { cmd_id, ...(params ? { params } : {}) });
   }
 
-  async apply(s, target) {
+  async apply(s, target, { step = false, q = null } = {}) {
     if (s.mode === "steps") {
       let cur = this.values[s.id];
       if (s.attr) {
@@ -309,16 +310,27 @@ export class Extras {
         } catch {}
       }
       if (!isNum(cur)) cur = s.min; // unknown: assume the bottom
-      // no reported value: going to the bottom presses down the whole range (and a little more), so the device
-      // really is at its lowest and the guessed value starts from zero again
-      if (!s.attr && s.zeroSync !== false && target <= s.min) {
-        const presses = Math.min(LIMITS.sweep, Math.ceil((s.max - s.min) / s.per_press) + 2);
-        for (let i = 0; i < presses; i++) {
+      if (!s.attr && target <= s.min) {
+        let presses, sweep = false;
+        if (step) {
+          // stepping down to the bottom: the presses needed plus one more (also when it's at the bottom already),
+          // so each "down" there still presses the device down and the guess stays at zero
+          presses = Math.min(LIMITS.presses, Math.max(0, Math.round((cur - s.min) / s.per_press)) + 1);
+        } else if (s.zeroSync !== false) {
+          // set to the bottom (dragged, turned off, "set to 0"): down the whole range, so the device really is at
+          // its lowest and the guess starts from zero again; a new press or move stops it
+          presses = Math.min(LIMITS.sweep, Math.ceil((s.max - s.min) / s.per_press) + 2);
+          sweep = true;
+        } else presses = Math.max(0, Math.round((cur - s.min) / s.per_press));
+        let done = 0;
+        for (; done < presses; done++) {
+          if (sweep && done && q && q.next !== null) break; // something new to do: stop sweeping
           await this.send(s.entity, s.down);
-          if (i < presses - 1 && s.delay) await sleep(s.delay);
+          if (done < presses - 1 && s.delay) await sleep(s.delay);
         }
-        this.values[s.id] = s.min;
-        this.log(`slider ${s.name}: back to ${s.min} (${presses} × ${s.down}, the whole range)`);
+        const stopped = done < presses;
+        this.values[s.id] = stopped ? Math.max(s.min, snap(cur - done * s.per_press, s)) : s.min;
+        this.log(`slider ${s.name}: ${stopped ? "re-sync stopped at " + this.values[s.id] : "at " + s.min} (${done} × ${s.down}${sweep ? ", the whole range" : ""})`);
         this.publish(s.id, this.sliderAttrs(s));
         return;
       }
