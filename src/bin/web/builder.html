@@ -565,7 +565,16 @@ function condOut(c) {
 }
 function stepIn(a, A) {
   if (a.cmd && a.entity) return { t: "cmd", ent: A[a.entity] || a.entity, cmd: a.cmd, params: { ...(a.params || {}) } };
-  if (a.self) return { t: "self", key: a.self, val: String(a.option ?? a.state ?? "") };
+  if (a.self) {
+    // a slider made here, when it's on the remote: shown as that device with Step up / Step down / Set to
+    const sid = String(a.self).startsWith("slider:") ? a.self.slice(7) : null, ent = sid ? sliderEntity(sid) : null;
+    if (ent) {
+      const st = CAT.controls?.["slider:" + sid]?.step ?? 1, o = String(a.option ?? "").trim().toLowerCase();
+      const cmd = o === "up" || o === "down" ? "slider:" + o : o === `up ${st * 5}` ? "slider:up5" : o === `down ${st * 5}` ? "slider:down5" : Number.isFinite(Number(o)) && o !== "" ? "slider:set" : null;
+      if (cmd) return { t: "cmd", ent, cmd, params: cmd === "slider:set" ? { value: o } : {} };
+    }
+    return { t: "self", key: a.self, val: String(a.option ?? a.state ?? "") };
+  }
   if ("delay" in a) return { t: "delay", ms: Number(a.delay) };
   if (a.wait_until && a.wait_until.entity && !a.wait_until.all) {
     const c = condIn(a.wait_until, A);
@@ -580,7 +589,13 @@ function stepIn(a, A) {
 }
 function stepOut(s) {
   switch (s.t) {
-    case "cmd": { const o = { cmd: s.cmd, entity: s.ent }; const p = Object.fromEntries(Object.entries(s.params || {}).filter(([, v]) => v !== "" && v !== undefined)); if (Object.keys(p).length) o.params = p; return o; }
+    case "cmd": {
+      const sid = String(s.cmd || "").startsWith("slider:") ? ownSliderId(s.ent) || String(s.ent).split(".").pop() : null;
+      if (sid) {
+        const st = CAT.controls?.["slider:" + sid]?.step ?? 1, k = s.cmd.slice(7);
+        return { self: "slider:" + sid, option: k === "set" ? String(s.params?.value ?? "") : k === "up5" ? `up ${st * 5}` : k === "down5" ? `down ${st * 5}` : k };
+      }
+      const o = { cmd: s.cmd, entity: s.ent }; const p = Object.fromEntries(Object.entries(s.params || {}).filter(([, v]) => v !== "" && v !== undefined)); if (Object.keys(p).length) o.params = p; return o; }
     case "self": return CAT.controls[s.key]?.switch ? { self: s.key, state: s.val || "on" } : { self: s.key, option: s.val };
     case "delay": return { delay: Number(s.ms) || 0 };
     case "wait": { const o = { entity: s.ent }; if (s.attr !== "state") o.attr = s.attr; o[s.op] = s.val; return { wait_until: o, timeout: Number(s.timeout) || 8000 }; }
@@ -747,8 +762,13 @@ function condRow(cond, list, idx) {
   return row;
 }
 
+/** The slider id behind one of this integration's own slider entities (e.g. self_control.main.slider_x), else null. */
+const ownSliderId = (ent) => { const d = DEV[ent]; const id = String(ent || "").split(".").pop(); return d?.own && /^slider_/.test(id) && CAT.controls?.["slider:" + id] ? id : null; };
+const sliderEntity = (id) => (CAT.own || []).find((d) => String(d.id).split(".").pop() === id)?.id || null;
+const SLIDER_CMDS = [["slider:up", "Step up"], ["slider:down", "Step down"], ["slider:up5", "Step up 5"], ["slider:down5", "Step down 5"], ["slider:set", "Set to a value…"]];
 function commandOptions(dev) {
   const opts = [];
+  if (dev && ownSliderId(dev.id)) return [{ group: "Slider", items: SLIDER_CMDS }];
   if (dev) {
     if (dev.commands.length) opts.push({ group: "Commands", items: dev.commands.map((c) => [c.id, c.label]) });
     if (dev.simple.length) opts.push({ group: "Simple commands", items: dev.simple.map((s) => [s, s]) });
@@ -760,7 +780,14 @@ function commandOptions(dev) {
 function cmdFields(id, step, filter) {
   const out = [];
   const dev = DEV[step.ent];
-  out.push(select(id + "-d", deviceOptions(filter, { own: true }), step.ent, (v) => { step.ent = v; const d = DEV[v]; step.cmd = d?.commands[0]?.id || d?.simple[0] || ""; step.params = {}; notify(true); }, "Device"));
+  out.push(select(id + "-d", deviceOptions(filter, { own: true }), step.ent, (v) => { step.ent = v; const d = DEV[v]; step.cmd = ownSliderId(v) ? "slider:up" : d?.commands[0]?.id || d?.simple[0] || ""; step.params = {}; notify(true); }, "Device"));
+  if (ownSliderId(step.ent)) {
+    out.push(select(id + "-c", commandOptions(dev), step.cmd, (v) => { step.cmd = v; step.params = v === "slider:set" ? { value: step.params?.value ?? "" } : {}; notify(true); }, "Command"));
+    const c = CAT.controls["slider:" + ownSliderId(step.ent)];
+    if (step.cmd === "slider:set") out.push(input(id + "-sv", step.params?.value ?? "", (v) => { step.params = { value: v }; notify(false); }, { label: "Value", type: "number", cls: "num", placeholder: c?.options?.[2] || "" }));
+    else out.push(el("span", { class: "hint" }, `${/5$/.test(step.cmd) ? 5 : 1} × ${c?.step ?? 1}`));
+    return out;
+  }
   out.push(select(id + "-c", commandOptions(dev), step.cmd, (v) => { step.cmd = v; step.params = {}; notify(true); }, "Command"));
   const spec = dev?.commands.find((c) => c.id === step.cmd);
   for (const p of spec?.params || []) {
@@ -993,7 +1020,7 @@ const flashOnce = (id) => { const f = flashId === id; if (f) setTimeout(() => { 
 
 // ---- one-line descriptions ------------------------------------------------
 const devName = (id) => DEV[id]?.name || CAT.activities.find((a) => a.id === id)?.name || id || "?";
-const cmdLabel = (devId, cmd) => DEV[devId]?.commands.find((c) => c.id === cmd)?.label || String(cmd || "").split(".").pop().replace(/_/g, " ");
+const cmdLabel = (devId, cmd) => (String(cmd).startsWith("slider:") ? (SLIDER_CMDS.find(([k]) => k === cmd)?.[1] || cmd).replace(/…$/, "").toLowerCase() : null) || DEV[devId]?.commands.find((c) => c.id === cmd)?.label || String(cmd || "").split(".").pop().replace(/_/g, " ");
 function describeCond(c) {
   switch (c.t) {
     case "device": return `${devName(c.ent)} ${c.attr === "state" ? "" : c.attr.replace(/_/g, " ") + " "}${OPS[c.op] || c.op} ${c.val}`;

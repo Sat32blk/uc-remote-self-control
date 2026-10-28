@@ -1,6 +1,6 @@
 {
   "name": "uc-remote-self-control",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Unfolded Circle Remote integration that controls the remote's own settings, with conditional Smart Controls and a built-in builder page.",
   "type": "module",
   "private": true,
