@@ -93,9 +93,10 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   }
   const devices = [];
   const activities = [];
+  const own = []; // this integration's own entities (sliders, quick menus, smart controls…), listed apart
   for (const e of entities || []) {
     if (!e || !e.entity_id) continue;
-    if (ownIntegrationPrefix && String(e.integration_id || "").startsWith(ownIntegrationPrefix)) continue;
+    const isOwn = !!ownIntegrationPrefix && String(e.integration_id || "").startsWith(ownIntegrationPrefix);
     const type = e.entity_type;
     const name = nameOf(e.name) || e.entity_id;
     if (type === "activity") activities.push({ id: e.entity_id, name });
@@ -128,11 +129,12 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
       const listAttr = ATTR_LISTS[k];
       values[k] = k === "state" ? STATES[type] || [] : listAttr && Array.isArray(attrs[listAttr]) ? attrs[listAttr] : typeof v === "boolean" ? ["true", "false"] : [];
     }
-    devices.push({ id: e.entity_id, name, type, integration: e.integration_id || "", features, icon: e.icon || null, current: Object.fromEntries(Object.entries(attrs).filter(([k, v]) => !Array.isArray(v) && k !== "media_image_url")), values, commands, simple });
+    (isOwn ? own : devices).push({ id: e.entity_id, name, type, integration: e.integration_id || "", features, icon: e.icon || null, current: Object.fromEntries(Object.entries(attrs).filter(([k, v]) => !Array.isArray(v) && k !== "media_image_url")), values, commands, simple, ...(isOwn ? { own: true } : {}) });
   }
   devices.sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+  own.sort((a, b) => a.name.localeCompare(b.name));
   activities.sort((a, b) => a.name.localeCompare(b.name));
-  return { devices, activities };
+  return { devices, activities, own };
 }
 
 export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, statsApi = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {

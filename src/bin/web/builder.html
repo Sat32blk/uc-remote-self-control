@@ -658,10 +658,15 @@ function input(id, value, onInput, { label, list, cls, placeholder, type = "text
 }
 const datalist = (id, items) => el("datalist", { id }, (items || []).map((x) => el("option", { value: String(x) })));
 const TYPE_NAMES = { media_player: "Media players", activity: "Activities", macro: "Macros", remote: "Remotes", light: "Lights", switch: "Switches", select: "Lists", cover: "Covers", climate: "Climate", button: "Buttons", sensor: "Sensors", ir_emitter: "IR emitters", voice_assistant: "Voice" };
-function deviceOptions(filter) {
+const OWN_TYPES = { light: "slider", select: "quick menu / setting", button: "smart control", switch: "switch", sensor: "sensor", media_player: "media player" };
+/** Devices for a picker, grouped by kind; with own, also this integration's own entities (sliders, quick menus…) in their own group. */
+function deviceOptions(filter, { own = false } = {}) {
   const groups = {};
   for (const d of CAT.devices) { if (filter && !filter(d)) continue; (groups[d.type] = groups[d.type] || []).push([d.id, d.name]); }
-  return Object.entries(groups).map(([t, items]) => ({ group: TYPE_NAMES[t] || t, items }));
+  const out = Object.entries(groups).map(([t, items]) => ({ group: TYPE_NAMES[t] || t, items }));
+  const mine = own ? (CAT.own || []).filter((d) => !filter || filter(d)) : [];
+  if (mine.length) out.push({ group: "Remote Self-Control (made here)", items: mine.map((d) => [d.id, `${d.name} (${OWN_TYPES[d.type] || d.type})`]) });
+  return out;
 }
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const countText = () => `${plural(CAT.devices.length, "device")} · ${plural(CAT.activities.length, "activity").replace(/activitys$/, "activities")}`;
@@ -697,7 +702,7 @@ function condRow(cond, list, idx) {
   row.append(select(id + "-k", kinds, cond.t, (t) => { list[idx] = newCond(t); notify(true); }, "Condition type"));
   if (cond.t === "device") {
     const dev = DEV[cond.ent];
-    row.append(select(id + "-d", deviceOptions((d) => d.type !== "activity" && d.type !== "macro"), cond.ent, (v) => { cond.ent = v; cond.attr = "state"; cond.val = ""; notify(true); }, "Device"));
+    row.append(select(id + "-d", deviceOptions((d) => d.type !== "activity" && d.type !== "macro", { own: true }), cond.ent, (v) => { cond.ent = v; cond.attr = "state"; cond.val = ""; notify(true); }, "Device"));
     const attrs = dev ? Object.keys(dev.values) : [cond.attr];
     row.append(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), cond.attr, (v) => { cond.attr = v; cond.val = ""; notify(true); }, "What to check"));
     row.append(select(id + "-o", Object.entries(OPS), cond.op, (v) => { cond.op = v; notify(false); }, "Comparison"));
@@ -746,7 +751,7 @@ function commandOptions(dev) {
 function cmdFields(id, step, filter) {
   const out = [];
   const dev = DEV[step.ent];
-  out.push(select(id + "-d", deviceOptions(filter), step.ent, (v) => { step.ent = v; const d = DEV[v]; step.cmd = d?.commands[0]?.id || d?.simple[0] || ""; step.params = {}; notify(true); }, "Device"));
+  out.push(select(id + "-d", deviceOptions(filter, { own: true }), step.ent, (v) => { step.ent = v; const d = DEV[v]; step.cmd = d?.commands[0]?.id || d?.simple[0] || ""; step.params = {}; notify(true); }, "Device"));
   out.push(select(id + "-c", commandOptions(dev), step.cmd, (v) => { step.cmd = v; step.params = {}; notify(true); }, "Command"));
   const spec = dev?.commands.find((c) => c.id === step.cmd);
   for (const p of spec?.params || []) {
@@ -774,7 +779,7 @@ function stepRow(step, list, idx) {
     row.append(input(id + "-m", step.ms, (v) => { step.ms = v; notify(false); }, { label: "Milliseconds", type: "number", cls: "num" }), el("span", { class: "sep" }, "ms"));
   } else if (step.t === "wait") {
     const dev = DEV[step.ent];
-    row.append(select(id + "-d", deviceOptions((d) => d.type !== "macro"), step.ent, (v) => { step.ent = v; step.attr = "state"; notify(true); }, "Device"));
+    row.append(select(id + "-d", deviceOptions((d) => d.type !== "macro", { own: true }), step.ent, (v) => { step.ent = v; step.attr = "state"; notify(true); }, "Device"));
     const attrs = dev ? Object.keys(dev.values) : [step.attr];
     row.append(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), step.attr, (v) => { step.attr = v; notify(true); }, "What to check"));
     row.append(select(id + "-o", Object.entries(OPS), step.op, (v) => { step.op = v; notify(false); }, "Comparison"));
@@ -3636,7 +3641,7 @@ async function loadAll() {
   const COPIES = CAT.copies || {};
   CAT.activities = CAT.activities.filter((a) => !COPIES[a.id]);
   CAT.devices = CAT.devices.filter((d) => !COPIES[d.id]);
-  DEV = Object.fromEntries(CAT.devices.map((d) => [d.id, d]));
+  DEV = Object.fromEntries([...CAT.devices, ...(CAT.own || [])].map((d) => [d.id, d]));
   $("#device-count").textContent = countText();
   let parsed;
   try { parsed = JSON.parse(rules.data.text); } catch { parsed = { buttons: [] }; }
@@ -3734,7 +3739,7 @@ $("#backup-restore").addEventListener("click", async () => {
 });
 $("#reload").addEventListener("click", async () => {
   const cat = await api("GET", "/api/catalog");
-  if (cat.ok) { CAT = cat.data; DEV = Object.fromEntries(CAT.devices.map((d) => [d.id, d])); $("#device-count").textContent = countText(); render(); if (iconsLoaded) renderIcons(); if (extrasLoaded) { fillMenuSelect(); renderExtras(); } }
+  if (cat.ok) { CAT = cat.data; DEV = Object.fromEntries([...CAT.devices, ...(CAT.own || [])].map((d) => [d.id, d])); $("#device-count").textContent = countText(); render(); if (iconsLoaded) renderIcons(); if (extrasLoaded) { fillMenuSelect(); renderExtras(); } }
 });
 
 (async () => {
