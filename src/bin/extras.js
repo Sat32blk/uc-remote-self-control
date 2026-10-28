@@ -25,7 +25,7 @@
 import fs from "node:fs";
 import { vActions, vCond } from "./smart.js";
 
-export const LIMITS = { sliders: 30, menus: 30, options: 30, presses: 60, delayMs: 2000 };
+export const LIMITS = { sliders: 30, menus: 30, options: 30, presses: 60, sweep: 150, delayMs: 2000 };
 const SLIDER_ID = /^slider_[a-z0-9_]{1,36}$/;
 const MENU_ID = /^menu_[a-z0-9_]{1,36}$/;
 const ICON_RE = /^(custom|uc):[A-Za-z0-9_.\-]{1,120}$/;
@@ -87,6 +87,8 @@ export function validateExtras(input, selfKeys = [], taken = []) {
       const delay = Number(s.delay ?? 200);
       if (!(delay >= 0 && delay <= LIMITS.delayMs)) errors.push(`${label}: pause between presses 0..${LIMITS.delayMs} ms`);
       Object.assign(out, { mode: "steps", up: s.up, down: s.down, per_press: per, delay });
+      // a device that doesn't report its value: setting the bottom presses down the whole range (zero again)
+      if (s.zeroSync === false) out.zeroSync = false;
     } else if (s.mode === "command" || s.mode === undefined) {
       if (typeof s.cmd !== "string" || !s.cmd.trim() || s.cmd.length > 64) errors.push(`${label}: pick the command that sets the value`);
       if (typeof s.param !== "string" || !/^[a-z0-9_]{1,40}$/.test(s.param)) errors.push(`${label}: pick the command's value parameter`);
@@ -293,6 +295,19 @@ export class Extras {
         } catch {}
       }
       if (!isNum(cur)) cur = s.min; // unknown: assume the bottom
+      // no reported value: going to the bottom presses down the whole range (and a little more), so the device
+      // really is at its lowest and the guessed value starts from zero again
+      if (!s.attr && s.zeroSync !== false && target <= s.min) {
+        const presses = Math.min(LIMITS.sweep, Math.ceil((s.max - s.min) / s.per_press) + 2);
+        for (let i = 0; i < presses; i++) {
+          await this.send(s.entity, s.down);
+          if (i < presses - 1 && s.delay) await sleep(s.delay);
+        }
+        this.values[s.id] = s.min;
+        this.log(`slider ${s.name}: back to ${s.min} (${presses} × ${s.down}, the whole range)`);
+        this.publish(s.id, this.sliderAttrs(s));
+        return;
+      }
       const n = Math.round((target - cur) / s.per_press);
       const presses = Math.min(Math.abs(n), LIMITS.presses);
       const cmd = n > 0 ? s.up : s.down;

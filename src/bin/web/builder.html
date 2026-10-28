@@ -2533,7 +2533,7 @@ const extrasOut = () => ({
   sliders: SLIDERS.map((s) => {
     const o = { id: s.id, name: s.name, entity: s.entity, attr: s.attr || "", min: Number(s.min), max: Number(s.max), step: Number(s.step), mode: s.mode };
     if (s.icon) o.icon = s.icon;
-    if (s.mode === "steps") Object.assign(o, { up: s.up, down: s.down, per_press: Number(s.per_press), delay: Number(s.delay) });
+    if (s.mode === "steps") Object.assign(o, { up: s.up, down: s.down, per_press: Number(s.per_press), delay: Number(s.delay), ...(s.zeroSync === false ? { zeroSync: false } : {}) });
     else Object.assign(o, { cmd: s.cmd, param: s.param });
     return o;
   }),
@@ -2939,6 +2939,11 @@ function sliderCard(s, si) {
       field(id + "-w", "Down command", select(id + "-w", opts, s.down, (v) => { s.down = v; extrasChanged(false); }, "Down command")),
       field(id + "-pp", "Each press changes it by", input(id + "-pp", s.per_press, (v) => { s.per_press = v; extrasChanged(false); }, { label: "Per press", type: "number", cls: "num" })),
       field(id + "-dl", "Pause between presses (ms)", input(id + "-dl", s.delay, (v) => { s.delay = v; extrasChanged(false); }, { label: "Pause", type: "number", cls: "num" })));
+    if (!s.attr) modeRow.append(el("div", { class: "lines", style: "grid-column:1/-1" },
+      el("p", { class: "hint" }, "This device doesn't report its value, so the slider counts your presses: it starts at the bottom (" + s.min + ") and is a guess after that."),
+      el("label", { class: "check" }, el("input", { type: "checkbox", checked: s.zeroSync !== false, on: { change: (e) => { s.zeroSync = e.target.checked; extrasChanged(false); } } }),
+        " Setting it to the bottom presses down the whole range, so it starts counting from zero again"),
+      el("p", { class: "hint" }, `Slide it to ${s.min} (or turn it off) whenever the guess is wrong: about ${Math.min(150, Math.ceil((Number(s.max) - Number(s.min)) / (Number(s.per_press) || 1)) + 2)} down presses, then every move up counts from zero.`)));
   } else {
     const ncs = numCommands(dev);
     const spec = ncs.find((c) => c.id === s.cmd);
