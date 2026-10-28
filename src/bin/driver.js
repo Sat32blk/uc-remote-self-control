@@ -589,13 +589,13 @@ const selfApi = {
       // a slider: "up" / "down" one step (or "up 5"), or a value in its range
       const sl = sliderOf(key);
       const want = String(step.option ?? "").trim().toLowerCase();
-      const cur = typeof extras.values[sl.id] === "number" ? extras.values[sl.id] : sl.min;
       const m = /^(up|down)(?:\s+(\d+(?:\.\d+)?))?$/.exec(want);
-      let target;
-      if (m) target = cur + (m[1] === "up" ? 1 : -1) * (m[2] ? Number(m[2]) : sliderStep(sl));
-      else if (want !== "" && Number.isFinite(Number(want))) target = Number(want);
+      // not waited for: the smart control finishes at once, so the next press isn't ignored, and quick presses
+      // add up from where the slider is heading (the device commands run in the slider's own queue)
+      const done = (p) => p.catch((e) => warn(`slider ${sl.name}:`, e.message));
+      if (m) done(extras.nudge(sl.id, (m[1] === "up" ? 1 : -1) * (m[2] ? Number(m[2]) : sliderStep(sl))));
+      else if (want !== "" && Number.isFinite(Number(want))) done(extras.setValue(sl.id, Math.max(sl.min, Math.min(sl.max, Number(want)))));
       else throw new Error(`"${step.option}" isn't up, down or a value for ${sl.name}`);
-      await extras.setValue(sl.id, Math.max(sl.min, Math.min(sl.max, target)));
     } else {
       throw new Error(`unknown control ${key}`);
     }

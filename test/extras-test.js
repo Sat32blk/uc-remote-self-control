@@ -189,6 +189,10 @@ await cmd("smart_tv_down", "button", "push"); await sleep(600);
 ok(devices[TV].volume === 11 && commands.filter((c) => c.cmd_id === "media_player.volume_down").length === 2, `smart control: slider down 2 (TV ${devices[TV].volume})`);
 await cmd("smart_tv_set", "button", "push"); await sleep(1200);
 ok(devices[TV].volume === 20, `smart control: slider set to 20 (TV ${devices[TV].volume})`);
+commands.length = 0;
+for (let i = 0; i < 3; i++) await cmd("smart_tv_up", "button", "push");
+await sleep(800);
+ok(devices[TV].volume === 23 && commands.filter((c) => c.cmd_id === "media_player.volume_up").length === 3, `three quick presses of the smart control: none ignored (TV ${devices[TV].volume})`);
 
 // ---- menu --------------------------------------------------------------------------------------
 commands.length = 0;

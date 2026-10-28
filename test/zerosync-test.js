@@ -35,5 +35,17 @@ v = validateExtras({ sliders: [{ ...base, attr: "volume" }] });
 X.replace(v.extras); X.values.slider_amp = 5; sent.length = 0;
 await X.setValue("slider_amp", 0);
 ok(count("media_player.volume_down") === 5, "a slider that reads the value presses only the difference");
+// quick presses add up: three "up" nudges while the first one is still being sent = +3, three presses
+{
+  const slow = { request: async (m, p, body) => { await new Promise((r) => setTimeout(r, 40)); sent.push(body.cmd_id); return {}; }, get: async () => ({}) };
+  const Y = new Extras({ getCore: () => slow, engine: () => null, file: file + ".2", publish: () => {}, log: () => {}, warn: () => {} });
+  Y.replace(validateExtras({ sliders: [base] }).extras); Y.values.slider_amp = 10; sent.length = 0;
+  const ps = [Y.nudge("slider_amp", 1), Y.nudge("slider_amp", 1), Y.nudge("slider_amp", 1)];
+  await Promise.all(ps); await new Promise((r) => setTimeout(r, 300));
+  ok(Y.values.slider_amp === 13 && count("media_player.volume_up") === 3, `three quick presses up: 10 → ${Y.values.slider_amp} with ${count("media_player.volume_up")} presses`);
+  sent.length = 0;
+  await Promise.all([Y.nudge("slider_amp", -1), Y.nudge("slider_amp", -1)]); await new Promise((r) => setTimeout(r, 300));
+  ok(Y.values.slider_amp === 11 && count("media_player.volume_down") === 2, `two quick presses down: → ${Y.values.slider_amp}`);
+}
 console.log(fails ? `${fails} FAILED` : "ALL PASSED");
 process.exit(fails ? 1 : 0);

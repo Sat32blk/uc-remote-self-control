@@ -246,6 +246,18 @@ export class Extras {
     return this.setValue(id, target);
   }
 
+  /**
+   * Moves a slider by delta from where it's heading: the value still being sent counts, so quick presses
+   * add up (3 fast "up" presses = +3) instead of all starting from the last finished value.
+   */
+  nudge(id, delta) {
+    const s = this.slider(id);
+    if (!s) throw new Error(`no slider ${id}`);
+    const q = this.queue[id];
+    const base = q && q.next !== null && q.next !== undefined ? q.next : q && isNum(q.going) ? q.going : isNum(this.values[id]) ? this.values[id] : s.min;
+    return this.setValue(id, Math.max(s.min, Math.min(s.max, base + delta)));
+  }
+
   /** Sets a slider to a value (snapped to the range). Latest value wins while commands are running. */
   setValue(id, value) {
     const s = this.slider(id);
@@ -262,6 +274,7 @@ export class Extras {
         while (q.next !== null) {
           const t = q.next;
           q.next = null;
+          q.going = t;
           try {
             await this.apply(s, t);
             this.errors[id] = null;
@@ -271,6 +284,7 @@ export class Extras {
           }
         }
         q.busy = null;
+        q.going = null;
         this.hold[id] = Date.now() + HOLD_MS;
         this.save();
       })();

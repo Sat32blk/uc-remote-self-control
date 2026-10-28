@@ -565,6 +565,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.2.7:** sliders moved by smart controls respond faster: the smart control no longer waits for the device commands, so quick presses aren't ignored, and quick presses add up from where the slider is heading (3 fast "up" presses = +3).
 - **1.2.6:** Smart Controls: picking one of your sliders as the device of a **Device command** step now offers **Step up**, **Step down**, **Step up 5**, **Step down 5** and **Set to a value** (instead of the light's on / off).
 - **1.2.5:** a slider whose "Read the value from" is nothing (it remembers its last value) can show its level on a page too: the level picture follows the slider's own value, and updates right away when the slider moves.
 - **1.2.4:** smart controls and quick menus can move your sliders: step **This remote's control → Your sliders → Slider: <name>** with *up one step*, *down one step*, *up / down 5 steps* or *set to* a value (the slider then sends the device's own commands, e.g. volume up presses). Sliders can also be checked in conditions. Map two smart controls to the volume keys for "Samsung volume up / down".
