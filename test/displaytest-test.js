@@ -1,0 +1,20 @@
+// Display test sensor: the cycle of test lines and the fast counter.
+import { testLines, testAt, DisplayTest, LINE_MS, COUNT_MS, COUNT_TO } from "../src/bin/displaytest.js";
+let fails = 0;
+const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fails++; };
+const lines = testLines("A B C");
+ok(lines.length === 12 && lines.every((l, i) => l.value.startsWith(i + 1 + " ")), "12 numbered lines");
+ok(lines[7].value === "8 UC icons: A B C", "icon characters go into line 8");
+ok(testLines(null)[7].value.includes("not found"), "no icon font: says so");
+ok(testAt(0, lines).value.startsWith("1 "), "starts at line 1");
+ok(testAt(LINE_MS * 11 + 10, lines).unit === "dB", "line 12 has a unit");
+ok(testAt(LINE_MS + 10, lines).unit === "", "other lines clear the unit");
+const span = lines.length * LINE_MS;
+ok(testAt(span + 10, lines).value === `13 Speed: 1 of ${COUNT_TO}`, "counter after the lines");
+ok(testAt(span + COUNT_MS * 5 + 10, lines).value === `13 Speed: 6 of ${COUNT_TO}`, "counter every 0.5 s");
+ok(testAt(span + COUNT_MS * COUNT_TO + 10, lines).value.startsWith("1 "), "then starts over");
+let t = 0; const sent = [];
+const dt = new DisplayTest({ update: (a) => sent.push(a), now: () => t });
+dt.tick(); dt.tick(); t = LINE_MS + 1; dt.tick();
+ok(sent.length === 2 && sent[0].state === "ON" && sent[1].value.startsWith("2 "), "pushes only when the text changes");
+console.log(fails ? `${fails} FAILED` : "ALL PASSED"); process.exit(fails ? 1 : 0);
