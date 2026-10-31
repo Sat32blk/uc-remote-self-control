@@ -3445,7 +3445,11 @@ function picSlot(o) {
 let DISP = null;   // { displays: [...], status: { id: { text, changed, why, until } } }
 let DED = null;    // { item, snap, isNew, msg }
 const DSP_BARS = { sq: ["◼", "◻", "Squares ◼◼◼◻◻"], small: ["▪", "▫", "Small squares ▪▪▪▫▫"], green: ["🟩", "⬜", "Green 🟩🟩⬜⬜"], dots: ["🟢", "⚪", "Green dots 🟢🟢⚪⚪"], blue: ["🟦", "⬛", "Blue 🟦🟦⬛⬛"], black: ["⚫", "⚪", "Black dots ⚫⚫⚪⚪"], hash: ["#", "-", "Keyboard [##--]"], pipe: ["|", "·", "Lines ||··"] };
-const DSP_FIT = { "4x2": 16, "4x1": 26, "2x1": 16, "1x1": 8 };
+const DSP_GRIDS = [["2x3", "2 × 3 tiles"], ["4x6", "4 × 6 tiles"], ["6x9", "6 × 9 tiles"], ["8x12", "8 × 12 tiles"]];
+const dspWH = (s, dw = 4, dh = 1) => { const m = /^(\d{1,2})x(\d{1,2})$/.exec(String(s || "")); return m ? [Number(m[1]), Number(m[2])] : [dw, dh]; };
+/** The widget's font (px on a 260 px wide screen) and about how many characters fit on a line (same estimate as the integration). */
+const dspFont = (d) => { const [, h] = dspWH(d?.size), [cols] = dspWH(d?.grid, 4, 6); return Math.max(10, Math.min(30, (260 / cols) * (h >= 2 ? 0.4 : 0.26))); };
+const dspFit = (d) => { const [w] = dspWH(d?.size), [cols] = dspWH(d?.grid, 4, 6); return Math.max(3, Math.floor((w * (260 / cols)) / (dspFont(d) * 0.6))); };
 const DSP_SYMBOLS = {
   Symbols: "★ ☀ ☾ ⚠ ♪ ♫ ✓ ✕ ● ■ ▲ ◼ ◻ ▪ ▫ · •".split(" "),
   Media: "▶ ⏸ ⏯ ⏹ ⏮ ⏭ ⏻ 🔊 🔉 🔈 🔇".split(" "),
@@ -3562,8 +3566,8 @@ function dspTextField(id, value, onInput, { label, placeholder, width = "110px",
 
 // ---- editor -------------------------------------------------------------------------------
 function dspChanged(rerender) { if (rerender) renderDisplays(); else { const p = document.querySelectorAll("#disp-editor .dsp-prev[data-k]"); for (const x of p) x._upd?.(); } }
-function dspFitNote(sh, size) {
-  const t = dspText(sh), w = dspWidth(t), fit = DSP_FIT[size] || 26;
+function dspFitNote(sh, d) {
+  const t = dspText(sh), w = dspWidth(t), fit = dspFit(d);
   const prev = el("div", { class: "dsp-prev", "data-k": "1" });
   const upd = () => {
     const t2 = dspText(sh), w2 = dspWidth(t2);
@@ -3584,7 +3588,7 @@ function dspShowFields(sh, size, { allowMessages = true, onType } = {}) {
   if (sh.type === "messages") {
     const steps = el("div", { class: "dsp-steps" }, sh.steps.map((s, i) => {
       const cnt = el("span", { class: "dsp-cnt" });
-      const upd = () => { const w = dspWidth(s.t), fit = DSP_FIT[size] || 26; cnt.textContent = `${w}/${fit}`; cnt.classList.toggle("over", w > fit); cnt.title = w > fit ? "Longer than one line: it wraps" : "characters / about how many fit on one line"; };
+      const upd = () => { const w = dspWidth(s.t), fit = dspFit(DED?.item); cnt.textContent = `${w}/${fit}`; cnt.classList.toggle("over", w > fit); cnt.title = w > fit ? "Longer than one line: it wraps" : "characters / about how many fit on one line"; };
       upd();
       return el("div", { class: "dsp-row" }, el("span", { class: "hint" }, String(i + 1)),
         dspTextField(id + "-m" + i, s.t, (v) => { s.t = v; upd(); dspChanged(false); }, { label: "Message " + (i + 1), width: "220px" }), cnt,
@@ -3653,13 +3657,14 @@ function dspRuleBox(d, r, i, live) {
     select(id + "-p", [["normal", "Normal priority"], ["high", "High: not interrupted by normal ones"]], r.prio || "normal", (v) => { r.prio = v; dspChanged(false); }, "Priority"));
   return el("div", { class: "dsp-box" + (live ? " live" : "") },
     el("div", { class: "dsp-row" }, el("b", {}, `${i + 1}.`), el("span", { class: "hint" }, dspWhenText(w)), el("span", { class: "grow" }), live ? el("span", { class: "kind" }, "on screen now") : null,
+      el("button", { type: "button", class: "small", title: "Play this change in the preview", on: { click: () => dspPlay(i) } }, "Preview"),
       el("button", { type: "button", class: "ghost small", "aria-label": "Move change up", disabled: i === 0, on: { click: () => { [d.rules[i - 1], d.rules[i]] = [d.rules[i], d.rules[i - 1]]; dspChanged(true); } } }, "↑"),
       el("button", { type: "button", class: "ghost", "aria-label": "Remove change " + (i + 1), on: { click: () => { d.rules.splice(i, 1); dspChanged(true); } } }, "Remove")),
-    whenRow, ...dspShowFields(r.show, d.size, { onType: () => dspFixDur(r) }), ...dspFitNote(r.show, d.size), forRow);
+    whenRow, ...dspShowFields(r.show, d.size, { onType: () => dspFixDur(r) }), ...dspFitNote(r.show, d), forRow);
 }
-// ---- preview: the display on a remote screen (an approximation: the remote draws it in its own font) --------
-let DSP_PREV = { mode: "live", start: Date.now() };
-const DSP_FONT = { "4x2": 26, "4x1": 17, "2x1": 13, "1x1": 10 };
+// ---- preview: the display on a page of the remote (an approximation: the remote draws it in its own font) --------
+// Shows the default; a change's "Preview" button plays that change for as long as it would show, then the default again.
+let DSP_PREV = { rule: null, start: Date.now(), until: 0 };
 function dspScroll(text, fit, elapsed) {
   if (dspWidth(text) <= fit) return text;
   const loop = Array.from(text + "   ·   "), k = Math.floor(Math.max(0, elapsed - 1500) / 300) % loop.length;
@@ -3667,31 +3672,43 @@ function dspScroll(text, fit, elapsed) {
   for (const ch of loop.slice(k).concat(loop.slice(0, k))) { const cw = dspWidth(ch); if (w + cw > fit) break; out += ch; w += cw; }
   return out;
 }
+function dspPlay(i) {
+  const r = DED?.item.rules[i];
+  if (!r) return;
+  const msgs = r.show.type === "messages" ? r.show.steps.reduce((a, x) => a + Number(x.s || 1) * 1000, 0) : 0;
+  const ms = /^\d+$/.test(String(r.dur)) ? Number(r.dur) * 1000 : r.dur === "once" ? msgs : Math.max(5000, msgs * (r.show.repeat === "loop" ? 2 : 1));
+  DSP_PREV = { rule: i, start: Date.now(), until: Date.now() + ms };
+  dspPreviewTick();
+}
 function dspPreviewText(d) {
-  const m = DSP_PREV.mode, elapsed = Date.now() - DSP_PREV.start;
-  if (m === "live") { const st = DISP?.status?.[d.id]; return st ? st.text || "–" : DED?.isNew ? "Save it to see what the remote shows." : "–"; }
-  const sh = m === "def" ? d.def : d.rules[Number(m)]?.show;
+  if (DSP_PREV.rule !== null && Date.now() >= DSP_PREV.until) DSP_PREV = { rule: null, start: Date.now(), until: 0 };
+  const playing = DSP_PREV.rule !== null ? d.rules[DSP_PREV.rule] : null;
+  const sh = playing ? playing.show : d.def, elapsed = Date.now() - DSP_PREV.start;
   if (!sh) return "–";
   if (sh.type === "messages") {
     const steps = sh.steps.length ? sh.steps : [{ t: "", s: 1 }], total = steps.reduce((a, x) => a + Number(x.s || 1) * 1000, 0);
-    let t = sh.repeat === "loop" ? elapsed % total : Math.min(elapsed % (total + 1500), total - 1);
+    let t = sh.repeat === "loop" ? elapsed % total : Math.min(elapsed, total - 1);
     for (const x of steps) { t -= Number(x.s || 1) * 1000; if (t < 0) return x.t; }
     return steps[steps.length - 1].t;
   }
   const text = dspText(sh);
-  return sh.long === "scroll" ? dspScroll(text, DSP_FIT[d.size] || 26, elapsed % 20000) : text;
+  return sh.long === "scroll" ? dspScroll(text, dspFit(d), elapsed % 30000) : text;
 }
 function dspPreview(d) {
-  const [w, h] = (d.size || "4x1").split("x").map(Number);
-  const widget = el("div", { class: "dsp-w", id: "dsp-w", style: `grid-column:1/span ${w};grid-row:1/span ${h};font-size:${DSP_FONT[d.size] || 17}px` });
-  const tiles = Array.from({ length: 24 - w * h }, () => el("div", { class: "t" }));
-  const modes = [["live", "On the remote now"], ["def", "Default"], ...d.rules.map((r, i) => [String(i), `Change ${i + 1}: ${dspWhenText(r.when)}`.slice(0, 60)])];
-  if (!modes.some(([k]) => k === DSP_PREV.mode)) DSP_PREV.mode = "live";
+  const [gc, gr] = dspWH(d.grid, 4, 6), [w, h] = dspWH(d.size);
+  const cell = (256 - (gc - 1) * 5) / gc;
+  const widget = el("div", { class: "dsp-w", id: "dsp-w", style: `grid-column:1/span ${Math.min(w, gc)};grid-row:1/span ${Math.min(h, gr)};font-size:${dspFont(d)}px` });
+  const tiles = Array.from({ length: Math.max(0, gc * gr - Math.min(w, gc) * Math.min(h, gr)) }, () => el("div", { class: "t" }));
+  const grid = el("div", { class: "dsp-rgrid", style: `grid-template-columns:repeat(${gc},1fr);grid-auto-rows:${cell.toFixed(1)}px` }, widget, ...tiles);
   const now = new Date();
+  const state = el("p", { class: "hint", id: "dsp-pstate" });
   const box = el("aside", { class: "dsp-preview", "aria-label": "Preview" },
-    el("label", { class: "hint" }, "Preview", select("dsp-pm", modes, DSP_PREV.mode, (v) => { DSP_PREV = { mode: v, start: Date.now() }; dspPreviewTick(); }, "What the preview shows")),
-    el("div", { class: "dsp-remote" }, el("div", { class: "top" }, el("span", {}, now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })), el("span", {}, d.name || "")), el("div", { class: "dsp-rgrid" }, widget, ...tiles)),
-    el("p", { class: "hint" }, `An approximation of a ${d.size.replace("x", " × ")} sensor widget: the remote uses its own font, so line breaks can fall a little differently. Samples stand in for values the builder doesn't know yet.`));
+    el("label", { class: "hint" }, "Page tiles", select("dsp-grid", DSP_GRIDS, d.grid || "4x6", (v) => {
+      d.grid = v; const [c, r] = dspWH(v, 4, 6), [ww, hh] = dspWH(d.size); d.size = `${Math.min(ww, c)}x${Math.min(hh, r)}`; dspChanged(true);
+    }, "Page tiles")),
+    el("div", { class: "dsp-remote" }, el("div", { class: "top" }, el("span", {}, now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })), el("span", {}, d.name || "")), grid),
+    state,
+    el("p", { class: "hint" }, `An approximation of a ${Math.min(w, gc)} × ${Math.min(h, gr)} sensor widget on a ${gc} × ${gr} page: the remote uses its own font, so line breaks can fall a little differently. Samples stand in for values the builder doesn't know yet. Press Preview on a change to play it.`));
   setTimeout(dspPreviewTick, 0);
   return box;
 }
@@ -3700,14 +3717,10 @@ function dspPreviewTick() {
   if (!w || !DED) return;
   const t = dspPreviewText(DED.item);
   if (w.textContent !== t) w.textContent = t;
+  const st = document.getElementById("dsp-pstate");
+  if (st) { const txt = DSP_PREV.rule !== null ? `Showing change ${DSP_PREV.rule + 1} for ${Math.ceil((DSP_PREV.until - Date.now()) / 1000)} s more` : "Showing the default"; if (st.textContent !== txt) st.textContent = txt; }
 }
 setInterval(dspPreviewTick, 250);
-// "On the remote now" while editing: refresh only the status (the form isn't redrawn)
-setInterval(async () => {
-  if (!DED || DED.isNew || DSP_PREV.mode !== "live" || document.hidden || !document.getElementById("dsp-w")) return;
-  const r = await api("GET", "/api/displays").catch(() => null);
-  if (r?.ok && DISP) DISP.status = r.data.status;
-}, 2000);
 function dspEditor() {
   const d = DED.item, st = DISP?.status?.[d.id];
   const nameIn = input("disp-name", d.name, (v) => { d.name = v; if (DED.isNew) { idIn.value = d.id = dspId(v); } }, { label: "Name (shown on the remote)" });
@@ -3717,11 +3730,18 @@ function dspEditor() {
     el("div", { class: "card-head" },
       el("label", { class: "grow" }, el("span", { class: "hint" }, "Name (shown on the remote)"), nameIn),
       el("label", {}, el("span", { class: "hint" }, "Id"), idIn),
-      el("label", {}, el("span", { class: "hint" }, "Widget size it's on (for the character count)"), select("disp-size", [["4x1", "4 × 1"], ["4x2", "4 × 2"], ["2x1", "2 × 1"], ["1x1", "1 × 1"]], d.size || "4x1", (v) => { d.size = v; dspChanged(true); }, "Widget size"))),
+      (() => {
+        const [gc, gr] = dspWH(d.grid, 4, 6), [w, h] = dspWH(d.size);
+        const nums = (n) => Array.from({ length: n }, (_, k) => [String(k + 1), String(k + 1)]);
+        return el("label", {}, el("span", { class: "hint" }, "Widget size (tiles wide × high)"), el("span", { class: "dsp-row", style: "gap:4px" },
+          select("disp-w", nums(gc), String(Math.min(w, gc)), (v) => { d.size = `${v}x${Math.min(h, gr)}`; dspChanged(true); }, "Widget width in tiles"),
+          el("span", { class: "sep" }, "×"),
+          select("disp-h", nums(gr), String(Math.min(h, gr)), (v) => { d.size = `${Math.min(w, gc)}x${v}`; dspChanged(true); }, "Widget height in tiles")));
+      })()),
     st ? el("p", { class: "hint" }, "On the remote now: ", el("b", { class: "dsp-text" }, st.text || "–"), st.changed ? " (temporary change)" : "") : null,
     el("h3", { class: "hint", style: "margin:4px 0 0;text-transform:uppercase;letter-spacing:.04em" }, "Default"),
     el("p", { class: "hint" }, "What the display shows when no temporary change is on."),
-    el("div", { class: "dsp-box" }, ...dspShowFields(d.def, d.size), ...dspFitNote(d.def, d.size)),
+    el("div", { class: "dsp-box" }, ...dspShowFields(d.def, d.size), ...dspFitNote(d.def, d)),
     el("h3", { class: "hint", style: "margin:4px 0 0;text-transform:uppercase;letter-spacing:.04em" }, "Temporary changes"),
     el("p", { class: "hint" }, "When a condition is met, the display switches, then goes back to the default. The newest change wins, but a high-priority one isn't interrupted by normal ones. When one ends while another condition is still true (a Control still on, battery still low), that one shows next."),
     ...d.rules.map((r, i) => dspRuleBox(d, r, i, false)),
@@ -3752,7 +3772,7 @@ const dspId = (name) => { const base = "disp_" + (String(name || "").toLowerCase
 function dspMsg(cls, text, errors) { if (!DED) return; DED.msg = { cls, text, errors }; renderDisplays(); }
 function dspOpen(item, isNew) {
   DED = { item, snap: JSON.stringify(item), isNew, msg: null };
-  DSP_PREV = { mode: isNew ? "def" : "live", start: Date.now() };
+  DSP_PREV = { rule: null, start: Date.now(), until: 0 };
   SEC.icons = "display"; applySec("icons");
   renderDisplays();
   setTimeout(() => { const box = document.querySelector("#disp-editor .editbox"); box?.scrollIntoView({ behavior: "smooth", block: "start" }); if (isNew) box?.querySelector("input")?.focus(); }, 0);
@@ -3944,10 +3964,13 @@ async function loadStats() {
 function stApps(uses) {
   const by = new Map();
   for (const u of uses) for (const [app, ms] of Object.entries(u.apps || {})) {
-    const a = by.get(app) || { name: app, on: 0, acts: new Map() };
+    const a = by.get(app) || { name: app, on: 0, off: 0, drain: 0, acts: new Map() };
     a.on += ms; a.acts.set(u.name, (a.acts.get(u.name) || 0) + ms);
+    a.off += u.appOff?.[app] || 0; a.drain += u.appDrain?.[app] || 0;
     by.set(app, a);
   }
+  // battery per hour while the app showed, off the dock (same reliability steps as activities)
+  for (const a of by.values()) { const h = a.off / 36e5; a.rate = h >= 0.25 ? a.drain / h : null; a.rel = h >= 6 ? "good" : h >= 2 ? "fair" : "low"; a.offH = h; }
   return [...by.values()].sort((a, b) => b.on - a.on);
 }
 /** Days the chosen period covers (never more than has been collected). */
@@ -4077,7 +4100,10 @@ function renderStatsBody(box) {
     tip: (r) => `<b>${stEsc(r.name)}</b><br>${stHm(r.on)} · used ${r.n} times<br>screen on ${stHm(r.screen)}` });
   const apps = stApps(uses).slice(0, 15);
   const appBars = () => stBars(apps, { value: (r) => r.on / stDays() / 6e4, fmt: (v, ax) => (ax ? (v >= 60 ? Math.floor(v / 60) + "h" + (v % 60 ? " " + Math.round(v % 60) + "m" : "") : Math.round(v) + "m") : stHm(v * 6e4) + " a day"),
-    tip: (r) => `<b>${stEsc(r.name)}</b><br>${stHm(r.on)} in all<br>${[...r.acts.entries()].sort((a, b) => b[1] - a[1]).map(([n, ms]) => `${stEsc(n)}: ${stHm(ms)}`).join("<br>")}` });
+    tip: (r) => `<b>${stEsc(r.name)}</b><br>${stHm(r.on)} in all${r.rate != null ? ` · ${r.rate.toFixed(1)} % battery per hour` : ""}<br>${[...r.acts.entries()].sort((a, b) => b[1] - a[1]).map(([n, ms]) => `${stEsc(n)}: ${stHm(ms)}`).join("<br>")}` });
+  const appRated = stApps(uses).filter((a) => a.off > 0).sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1)).slice(0, 15);
+  const appDrainBars = () => stBars(appRated, { value: (r) => r.rate, fmt: (v, ax) => (ax ? +v.toFixed(1) + "%" : v.toFixed(1) + " %/h"), extra: (r) => `  ·  ${ST_REL[r.rel]}`,
+    tip: (r) => `<b>${stEsc(r.name)}</b><br>${r.rate != null ? r.rate.toFixed(1) + " % of the battery per hour" : "too little use off the dock yet"}<br>based on ${stHm(r.off)} off the dock (${ST_REL[r.rel]})<br>in ${[...r.acts.keys()].map(stEsc).join(", ")}` });
   const rated = [...per].sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1));
   const drainBars = () => stBars(rated, { value: (r) => r.rate, fmt: (v, ax) => (ax ? +v.toFixed(1) + "%" : v.toFixed(1) + " %/h"), extra: (r) => `  ·  ${ST_REL[r.rel]}`,
     tip: (r) => `<b>${stEsc(r.name)}</b><br>${r.rate != null ? r.rate.toFixed(1) + " % of the battery per hour" : "too little use off the dock yet"}<br>based on ${stHm(r.off)} off the dock (${ST_REL[r.rel]})` });
@@ -4095,14 +4121,17 @@ function renderStatsBody(box) {
     parts.push(stCard("Time per activity", `On average per day, ${label}`, timeBars()), stCard("All activities", label, t));
     const appRows = [];
     for (const p of byTime) {
-      const tot = {};
-      for (const u of uses) if (u.id === p.id) for (const [a, ms] of Object.entries(u.apps || {})) tot[a] = (tot[a] || 0) + ms;
+      const tot = {}, off = {}, drain = {};
+      for (const u of uses) if (u.id === p.id) for (const [a, ms] of Object.entries(u.apps || {})) { tot[a] = (tot[a] || 0) + ms; off[a] = (off[a] || 0) + (u.appOff?.[a] || 0); drain[a] = (drain[a] || 0) + (u.appDrain?.[a] || 0); }
       const sum = Object.values(tot).reduce((a, b) => a + b, 0);
-      Object.entries(tot).sort((a, b) => b[1] - a[1]).forEach(([a, ms], i) => appRows.push(`<tr><td>${i ? "" : stEsc(p.name)}</td><td>${stEsc(a)}</td><td class="n">${stHm(ms)}</td><td class="n">${sum ? Math.round((ms / sum) * 100) : 0} %</td></tr>`));
+      Object.entries(tot).sort((a, b) => b[1] - a[1]).forEach(([a, ms], i) => {
+        const h = off[a] / 36e5, rate = h >= 0.25 ? `${(drain[a] / h).toFixed(1)} %/h` : off[a] ? "not enough yet" : "on the dock";
+        appRows.push(`<tr><td>${i ? "" : stEsc(p.name)}</td><td>${stEsc(a)}</td><td class="n">${stHm(ms)}</td><td class="n">${sum ? Math.round((ms / sum) * 100) : 0} %</td><td class="n">${stHm(off[a])}</td><td class="n">${rate}</td></tr>`);
+      });
     }
     if (appRows.length) {
       const at = el("table", { class: "stable st-table" });
-      at.innerHTML = `<thead><tr><th>Activity</th><th>App</th><th class="n">Time</th><th class="n">Share</th></tr></thead><tbody>${appRows.join("")}</tbody>`;
+      at.innerHTML = `<thead><tr><th>Activity</th><th>App</th><th class="n">Time</th><th class="n">Share</th><th class="n">Off the dock</th><th class="n">Battery</th></tr></thead><tbody>${appRows.join("")}</tbody>`;
       parts.push(stCard("Apps per activity", `Which app the activity's player showed (its source), ${label}. TV inputs like HDMI and receivers aren't counted.`, at));
     } else parts.push(stCard("Apps per activity", "", el("p", { class: "empty" }, "No apps recorded yet. From 1.3.1 on, the app a SHIELD, Roku or other player shows during an activity is recorded with it.")));
     parts.push(stCard("Latest uses", "", l));
@@ -4110,7 +4139,8 @@ function renderStatsBody(box) {
     const why = el("div", { class: "st-note" });
     why.innerHTML = `<b>How reliable is it?</b> The battery only reports whole percents, so one evening says little. Each activity's figure firms up as hours off the dock add up: <b>reliable</b> after 6 h, <b>getting there</b> after 2 h. Time on the dock is left out. Time asleep or with nothing on counts as <b>idle</b>. When two activities are on at once, the battery used is shared between them.`;
     parts.push(stTiles(uses, per, ["rate", "idle", "life"]), stCard("Battery level, last 7 days", "Drops while activities run; green while on the dock; gaps while the remote slept", stBatteryLine()),
-      el("div", { class: "st-two" }, stCard("Battery used per activity", "Percent per hour, only while off the dock", drainBars()), stCard("What the numbers mean", "", why)));
+      el("div", { class: "st-two" }, stCard("Battery used per activity", "Percent per hour, only while off the dock", drainBars()), stCard("What the numbers mean", "", why)),
+      stCard("Battery used per app", "Percent per hour while each app showed during an activity (SHIELD, Roku…), only while off the dock", appRated.length ? appDrainBars() : el("p", { class: "empty" }, "No app use off the dock recorded yet. From 1.3.2 on, the battery used while each app shows is recorded; it firms up like the activities' figures.")));
   } else if (sec === "data") {
     const sel = (label, key, opts) => el("label", { class: "f" }, label, select(nid("st"), opts.map(([v, n]) => [String(v), n]), String(STATS.cfg[key]), async (v) => {
       const body = { [key]: key === "on" ? v === "true" : Number(v) };

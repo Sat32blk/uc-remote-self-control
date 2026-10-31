@@ -84,7 +84,15 @@ export class Stats {
           const app = prev.apps?.get(id);
           if (app) {
             u.apps = u.apps || {};
-            if (u.apps[app] !== undefined || Object.keys(u.apps).length < MAX_APPS) u.apps[app] = (u.apps[app] || 0) + dt;
+            if (u.apps[app] !== undefined || Object.keys(u.apps).length < MAX_APPS) {
+              u.apps[app] = (u.apps[app] || 0) + dt;
+              // battery per app: time off the dock and battery points used while it showed
+              if (!docked) {
+                u.appOff = u.appOff || {}; u.appDrain = u.appDrain || {};
+                u.appOff[app] = (u.appOff[app] || 0) + dt;
+                u.appDrain[app] = (u.appDrain[app] || 0) + drop / openIds.length;
+              }
+            }
           }
         }
       } else if (!docked) { this.idle.off += dt; this.idle.drain += drop; }
@@ -109,6 +117,8 @@ export class Stats {
     if (!u || now - u.start < MIN_USE_MS) return;
     const done = { ...u, end: now, drain: Math.round(u.drain * 100) / 100 };
     if (u.apps) done.apps = Object.fromEntries(Object.entries(u.apps).map(([k, v]) => [k, Math.round(v / 1000) * 1000]));
+    if (u.appOff) done.appOff = Object.fromEntries(Object.entries(u.appOff).map(([k, v]) => [k, Math.round(v / 1000) * 1000]));
+    if (u.appDrain) done.appDrain = Object.fromEntries(Object.entries(u.appDrain).map(([k, v]) => [k, Math.round(v * 100) / 100]));
     this.uses.push(done);
     if (this.uses.length > MAX_USES) this.uses.splice(0, this.uses.length - MAX_USES);
   }
@@ -146,7 +156,7 @@ export class Stats {
     const lines = ["kind,activity,start,end,minutes_on,minutes_screen_on,minutes_off_dock,battery_points,app"];
     for (const u of this.data().uses) {
       lines.push(["use", q(u.name), iso(u.start), iso(u.end), ((u.end - u.start) / 6e4).toFixed(1), (u.screen / 6e4).toFixed(1), (u.off / 6e4).toFixed(1), u.drain.toFixed(2), ""].join(","));
-      for (const [app, ms] of Object.entries(u.apps || {})) lines.push(["app", q(u.name), iso(u.start), iso(u.end), (ms / 6e4).toFixed(1), "", "", "", q(app)].join(","));
+      for (const [app, ms] of Object.entries(u.apps || {})) lines.push(["app", q(u.name), iso(u.start), iso(u.end), (ms / 6e4).toFixed(1), "", ((u.appOff?.[app] || 0) / 6e4).toFixed(1), (u.appDrain?.[app] || 0).toFixed(2), q(app)].join(","));
     }
     for (const [t, l, d] of this.battery) lines.push(["battery", d ? "on the dock" : "", iso(t), "", "", "", "", l, ""].join(","));
     return lines.join("\n") + "\n";

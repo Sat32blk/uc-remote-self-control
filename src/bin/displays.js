@@ -10,7 +10,7 @@
 // redraw live (an attribute update, no page rewrite).
 //
 // Config (displays.json): { displays: [DISPLAY] }
-//   DISPLAY: { id: "disp_volume", name, size: "4x1" | "4x2" | "2x1" | "1x1", def: SHOW, rules: [RULE] }
+//   DISPLAY: { id: "disp_volume", name, size: "<w>x<h>" (the widget), grid: "2x3" | "4x6" | "6x9" | "8x12" (its page), def: SHOW, rules: [RULE] }
 //   SHOW: { type: "value", src: SRC, fmt: "text" | "num" | "dec" | "bar", bar, cells, pct, min, max,
 //           before, after, long: "wrap" | "scroll" }
 //       | { type: "messages", steps: [{ t, s }], repeat: "once" | "loop" }
@@ -28,9 +28,16 @@ export const BARS = {
   sq: ["◼", "◻"], small: ["▪", "▫"], green: ["🟩", "⬜"], dots: ["🟢", "⚪"], blue: ["🟦", "⬛"], black: ["⚫", "⚪"], hash: ["#", "-"], pipe: ["|", "·"],
 };
 const EMOJI_BARS = new Set(["green", "dots", "blue", "black"]);
-export const SIZES = ["4x1", "4x2", "2x1", "1x1"];
-// about how many characters fit on one line of a sensor widget (for scrolling); estimate per size
-export const FIT = { "4x2": 16, "4x1": 26, "2x1": 16, "1x1": 8 };
+// page grids the remote offers (columns x rows) and the widget's size on it (any width x height that fits)
+export const GRIDS = ["2x3", "4x6", "6x9", "8x12"];
+const parseWH = (s) => { const m = /^(\d{1,2})x(\d{1,2})$/.exec(String(s || "")); return m ? [Number(m[1]), Number(m[2])] : null; };
+/** About how many characters fit on one line of a sensor widget (an estimate, for scrolling and the builder's count). */
+export function fitChars(size = "4x1", grid = "4x6") {
+  const [w, h] = parseWH(size) || [4, 1], [cols] = parseWH(grid) || [4, 6];
+  const cell = 260 / cols, font = Math.max(10, Math.min(30, cell * (h >= 2 ? 0.4 : 0.26)));
+  return Math.max(3, Math.floor((w * cell) / (font * 0.6)));
+}
+export const FIT = { "4x2": fitChars("4x2"), "4x1": fitChars("4x1"), "2x1": fitChars("2x1"), "1x1": fitChars("1x1") };
 const ID_RE = /^disp_[a-z0-9_]{1,40}$/;
 const WHEN_TYPES = ["changes", "above", "below", "equals", "control", "activity"];
 const STATEFUL = new Set(["above", "below", "equals", "control"]);
@@ -105,7 +112,11 @@ export function validateDisplays(body) {
     if (rules.length > DISPLAY_LIMITS.rules) errs.push(`${p}: at most ${DISPLAY_LIMITS.rules} temporary changes`);
     const def = vShow(d?.def, `${p} default`, errs);
     return {
-      id, name, size: SIZES.includes(d?.size) ? d.size : "4x1", def,
+      id, name, ...(() => {
+        const grid = GRIDS.includes(d?.grid) ? d.grid : "4x6", [gc, gr] = parseWH(grid), wh = parseWH(d?.size);
+        const size = wh && wh[0] >= 1 && wh[1] >= 1 ? `${Math.min(wh[0], gc)}x${Math.min(wh[1], gr)}` : `${Math.min(4, gc)}x1`;
+        return { size, grid };
+      })(), def,
       rules: rules.slice(0, DISPLAY_LIMITS.rules).map((r, k) => {
         const rp = `${p} change ${k + 1}`;
         const when = vWhen(r?.when, rp, errs), show = vShow(r?.show, rp, errs);
@@ -225,7 +236,7 @@ export class Displays {
     if (show.type === "messages") return messageAt(show, elapsed);
     const val = this.value(show.src) || {};
     const text = (show.before || "") + formatValue(val.v, show, val) + (show.after || "");
-    return show.long === "scroll" ? scrollText(text, FIT[d.size] || 26, elapsed) : text;
+    return show.long === "scroll" ? scrollText(text, fitChars(d.size, d.grid), elapsed) : text;
   }
   /** What a display shows now. */
   text(d) {

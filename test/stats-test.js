@@ -63,6 +63,16 @@ ok(!S.uses.some((x) => x.name === "Old"), "uses older than the keep period are r
   ok(u && u.apps && u.apps.Netflix === 200000 && u.apps.YouTube === 100000, "time per app: " + JSON.stringify(u?.apps));
   ok(S.csv().includes('app,"Watch Shield"') && S.csv().includes('"Netflix"'), "apps in the CSV");
 }
+// battery per app: points used while each app showed, off the dock
+{
+  const n0 = S.uses.length; let lv = 80;
+  const tickB = (app, drop) => { S.tick(t, [act("uc.main.roku", true, "Roku")], "on", { level: Math.round(lv), charging: false, on_charger: false }, new Map([["uc.main.roku", app]])); t += 20000; lv -= drop; };
+  for (let i = 0; i < 6; i++) tickB("Netflix", 1);
+  for (let i = 0; i < 6; i++) tickB("YouTube", 0);
+  S.tick(t, [act("uc.main.roku", false, "Roku")], "on", { level: Math.round(lv), charging: false, on_charger: false }); t += 20000;
+  const u = S.uses[n0];
+  ok(u.appDrain && u.appDrain.Netflix === 6 && u.appDrain.YouTube === 0 && u.appOff.Netflix === 120000, "battery per app: " + JSON.stringify({ d: u.appDrain, o: u.appOff }));
+}
 S.clear();
 ok(S.uses.length === 0 && S.battery.length === 0 && S.idle.off === 0, "clear");
 console.log(fails ? `${fails} FAILED` : "ALL PASSED");
