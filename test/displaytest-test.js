@@ -1,24 +1,15 @@
-// Display test sensor (round 2): frames, bars, scrolling.
+// Display test sensor (round 3): one character per letter.
 import { testFrames, testAt, roundMs, barText, DisplayTest } from "../src/bin/displaytest.js";
 let fails = 0;
 const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fails++; };
 const fr = testFrames();
-ok(fr[0].value.startsWith("1 Ruler: 0123") && fr[0].ms === 8000, "starts with the ruler for 8 s");
-ok(barText(0.6) === "██████░░░░", "block bar 60 %");
-ok(barText(0.65, 10, "smooth") === "██████▌   ", "smooth bar 65 % with a half cell");
-ok(barText(0) === "░░░░░░░░░░" && barText(1) === "██████████", "bar ends");
-const sweep = fr.filter((x) => x.value.startsWith("11 "));
-ok(sweep.length === 21 && sweep.every((x) => x.ms === 300) && sweep[20].value.endsWith("100 %"), "block sweep: 21 steps of 0.3 s up to 100 %");
-const smooth = fr.filter((x) => x.value.startsWith("12 "));
-ok(smooth.length === 41 && smooth.every((x) => x.ms === 200), "smooth sweep: 41 steps of 0.2 s");
-const scroll = fr.filter((x) => x.value.startsWith("13 "));
-ok(scroll.length === 40 && scroll[0].value === "13 The quick brown fox " && scroll[1].value === "13 he quick brown fox j", "scroll moves one character per step");
-ok(scroll.every((x) => Array.from(x.value).length === 23), "scroll window is 20 characters");
-ok(testAt(0, fr).value === fr[0].value && testAt(roundMs(fr) + 1, fr).value === fr[0].value, "starts over after a round");
-ok(testAt(8000 + 10, fr).value.startsWith("2 Wide"), "second frame after 8 s");
+ok(fr.length === 9 && fr.every((x, i) => x.value.startsWith(i + 1 + " ")), "9 numbered frames");
+ok(fr.every((x) => x.ms === 6000), "6 s each");
+ok(fr[0].value.includes("A■") && fr[1].value.includes("G█"), "letters before characters");
+ok(barText(0.6) === "██████░░░░", "bar helper still there");
+ok(testAt(roundMs(fr) + 1, fr).value === fr[0].value, "starts over after a round");
 let t = 0; const sent = [];
 const dt = new DisplayTest({ update: (a) => sent.push(a), now: () => t });
-dt.tick(); dt.tick(); t = 8001; dt.tick();
-ok(sent.length === 2 && sent[0].state === "ON" && sent[1].value.startsWith("2 "), "pushes only when the text changes");
-console.log(`round: ${Math.round(roundMs(fr) / 1000)} s`);
+dt.tick(); dt.tick(); t = 6001; dt.tick();
+ok(sent.length === 2 && sent[1].value.startsWith("2 "), "pushes only when the text changes");
 console.log(fails ? `${fails} FAILED` : "ALL PASSED"); process.exit(fails ? 1 : 0);

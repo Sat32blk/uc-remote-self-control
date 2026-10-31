@@ -4,7 +4,9 @@
 // Round 1 (1.2.10): plain text, emoji, symbols, media, arrows, shapes, the remote's icon font, accents,
 // long text, a "\n" line break and a unit all showed; the bar characters looked off; a counter every
 // 0.5 s redraws live.
-// Round 2 (1.2.11): how many characters fit (ruler, wide and narrow letters) per widget size, the bar
+// Round 2 (1.2.11): the whole 46-character ruler showed ("j"), scrolling text was smooth, bars made of
+// █ ░ ■ □ ● ○ showed "crates" (missing-character boxes) after the first character.
+// Round 2 (1.2.11) tested: how many characters fit (ruler, wide and narrow letters) per widget size, the bar
 // styles, a moving bar (0.3 s and 0.2 s steps), and scrolling text (one character every 0.3 s).
 
 const RULER = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij";
@@ -21,37 +23,20 @@ export function barText(f, n = 10, style = "block") {
   return "█".repeat(on) + "░".repeat(n - on);
 }
 
-/** All frames of one round: [{ value, ms }]. `icons` (the remote's icon font characters) isn't used in round 2. */
+/** All frames of one round: [{ value, ms }]. Round 3 (1.2.12): one character per letter, so the user can
+ *  say which letters have a "crate" (the font's missing-character box) after them. */
 export function testFrames() {
   const f = [];
-  const line = (value, ms = 4000) => f.push({ value, ms });
-  line(`1 Ruler: ${RULER}`, 8000);
-  line("2 Wide: WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW", 6000);
-  line("3 Narrow: iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii", 6000);
-  line(`4 Blocks ${barText(0.6)} 60 %`);
-  line(`5 Smooth ${barText(0.65, 10, "smooth")} 65 %`);
-  line("6 Squares ■■■■■■□□□□");
-  line("7 Dots ●●●●●●○○○○");
-  line("8 Line ━━━━━━━━────");
-  line("9 One char ▁ ▂ ▃ ▄ ▅ ▆ ▇ █");
-  line(`10 📺 ${barText(0.6, 8)} 60 %`);
-  for (let i = 0; i <= 20; i++) f.push({ value: `11 ${barText(i / 20)} ${i * 5} %`, ms: 300 });
-  for (let i = 0; i <= 40; i++) f.push({ value: `12 ${barText(i / 40, 10, "smooth")} ${Math.round(i * 2.5)} %`, ms: 200 });
-  const chars = Array.from(SCROLL);
-  for (let k = 0; k < 40; k++) {
-    const r = chars.slice(k % chars.length).concat(chars.slice(0, k % chars.length), chars).slice(0, 20).join("");
-    f.push({ value: `13 ${r}`, ms: k === 0 ? 1500 : 300 });
-  }
-  // other bar characters (round 1: ▁▂▃▄▅▆▇█ ░▒▓ "looked off")
-  line("14 ▰▰▰▰▰▰▱▱▱▱ 60 %");
-  line("15 ▮▮▮▮▮▮▯▯▯▯ 60 %");
-  line("16 [######----] 60 %");
-  line("17 ||||||······ 60 %");
-  // several lines (round 1: two lines and long text worked)
-  line("18 Three lines\nsecond line\nthird line", 6000);
-  line("19 Four lines\nsecond line\nthird line\nfourth line", 6000);
-  line("20 Long: Now playing Nina Simone, Feeling Good, from the album I Put a Spell on You (1965), track 7 of 11, on the living room speakers", 8000);
-  line("21 Big\n62 %", 6000);
+  const line = (value, ms = 6000) => f.push({ value, ms });
+  line("1  A■ B□ C● D○ E▲ F▼");
+  line("2  G█ H░ I▒ J▓ K▌ L▐");
+  line("3  M▰ N▱ O▮ P▯ Q━ R─");
+  line("4  S▁ T▄ U▆ V▪ W▫ X◼ Y◻");
+  line("5  a■■■ b●●● c○○○ d□□□");
+  line("6  e⬛⬛⬜⬜ f⚫⚫⚪⚪");
+  line("7  g🟩🟩🟩⬜⬜ h🟢🟢🟢⚪⚪");
+  line("8  i🟦🟦🟦⬛⬛ j🔵🔵🔵⚫⚫");
+  line("9  k[####------] l|||||·····");
   return f;
 }
 export const roundMs = (frames) => frames.reduce((a, x) => a + x.ms, 0);
