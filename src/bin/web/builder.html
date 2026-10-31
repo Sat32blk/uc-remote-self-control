@@ -202,7 +202,16 @@ button.small { min-height: 30px; padding: 3px 10px; font-size: 13px; }
 .dsp-pop .tabs2 button[aria-pressed="true"] { border-color: var(--accent); font-weight: 600; }
 .dsp-pop .gl { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; max-height: 220px; overflow: auto; }
 .dsp-pop .gl button { height: 32px; font-size: 17px; padding: 0; }
-.dsp-pop .gl button.glyph { font-family: ucicons; }
+.dsp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 16px; align-items: start; }
+.dsp-form { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dsp-preview { position: sticky; top: 8px; display: flex; flex-direction: column; gap: 8px; }
+@media (max-width: 1000px) { .dsp-layout { grid-template-columns: 1fr; } .dsp-preview { position: static; } }
+.dsp-remote { background: #0c0e11; border-radius: 24px; padding: 14px 12px 16px; width: 100%; max-width: 280px; margin: 0 auto; }
+.dsp-remote .top { display: flex; justify-content: space-between; color: #9aa3ad; font-size: 11px; margin: 0 4px 8px; }
+.dsp-rgrid { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 44px; gap: 5px; }
+.dsp-rgrid .t { background: #2a2f37; border-radius: 9px; opacity: .55; }
+.dsp-w { background: #1b1f25; border: 1px solid #f2a541; border-radius: 9px; color: #f2f4f7; display: flex; align-items: center; padding: 3px 10px; overflow: hidden; font-weight: 600; line-height: 1.15; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-ui), ucicons; }
+.dsp-pop .gl button.dsp-g { font-family: ucicons; color: var(--fg); font-size: 20px; font-weight: 400; }
 .result { font: 12.5px/1.4 var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
 .login { max-width: 420px; margin: 40px auto; }
 details summary { cursor: pointer; font-weight: 500; }
@@ -3451,7 +3460,8 @@ function dspSourceOptions() {
   for (const [k, label] of Object.entries(CAT.settings || {})) remote.push(["self:remote|" + k, label]);
   const out = [{ group: "This remote", items: remote }];
   if (SLIDERS.length) out.push({ group: "Your sliders", items: SLIDERS.filter((s) => s.id).map((s) => ["slider:" + s.id + "|value", "Slider: " + s.name]) });
-  for (const g of deviceOptions((d) => d.type !== "activity" && d.type !== "macro", { own: false })) out.push({ group: g.group, items: g.items.map(([id, n]) => ["dev|" + id, n]) });
+  // devices, then this integration's own entities (sliders, quick menus, smart controls, Control, other displays…)
+  for (const g of deviceOptions((d) => d.type !== "activity" && d.type !== "macro", { own: true })) out.push({ group: g.group, items: g.items.map(([id, n]) => ["dev|" + id, n]) });
   return out;
 }
 const dspKey = (src) => (!src ? "" : src.ent.includes(".") && !src.ent.startsWith("slider:") ? "dev|" + src.ent : src.ent + "|" + src.attr);
@@ -3508,6 +3518,7 @@ const dspText = (sh) => (sh.type === "messages" ? sh.steps.map((s) => s.t).join(
 // ---- symbol picker ------------------------------------------------------------------------
 let dspPopTab = "Symbols";
 async function dspGlyphs() {
+  if (PW.builtin?.some((x) => x.glyph) && !PW.font) { try { const f = new FontFace("ucicons", "url(/api/editor/iconfont)"); document.fonts.add(await f.load()); PW.font = true; } catch {} }
   if (!PW.builtin?.length) {
     try {
       const mr = await fetch("/api/editor/iconmap", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : {}));
@@ -3526,7 +3537,7 @@ function dspPicker(btn, onPick) {
     let grid;
     if (dspPopTab === "Remote icons") {
       const g = await dspGlyphs();
-      grid = g.length ? el("div", { class: "gl" }, g.map((x) => el("button", { type: "button", class: "glyph", title: x.name, on: { click: (e) => { e.stopPropagation(); onPick(x.glyph); pop.remove(); } } }, x.glyph)))
+      grid = g.length ? el("div", { class: "gl" }, g.map((x) => el("button", { type: "button", class: "dsp-g", title: x.name, on: { click: (e) => { e.stopPropagation(); onPick(x.glyph); pop.remove(); } } }, x.glyph)))
         : el("p", { class: "hint" }, "The remote's icon font wasn't found.");
     } else grid = el("div", { class: "gl" }, DSP_SYMBOLS[dspPopTab].map((c) => el("button", { type: "button", on: { click: (e) => { e.stopPropagation(); onPick(c); pop.remove(); } } }, c)));
     pop.replaceChildren(head, grid, el("p", { class: "hint" }, "Only characters that showed on the remote are offered (□ ○ ▼ and block characters like █ ░ show as a crossed box there)."));
@@ -3646,12 +3657,63 @@ function dspRuleBox(d, r, i, live) {
       el("button", { type: "button", class: "ghost", "aria-label": "Remove change " + (i + 1), on: { click: () => { d.rules.splice(i, 1); dspChanged(true); } } }, "Remove")),
     whenRow, ...dspShowFields(r.show, d.size, { onType: () => dspFixDur(r) }), ...dspFitNote(r.show, d.size), forRow);
 }
+// ---- preview: the display on a remote screen (an approximation: the remote draws it in its own font) --------
+let DSP_PREV = { mode: "live", start: Date.now() };
+const DSP_FONT = { "4x2": 26, "4x1": 17, "2x1": 13, "1x1": 10 };
+function dspScroll(text, fit, elapsed) {
+  if (dspWidth(text) <= fit) return text;
+  const loop = Array.from(text + "   ·   "), k = Math.floor(Math.max(0, elapsed - 1500) / 300) % loop.length;
+  let out = "", w = 0;
+  for (const ch of loop.slice(k).concat(loop.slice(0, k))) { const cw = dspWidth(ch); if (w + cw > fit) break; out += ch; w += cw; }
+  return out;
+}
+function dspPreviewText(d) {
+  const m = DSP_PREV.mode, elapsed = Date.now() - DSP_PREV.start;
+  if (m === "live") { const st = DISP?.status?.[d.id]; return st ? st.text || "–" : DED?.isNew ? "Save it to see what the remote shows." : "–"; }
+  const sh = m === "def" ? d.def : d.rules[Number(m)]?.show;
+  if (!sh) return "–";
+  if (sh.type === "messages") {
+    const steps = sh.steps.length ? sh.steps : [{ t: "", s: 1 }], total = steps.reduce((a, x) => a + Number(x.s || 1) * 1000, 0);
+    let t = sh.repeat === "loop" ? elapsed % total : Math.min(elapsed % (total + 1500), total - 1);
+    for (const x of steps) { t -= Number(x.s || 1) * 1000; if (t < 0) return x.t; }
+    return steps[steps.length - 1].t;
+  }
+  const text = dspText(sh);
+  return sh.long === "scroll" ? dspScroll(text, DSP_FIT[d.size] || 26, elapsed % 20000) : text;
+}
+function dspPreview(d) {
+  const [w, h] = (d.size || "4x1").split("x").map(Number);
+  const widget = el("div", { class: "dsp-w", id: "dsp-w", style: `grid-column:1/span ${w};grid-row:1/span ${h};font-size:${DSP_FONT[d.size] || 17}px` });
+  const tiles = Array.from({ length: 24 - w * h }, () => el("div", { class: "t" }));
+  const modes = [["live", "On the remote now"], ["def", "Default"], ...d.rules.map((r, i) => [String(i), `Change ${i + 1}: ${dspWhenText(r.when)}`.slice(0, 60)])];
+  if (!modes.some(([k]) => k === DSP_PREV.mode)) DSP_PREV.mode = "live";
+  const now = new Date();
+  const box = el("aside", { class: "dsp-preview", "aria-label": "Preview" },
+    el("label", { class: "hint" }, "Preview", select("dsp-pm", modes, DSP_PREV.mode, (v) => { DSP_PREV = { mode: v, start: Date.now() }; dspPreviewTick(); }, "What the preview shows")),
+    el("div", { class: "dsp-remote" }, el("div", { class: "top" }, el("span", {}, now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })), el("span", {}, d.name || "")), el("div", { class: "dsp-rgrid" }, widget, ...tiles)),
+    el("p", { class: "hint" }, `An approximation of a ${d.size.replace("x", " × ")} sensor widget: the remote uses its own font, so line breaks can fall a little differently. Samples stand in for values the builder doesn't know yet.`));
+  setTimeout(dspPreviewTick, 0);
+  return box;
+}
+function dspPreviewTick() {
+  const w = document.getElementById("dsp-w");
+  if (!w || !DED) return;
+  const t = dspPreviewText(DED.item);
+  if (w.textContent !== t) w.textContent = t;
+}
+setInterval(dspPreviewTick, 250);
+// "On the remote now" while editing: refresh only the status (the form isn't redrawn)
+setInterval(async () => {
+  if (!DED || DED.isNew || DSP_PREV.mode !== "live" || document.hidden || !document.getElementById("dsp-w")) return;
+  const r = await api("GET", "/api/displays").catch(() => null);
+  if (r?.ok && DISP) DISP.status = r.data.status;
+}, 2000);
 function dspEditor() {
   const d = DED.item, st = DISP?.status?.[d.id];
   const nameIn = input("disp-name", d.name, (v) => { d.name = v; if (DED.isNew) { idIn.value = d.id = dspId(v); } }, { label: "Name (shown on the remote)" });
   const idIn = input("disp-id", d.id, (v) => { d.id = v; }, { label: "Id", cls: "mono" });
   if (!DED.isNew) { idIn.readOnly = true; idIn.title = "Saved: the id can't change because your pages use it. The name can."; idIn.classList.add("locked"); }
-  const card = el("div", { class: "card" },
+  const form = el("div", { class: "dsp-form" },
     el("div", { class: "card-head" },
       el("label", { class: "grow" }, el("span", { class: "hint" }, "Name (shown on the remote)"), nameIn),
       el("label", {}, el("span", { class: "hint" }, "Id"), idIn),
@@ -3667,6 +3729,7 @@ function dspEditor() {
       const src = d.def.type === "value" ? dspClone(d.def.src) : SLIDERS[0] ? { ent: "slider:" + SLIDERS[0].id, attr: "value" } : { ent: "clock", attr: "time" };
       d.rules.push({ when: { type: "changes", src }, show: { type: "value", src: dspClone(src), fmt: "num", before: "", after: "" }, dur: "4", prio: "normal" }); dspChanged(true);
     } } }, "+ Temporary change"), el("span", { class: "hint" }, "Tip: click a value in Device states (on the right) to add “when it changes, show it”.")));
+  const card = el("div", { class: "card" }, el("div", { class: "dsp-layout" }, form, dspPreview(d)));
   const status = el("div", { class: "status edstatus" + (DED.msg?.cls ? " " + DED.msg.cls : ""), role: "status" }, DED.msg?.text || "");
   const errs = el("ul", { class: "errors" }, (DED.msg?.errors || []).map((x) => el("li", {}, x)));
   errs.hidden = !(DED.msg?.errors || []).length;
@@ -3689,6 +3752,7 @@ const dspId = (name) => { const base = "disp_" + (String(name || "").toLowerCase
 function dspMsg(cls, text, errors) { if (!DED) return; DED.msg = { cls, text, errors }; renderDisplays(); }
 function dspOpen(item, isNew) {
   DED = { item, snap: JSON.stringify(item), isNew, msg: null };
+  DSP_PREV = { mode: isNew ? "def" : "live", start: Date.now() };
   SEC.icons = "display"; applySec("icons");
   renderDisplays();
   setTimeout(() => { const box = document.querySelector("#disp-editor .editbox"); box?.scrollIntoView({ behavior: "smooth", block: "start" }); if (isNew) box?.querySelector("input")?.focus(); }, 0);
@@ -3863,12 +3927,28 @@ const ST_REL = { good: "reliable", fair: "getting there", low: "not enough data 
 async function loadStats() {
   if (ST_LOADING) return ST_LOADING;
   ST_LOADING = (async () => {
-    const r = await api("GET", "/api/stats");
-    STATS = r.ok ? r.data : { error: r.data.error || "HTTP " + r.status };
-    ST_LOADING = null;
+    // a failed or hung request used to leave the tab on "Loading…" until the page was reloaded
+    try {
+      const r = await Promise.race([api("GET", "/api/stats"), new Promise((_, no) => setTimeout(() => no(new Error("the remote didn't answer in 20 seconds")), 20000))]);
+      STATS = r.ok ? r.data : { error: r.data.error || "HTTP " + r.status };
+    } catch (e) {
+      STATS = { error: e.message || String(e) };
+    } finally {
+      ST_LOADING = null;
+    }
     if (CUR_TAB === "stats") { renderStats(); const st = $("#sec-status"); if (st) st.textContent = secStatus("stats"); }
   })();
   return ST_LOADING;
+}
+/** Time per app (what the activity's player showed: Netflix, YouTube…), with the activities it was used in. */
+function stApps(uses) {
+  const by = new Map();
+  for (const u of uses) for (const [app, ms] of Object.entries(u.apps || {})) {
+    const a = by.get(app) || { name: app, on: 0, acts: new Map() };
+    a.on += ms; a.acts.set(u.name, (a.acts.get(u.name) || 0) + ms);
+    by.set(app, a);
+  }
+  return [...by.values()].sort((a, b) => b.on - a.on);
 }
 /** Days the chosen period covers (never more than has been collected). */
 function stDays() {
@@ -3978,7 +4058,11 @@ function renderStats() {
   const box = $("#stats-body");
   if (!box) return;
   if (!STATS) { box.replaceChildren(el("p", { class: "hint" }, "Loading…")); loadStats(); return; }
-  if (STATS.error) { box.replaceChildren(el("p", { class: "status err" }, "Couldn't read the statistics: " + STATS.error)); return; }
+  const retry = () => el("button", { type: "button", class: "small", on: { click: () => { STATS = null; renderStats(); } } }, "Try again");
+  if (STATS.error) { box.replaceChildren(el("p", { class: "status err" }, "Couldn't read the statistics: " + STATS.error), retry()); return; }
+  try { renderStatsBody(box); } catch (e) { console.warn("statistics:", e); box.replaceChildren(el("p", { class: "status err" }, "Couldn't show the statistics: " + e.message), retry()); }
+}
+function renderStatsBody(box) {
   const sec = secOf("stats");
   const range = el("div", { class: "st-range", role: "group", "aria-label": "Period" }, ...[[7, "7 days"], [30, "30 days"], [0, "All"]].map(([v, n]) =>
     el("button", { type: "button", class: "small" + (ST_RANGE === v ? " on" : ""), "aria-pressed": String(ST_RANGE === v), on: { click: () => { ST_RANGE = v; try { localStorage.setItem("scb_strange", String(v)); } catch {} renderStats(); } } }, n)));
@@ -3991,20 +4075,37 @@ function renderStats() {
   const byTime = [...per].sort((a, b) => b.on - a.on);
   const timeBars = () => stBars(byTime, { value: (r) => r.on / stDays() / 6e4, fmt: (v, ax) => (ax ? (v >= 60 ? Math.floor(v / 60) + "h" + (v % 60 ? " " + Math.round(v % 60) + "m" : "") : Math.round(v) + "m") : stHm(v * 6e4) + " a day"),
     tip: (r) => `<b>${stEsc(r.name)}</b><br>${stHm(r.on)} · used ${r.n} times<br>screen on ${stHm(r.screen)}` });
+  const apps = stApps(uses).slice(0, 15);
+  const appBars = () => stBars(apps, { value: (r) => r.on / stDays() / 6e4, fmt: (v, ax) => (ax ? (v >= 60 ? Math.floor(v / 60) + "h" + (v % 60 ? " " + Math.round(v % 60) + "m" : "") : Math.round(v) + "m") : stHm(v * 6e4) + " a day"),
+    tip: (r) => `<b>${stEsc(r.name)}</b><br>${stHm(r.on)} in all<br>${[...r.acts.entries()].sort((a, b) => b[1] - a[1]).map(([n, ms]) => `${stEsc(n)}: ${stHm(ms)}`).join("<br>")}` });
   const rated = [...per].sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1));
   const drainBars = () => stBars(rated, { value: (r) => r.rate, fmt: (v, ax) => (ax ? +v.toFixed(1) + "%" : v.toFixed(1) + " %/h"), extra: (r) => `  ·  ${ST_REL[r.rel]}`,
     tip: (r) => `<b>${stEsc(r.name)}</b><br>${r.rate != null ? r.rate.toFixed(1) + " % of the battery per hour" : "too little use off the dock yet"}<br>based on ${stHm(r.off)} off the dock (${ST_REL[r.rel]})` });
   if (sec === "overview" && !few) {
-    parts.push(stTiles(uses, per), el("div", { class: "st-two" }, stCard("Time per activity", `On average per day, ${label}`, timeBars()), stCard("Battery used per activity", "Percent of the battery per hour of use, only while off the dock", drainBars())),
-      stCard("When you use the remote", `Activities on, by weekday and hour, ${label}`, stHeatmap(uses)));
+    parts.push(stTiles(uses, per), el("div", { class: "st-two" }, stCard("Time per activity", `On average per day, ${label}`, timeBars()), stCard("Battery used per activity", "Percent of the battery per hour of use, only while off the dock", drainBars())));
+    if (apps.length) parts.push(stCard("Apps used", `What your players showed during activities (SHIELD, Roku…), on average per day, ${label}`, appBars()));
+    parts.push(stCard("When you use the remote", `Activities on, by weekday and hour, ${label}`, stHeatmap(uses)));
   } else if (sec === "acts" && !few) {
     const t = el("table", { class: "stable st-table" });
     t.innerHTML = `<thead><tr><th>Activity</th><th class="n">Uses</th><th class="n">Total on</th><th class="n">Screen on</th><th class="n">Average use</th><th>Usually</th></tr></thead><tbody>${byTime.map((p) => {
       const ev = p.hours.filter((h) => h >= 17).length / p.hours.length;
       return `<tr><td>${stEsc(p.name)}</td><td class="n">${p.n}</td><td class="n">${stHm(p.on)}</td><td class="n">${stHm(p.screen)}</td><td class="n">${stHm(p.on / p.n)}</td><td>${ev > 0.6 ? "evenings" : ev < 0.3 ? "daytime" : "all day"}</td></tr>`; }).join("")}</tbody>`;
     const l = el("table", { class: "stable st-table" });
-    l.innerHTML = `<thead><tr><th>Started</th><th>Activity</th><th class="n">How long</th><th class="n">Battery</th></tr></thead><tbody>${uses.slice(-15).reverse().map((u) => `<tr><td>${new Date(u.start).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${u.open ? " (on now)" : ""}</td><td>${stEsc(u.name)}</td><td class="n">${stHm(u.end - u.start)}</td><td class="n">${u.off < 6e4 ? "on the dock" : u.drain >= 0.5 ? "−" + Math.round(u.drain) + " %" : "less than 1 %"}</td></tr>`).join("")}</tbody>`;
-    parts.push(stCard("Time per activity", `On average per day, ${label}`, timeBars()), stCard("All activities", label, t), stCard("Latest uses", "", l));
+    l.innerHTML = `<thead><tr><th>Started</th><th>Activity</th><th>Apps</th><th class="n">How long</th><th class="n">Battery</th></tr></thead><tbody>${uses.slice(-15).reverse().map((u) => `<tr><td>${new Date(u.start).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${u.open ? " (on now)" : ""}</td><td>${stEsc(u.name)}</td><td>${stEsc(Object.entries(u.apps || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([a]) => a).join(", ") || "–")}</td><td class="n">${stHm(u.end - u.start)}</td><td class="n">${u.off < 6e4 ? "on the dock" : u.drain >= 0.5 ? "−" + Math.round(u.drain) + " %" : "less than 1 %"}</td></tr>`).join("")}</tbody>`;
+    parts.push(stCard("Time per activity", `On average per day, ${label}`, timeBars()), stCard("All activities", label, t));
+    const appRows = [];
+    for (const p of byTime) {
+      const tot = {};
+      for (const u of uses) if (u.id === p.id) for (const [a, ms] of Object.entries(u.apps || {})) tot[a] = (tot[a] || 0) + ms;
+      const sum = Object.values(tot).reduce((a, b) => a + b, 0);
+      Object.entries(tot).sort((a, b) => b[1] - a[1]).forEach(([a, ms], i) => appRows.push(`<tr><td>${i ? "" : stEsc(p.name)}</td><td>${stEsc(a)}</td><td class="n">${stHm(ms)}</td><td class="n">${sum ? Math.round((ms / sum) * 100) : 0} %</td></tr>`));
+    }
+    if (appRows.length) {
+      const at = el("table", { class: "stable st-table" });
+      at.innerHTML = `<thead><tr><th>Activity</th><th>App</th><th class="n">Time</th><th class="n">Share</th></tr></thead><tbody>${appRows.join("")}</tbody>`;
+      parts.push(stCard("Apps per activity", `Which app the activity's player showed (its source), ${label}. TV inputs like HDMI and receivers aren't counted.`, at));
+    } else parts.push(stCard("Apps per activity", "", el("p", { class: "empty" }, "No apps recorded yet. From 1.3.1 on, the app a SHIELD, Roku or other player shows during an activity is recorded with it.")));
+    parts.push(stCard("Latest uses", "", l));
   } else if (sec === "battery" && !few) {
     const why = el("div", { class: "st-note" });
     why.innerHTML = `<b>How reliable is it?</b> The battery only reports whole percents, so one evening says little. Each activity's figure firms up as hours off the dock add up: <b>reliable</b> after 6 h, <b>getting there</b> after 2 h. Time on the dock is left out. Time asleep or with nothing on counts as <b>idle</b>. When two activities are on at once, the battery used is shared between them.`;

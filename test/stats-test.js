@@ -52,6 +52,17 @@ ok(S.csv().startsWith("kind,activity,start,end") && S.csv().includes("Watch TV")
 S.uses.unshift({ id: "x", name: "Old", start: t - 40 * 864e5, end: t - 40 * 864e5 + 6e5, screen: 0, off: 0, drain: 0 });
 S.prune(t);
 ok(!S.uses.some((x) => x.name === "Old"), "uses older than the keep period are removed");
+// apps: which app the activity's player shows, time per app
+{
+  const n0 = S.uses.length;
+  const tickA = (app) => { S.tick(t, [act("uc.main.shield", true, "Watch Shield")], "on", { level: 50, charging: false, on_charger: false }, new Map([["uc.main.shield", app]])); t += 20000; };
+  for (let i = 0; i < 10; i++) tickA("Netflix");
+  for (let i = 0; i < 5; i++) tickA("YouTube");
+  S.tick(t, [act("uc.main.shield", false, "Watch Shield")], "on", { level: 50, charging: false, on_charger: false }); t += 20000;
+  const u = S.uses[n0];
+  ok(u && u.apps && u.apps.Netflix === 200000 && u.apps.YouTube === 100000, "time per app: " + JSON.stringify(u?.apps));
+  ok(S.csv().includes('app,"Watch Shield"') && S.csv().includes('"Netflix"'), "apps in the CSV");
+}
 S.clear();
 ok(S.uses.length === 0 && S.battery.length === 0 && S.idle.off === 0, "clear");
 console.log(fails ? `${fails} FAILED` : "ALL PASSED");

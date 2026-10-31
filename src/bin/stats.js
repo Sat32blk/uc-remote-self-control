@@ -3,7 +3,8 @@
 // Collected by the integration on the remote, over time, so the figures firm up the longer it runs:
 // - activity uses: start / end, how long the screen was on, time off the dock and battery points used during it;
 // - battery readings every few minutes (level, on the dock or not);
-// - idle drain: battery used while off the dock with no activity on (and while the remote slept).
+// - idle drain: battery used while off the dock with no activity on (and while the remote slept);
+// - apps: which app the activity's player shows (its "source", e.g. Netflix on a SHIELD or a Roku), time per app.
 // Ticks come from the driver's settings poll (about every 20 s) while the remote is awake; a longer gap
 // (the remote slept) is counted as idle, never as activity use.
 import fs from "node:fs";
@@ -12,6 +13,7 @@ const DAY = 864e5;
 const GAP_MS = 90 * 1000; // ticks further apart than this: the remote slept in between
 const MIN_USE_MS = 30 * 1000; // shorter uses are left out (switching through; ticks are about 20 s apart)
 const MAX_USES = 20000;
+const MAX_APPS = 30; // per use
 export const STATS_DEFAULTS = { on: true, every: 15, keepDays: 90 };
 const isOn = (st) => /^(ON|RUNNING|COMPLETED)$/i.test(String(st || ""));
 const nameOf = (n) => (n && typeof n === "object" ? n.en || n.en_US || Object.values(n)[0] || "" : n || "");
@@ -48,9 +50,9 @@ export class Stats {
 
   /**
    * One tick: activities = [{ entity_id, name, attributes.state }] from GET /activities, screen = "on" | "off" | "unknown",
-   * battery = { level, charging, on_charger } or null.
+   * battery = { level, charging, on_charger } or null, apps = Map(activity id → app in use, or null).
    */
-  tick(now, activities, screen, battery) {
+  tick(now, activities, screen, battery, apps = new Map()) {
     if (!this.cfg.on) return;
     const level = Number.isFinite(battery?.level) ? battery.level : null;
     const docked = !!(battery && (battery.on_charger || battery.charging));
@@ -78,6 +80,12 @@ export class Stats {
           const u = this.open[id];
           if (screen === "on") u.screen += dt;
           if (!docked) { u.off += dt; u.drain += drop / openIds.length; }
+          // the app shown during the time since the last tick (what the player said last time)
+          const app = prev.apps?.get(id);
+          if (app) {
+            u.apps = u.apps || {};
+            if (u.apps[app] !== undefined || Object.keys(u.apps).length < MAX_APPS) u.apps[app] = (u.apps[app] || 0) + dt;
+          }
         }
       } else if (!docked) { this.idle.off += dt; this.idle.drain += drop; }
     }
@@ -88,7 +96,9 @@ export class Stats {
     // battery reading every few minutes
     const lastB = this.battery[this.battery.length - 1];
     if (level != null && (!lastB || now - lastB[0] >= this.cfg.every * 60e3 - 5000)) { this.battery.push([now, level, docked ? 1 : 0]); this.dirty = true; }
-    this.last = { t: now, level, docked, screen };
+    const appsNow = new Map();
+    for (const [id, app] of apps || []) { const o = this.originalOf(id); if (app && !appsNow.has(o)) appsNow.set(o, String(app).slice(0, 60)); }
+    this.last = { t: now, level, docked, screen, apps: appsNow };
     this.prune(now);
     this.save();
   }
@@ -97,7 +107,9 @@ export class Stats {
     delete this.open[id];
     this.dirty = true;
     if (!u || now - u.start < MIN_USE_MS) return;
-    this.uses.push({ ...u, end: now, drain: Math.round(u.drain * 100) / 100 });
+    const done = { ...u, end: now, drain: Math.round(u.drain * 100) / 100 };
+    if (u.apps) done.apps = Object.fromEntries(Object.entries(u.apps).map(([k, v]) => [k, Math.round(v / 1000) * 1000]));
+    this.uses.push(done);
     if (this.uses.length > MAX_USES) this.uses.splice(0, this.uses.length - MAX_USES);
   }
   /** The remote went to sleep (or the integration stops): what's open stays open, the clock pauses. */
@@ -131,9 +143,12 @@ export class Stats {
   csv() {
     const q = (s) => `"${String(s).replace(/"/g, '""')}"`;
     const iso = (t) => new Date(t).toISOString();
-    const lines = ["kind,activity,start,end,minutes_on,minutes_screen_on,minutes_off_dock,battery_points"];
-    for (const u of this.data().uses) lines.push(["use", q(u.name), iso(u.start), iso(u.end), ((u.end - u.start) / 6e4).toFixed(1), (u.screen / 6e4).toFixed(1), (u.off / 6e4).toFixed(1), u.drain.toFixed(2)].join(","));
-    for (const [t, l, d] of this.battery) lines.push(["battery", d ? "on the dock" : "", iso(t), "", "", "", "", l].join(","));
+    const lines = ["kind,activity,start,end,minutes_on,minutes_screen_on,minutes_off_dock,battery_points,app"];
+    for (const u of this.data().uses) {
+      lines.push(["use", q(u.name), iso(u.start), iso(u.end), ((u.end - u.start) / 6e4).toFixed(1), (u.screen / 6e4).toFixed(1), (u.off / 6e4).toFixed(1), u.drain.toFixed(2), ""].join(","));
+      for (const [app, ms] of Object.entries(u.apps || {})) lines.push(["app", q(u.name), iso(u.start), iso(u.end), (ms / 6e4).toFixed(1), "", "", "", q(app)].join(","));
+    }
+    for (const [t, l, d] of this.battery) lines.push(["battery", d ? "on the dock" : "", iso(t), "", "", "", "", l, ""].join(","));
     return lines.join("\n") + "\n";
   }
 }

@@ -565,6 +565,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.3.1:** Displays: a **preview** beside the editor (the display on a remote screen at its widget size: on the remote now, the default, or any temporary change, with messages and scrolling playing); this integration's own entities (Remote Self-Control (made here)) can be shown too; the **Remote icons** in the ☺ picker show (they were white on white). **Statistics: apps** — the app a SHIELD, Roku or other player shows during an activity (its source, e.g. Netflix, YouTube) is recorded: "Apps used" on the overview, "Apps per activity" and the apps of each use under Activities, and in the CSV. TV inputs (HDMI…) and receivers aren't counted. The Statistics tab no longer stays on "Loading…" after a failed or slow read (it says so, with Try again).
 - **1.3.0:** **Display sensors** (Icons & Sliders → Displays). Each display is its own sensor entity that shows text on a page (the Page Editor's sensor widget) and updates at once, without rewriting the page:
   - a **default**: a device's value, one of your sliders, the remote's battery or settings, the time or date, the activity on screen, or messages one after another; with **text before and after** it and a ☺ picker for symbols, emoji and the remote's own icons (only characters the remote's font has: no block characters);
   - values as they are, as a number, with a decimal, or as a **bar** (◼◻, ▪▫, 🟩⬜, 🟢⚪, 🟦⬛, ⚫⚪, [##--], ||··) with the % after it;

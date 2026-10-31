@@ -1039,7 +1039,36 @@ async function statsTick() {
   }
   let screen = "unknown";
   try { const p = await core.get("/system/power"); const m = String(p?.power_mode || p?.mode || "").toUpperCase(); if (m) screen = m === "NORMAL" ? "on" : "off"; } catch {}
-  stats.tick(Date.now(), acts, screen, battery);
+  const apps = new Map();
+  for (const a of acts) {
+    if (!/^(ON|RUNNING|COMPLETED)$/i.test(String(a.attributes?.state ?? a.state ?? ""))) continue;
+    try { const app = await appInUse(a.entity_id); if (app) apps.set(a.entity_id, app); } catch {}
+  }
+  stats.tick(Date.now(), acts, screen, battery, apps);
+}
+// Which app an activity shows: the "source" of one of its players (a SHIELD or Roku says "Netflix",
+// "YouTube"…), skipping TV inputs (HDMI 2…) and receivers' inputs. Players per activity are cached.
+const activityPlayers = new Map(); // activity id -> { at, ids: [media player entity ids] }
+const INPUT_RE = /^(hdmi|tv$|tv\s|av\s?\d*$|component|composite|usb|input|displayport|dp\s?\d*$|optical|coax|aux|phono|tuner|cbl\/sat|antenna)/i;
+async function appInUse(activityId) {
+  let c = activityPlayers.get(activityId);
+  if (!c || Date.now() - c.at > 10 * 60e3) {
+    const a = await core.get(`/activities/${encodeURI(activityId)}`);
+    const inc = a?.options?.included_entities || [];
+    c = { at: Date.now(), ids: inc.filter((e) => (e.entity_type || e.type) === "media_player").map((e) => e.entity_id || e.id).filter(Boolean) };
+    activityPlayers.set(activityId, c);
+  }
+  let fallback = null;
+  for (const id of c.ids) {
+    let e;
+    try { e = await core.get(`/entities/${encodeURI(id)}`); } catch { continue; }
+    const at = e?.attributes || {}, st = String(at.state || "").toUpperCase();
+    if (!at.source || st === "OFF" || st === "UNAVAILABLE" || st === "STANDBY") continue;
+    if (/receiver|speaker/i.test(String(e.device_class || "")) || INPUT_RE.test(String(at.source))) continue;
+    if (st === "PLAYING" || st === "PAUSED" || st === "BUFFERING") return String(at.source);
+    fallback = fallback || String(at.source);
+  }
+  return fallback;
 }
 
 async function refresh() {
