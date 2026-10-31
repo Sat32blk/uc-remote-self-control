@@ -1,68 +1,80 @@
-// "Display test": a sensor that cycles through lines of different characters, to find out what a
-// sensor widget on the remote can show (plain text, symbols, emoji, the remote's own icon font, long text,
-// two lines, a unit) and how quickly it redraws (a counter every 0.5 s). Each line starts with its number,
-// so it's easy to say which ones showed properly. Test only: it will be replaced by display sensors.
+// "Display test": a sensor that cycles through numbered test frames, to find out what a sensor widget on
+// the remote can show and how fast it redraws. Test only: it will be replaced by display sensors.
+//
+// Round 1 (1.2.10): plain text, emoji, symbols, media, arrows, shapes, bar characters, the remote's icon
+// font, accents all showed; long text is cut off (one line), "\n" doesn't break, a unit shows, a counter
+// every 0.5 s redraws live.
+// Round 2 (1.2.11): how many characters fit (ruler, wide and narrow letters) per widget size, the bar
+// styles, a moving bar (0.3 s and 0.2 s steps), and scrolling text (one character every 0.3 s).
 
-export const LINE_MS = 4000;
-export const COUNT_MS = 500;
-export const COUNT_TO = 20;
+const RULER = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij";
+const SCROLL = "The quick brown fox jumps over the lazy dog · ";
 
-/** The test lines; `icons` is a few characters of the remote's icon font (or null if it wasn't found). */
-export function testLines(icons) {
-  return [
-    { value: "1 Plain: Vol 37 % · −35.5 dB" },
-    { value: "2 Emoji: 💡 🔇 🎬 🔊 ⚠️ 🎵" },
-    { value: "3 Symbols: ★ ☀ ⚠ ♪ ♫ ☾ ✓ ✕" },
-    { value: "4 Media: ▶ ⏸ ⏯ ⏹ ⏮ ⏭ ⏻" },
-    { value: "5 Arrows: → ← ↑ ↓ ⇄ ↩ ⇅" },
-    { value: "6 Shapes: ● ○ ■ □ ▲ ▼ ◆ ◎" },
-    { value: "7 Bars: ▁▂▃▄▅▆▇█ ░▒▓" },
-    { value: icons ? `8 UC icons: ${icons}` : "8 UC icons: (icon font not found)" },
-    { value: "9 Accents: é ü ñ ç ø å ß" },
-    { value: "10 Long: The quick brown fox jumps over the lazy dog 0123456789 ABCDEFGHIJ" },
-    { value: "11 Two lines: first line\nsecond line" },
-    { value: "12 Unit: 37", unit: "dB" },
-  ];
+/** A bar of `n` cells for f (0..1): "block" █░, or "smooth" with eighths. */
+export function barText(f, n = 10, style = "block") {
+  f = Math.max(0, Math.min(1, f));
+  if (style === "smooth") {
+    const e = Math.round(f * n * 8), full = Math.floor(e / 8), part = e % 8;
+    return ("█".repeat(full) + (part ? "▏▎▍▌▋▊▉"[part - 1] : "")).padEnd(n, " ").slice(0, n);
+  }
+  const on = Math.round(f * n);
+  return "█".repeat(on) + "░".repeat(n - on);
 }
 
-/** Where the cycle is at time `t` (ms since start): { value, unit } — the lines, then a fast counter. */
-export function testAt(t, lines) {
-  const lineSpan = lines.length * LINE_MS, total = lineSpan + COUNT_TO * COUNT_MS;
-  const x = ((t % total) + total) % total;
-  if (x < lineSpan) { const l = lines[Math.floor(x / LINE_MS)]; return { value: l.value, unit: l.unit || "" }; }
-  return { value: `13 Speed: ${Math.floor((x - lineSpan) / COUNT_MS) + 1} of ${COUNT_TO}`, unit: "" };
+/** All frames of one round: [{ value, ms }]. `icons` (the remote's icon font characters) isn't used in round 2. */
+export function testFrames() {
+  const f = [];
+  const line = (value, ms = 4000) => f.push({ value, ms });
+  line(`1 Ruler: ${RULER}`, 8000);
+  line("2 Wide: WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW", 6000);
+  line("3 Narrow: iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii", 6000);
+  line(`4 Blocks ${barText(0.6)} 60 %`);
+  line(`5 Smooth ${barText(0.65, 10, "smooth")} 65 %`);
+  line("6 Squares ■■■■■■□□□□");
+  line("7 Dots ●●●●●●○○○○");
+  line("8 Line ━━━━━━━━────");
+  line("9 One char ▁ ▂ ▃ ▄ ▅ ▆ ▇ █");
+  line(`10 📺 ${barText(0.6, 8)} 60 %`);
+  for (let i = 0; i <= 20; i++) f.push({ value: `11 ${barText(i / 20)} ${i * 5} %`, ms: 300 });
+  for (let i = 0; i <= 40; i++) f.push({ value: `12 ${barText(i / 40, 10, "smooth")} ${Math.round(i * 2.5)} %`, ms: 200 });
+  const chars = Array.from(SCROLL);
+  for (let k = 0; k < 40; k++) {
+    const r = chars.slice(k % chars.length).concat(chars.slice(0, k % chars.length), chars).slice(0, 20).join("");
+    f.push({ value: `13 ${r}`, ms: k === 0 ? 1500 : 300 });
+  }
+  return f;
+}
+export const roundMs = (frames) => frames.reduce((a, x) => a + x.ms, 0);
+
+/** The frame at time t (ms since start). */
+export function testAt(t, frames) {
+  const total = roundMs(frames);
+  let x = ((t % total) + total) % total;
+  for (const fr of frames) { if (x < fr.ms) return { value: fr.value, unit: "" }; x -= fr.ms; }
+  return { value: frames[0].value, unit: "" };
 }
 
 export class DisplayTest {
-  /** update(attrs) pushes { state, value, unit } to the remote; getIcons() resolves to a string or null. */
-  constructor({ update, getIcons = async () => null, now = () => Date.now(), warn = () => {} }) {
+  /** update(attrs) pushes { state, value, unit } to the remote. */
+  constructor({ update, now = () => Date.now(), warn = () => {} }) {
     this.update = update;
-    this.getIcons = getIcons;
     this.now = now;
     this.warn = warn;
-    this.lines = testLines(null);
+    this.frames = testFrames();
     this.start = now();
     this.last = "";
     this.timer = null;
-    this.iconsTried = 0;
-  }
-  async loadIcons() {
-    if (Date.now() - this.iconsTried < 5 * 60 * 1000) return;
-    this.iconsTried = Date.now();
-    try { const s = await this.getIcons(); if (s) this.lines = testLines(s); } catch (e) { this.warn("display test: icon font:", e.message); }
   }
   tick() {
-    const { value, unit } = testAt(this.now() - this.start, this.lines);
-    const key = value + "|" + unit;
-    if (key === this.last) return false;
-    this.last = key;
+    const { value, unit } = testAt(this.now() - this.start, this.frames);
+    if (value === this.last) return false;
+    this.last = value;
     this.update({ state: "ON", value, unit });
     return true;
   }
   run() {
     if (this.timer) return;
-    this.loadIcons();
-    this.timer = setInterval(() => { try { this.tick(); } catch (e) { this.warn("display test:", e.message); } }, 250);
+    this.timer = setInterval(() => { try { this.tick(); } catch (e) { this.warn("display test:", e.message); } }, 50);
   }
   stop() { clearInterval(this.timer); this.timer = null; }
 }

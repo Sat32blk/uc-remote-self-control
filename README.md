@@ -565,6 +565,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.2.11 (test build):** Display test round 2: a character ruler and wide / narrow letters (how much fits per widget size), six bar styles, a moving bar (0.3 s and 0.2 s steps) and scrolling text (one character every 0.3 s).
 - **1.2.10 (test build):** a **Display test** sensor (area "Remote Self-Control test") that cycles through numbered lines (plain text, emoji, symbols, media symbols, arrows, shapes, bar characters, the remote's own icon font, accents, long text, two lines, a unit) every 4 s, then counts 1–20 every 0.5 s, to find out what a sensor widget on the remote can show and how quickly it redraws. It will be replaced by display sensors.
 - **1.2.9:** level pictures keep up with the slider: a new **Steps** choice (11, 21, 51 or 101 pictures, so every 10 %, 5 %, 2 % or 1 %) lets single presses show, and a slider's level picture now updates the page within about 0.8 s (a quick press during the wait is shown right after it instead of being skipped).
 - **1.2.8:** no more lock-up at zero: stepping down to the bottom (volume down) sends only the presses needed plus one, and a "down" at the bottom sends one more press. The whole-range re-sync now only runs when the slider is *set* to the bottom (dragged, turned off, "set to 0"), and it stops as soon as you press or move it again.

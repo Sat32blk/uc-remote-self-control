@@ -25,7 +25,6 @@ import { Stats } from "./stats.js";
 import { isReturnItem } from "./returnbtn.js";
 import { spotsOf } from "./stateicons.js";
 import { DisplayTest } from "./displaytest.js";
-import { findIconFont } from "./editor.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -651,17 +650,6 @@ const displayTestSensor = new uc.Sensor("display_test", { en: "Display test" }, 
 const displayTest = new DisplayTest({
   update: (attrs) => { if (!api.updateEntityAttributes(displayTestSensor.id, attrs)) Object.assign(displayTestSensor.attributes, attrs); },
   warn: (...a) => warn(...a),
-  // a few characters of the remote's own icon font (the web configurator's), as the Page Editor finds it
-  getIcons: async () => {
-    if (!core) return null;
-    const origin = core.base.replace(/\/api$/, "");
-    const get = async (u) => { const r = await fetch(u, { signal: AbortSignal.timeout(15000) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r; };
-    const font = await findIconFont(origin, async (u) => (await get(u)).text(), async (u) => ({ body: Buffer.from(await (await get(u)).arrayBuffer()) }));
-    if (!font) return null;
-    const want = ["home", "power", "light", "play", "volume-up", "tv", "music", "star"];
-    const chars = want.map((n) => font.map[font.aliases?.[n] || n] || font.map[n]).filter(Boolean);
-    return (chars.length >= 3 ? chars : Object.values(font.map).slice(0, 8)).join(" ");
-  },
 });
 
 function registerEntities() {

@@ -1,20 +1,24 @@
-// Display test sensor: the cycle of test lines and the fast counter.
-import { testLines, testAt, DisplayTest, LINE_MS, COUNT_MS, COUNT_TO } from "../src/bin/displaytest.js";
+// Display test sensor (round 2): frames, bars, scrolling.
+import { testFrames, testAt, roundMs, barText, DisplayTest } from "../src/bin/displaytest.js";
 let fails = 0;
 const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fails++; };
-const lines = testLines("A B C");
-ok(lines.length === 12 && lines.every((l, i) => l.value.startsWith(i + 1 + " ")), "12 numbered lines");
-ok(lines[7].value === "8 UC icons: A B C", "icon characters go into line 8");
-ok(testLines(null)[7].value.includes("not found"), "no icon font: says so");
-ok(testAt(0, lines).value.startsWith("1 "), "starts at line 1");
-ok(testAt(LINE_MS * 11 + 10, lines).unit === "dB", "line 12 has a unit");
-ok(testAt(LINE_MS + 10, lines).unit === "", "other lines clear the unit");
-const span = lines.length * LINE_MS;
-ok(testAt(span + 10, lines).value === `13 Speed: 1 of ${COUNT_TO}`, "counter after the lines");
-ok(testAt(span + COUNT_MS * 5 + 10, lines).value === `13 Speed: 6 of ${COUNT_TO}`, "counter every 0.5 s");
-ok(testAt(span + COUNT_MS * COUNT_TO + 10, lines).value.startsWith("1 "), "then starts over");
+const fr = testFrames();
+ok(fr[0].value.startsWith("1 Ruler: 0123") && fr[0].ms === 8000, "starts with the ruler for 8 s");
+ok(barText(0.6) === "██████░░░░", "block bar 60 %");
+ok(barText(0.65, 10, "smooth") === "██████▌   ", "smooth bar 65 % with a half cell");
+ok(barText(0) === "░░░░░░░░░░" && barText(1) === "██████████", "bar ends");
+const sweep = fr.filter((x) => x.value.startsWith("11 "));
+ok(sweep.length === 21 && sweep.every((x) => x.ms === 300) && sweep[20].value.endsWith("100 %"), "block sweep: 21 steps of 0.3 s up to 100 %");
+const smooth = fr.filter((x) => x.value.startsWith("12 "));
+ok(smooth.length === 41 && smooth.every((x) => x.ms === 200), "smooth sweep: 41 steps of 0.2 s");
+const scroll = fr.filter((x) => x.value.startsWith("13 "));
+ok(scroll.length === 40 && scroll[0].value === "13 The quick brown fox " && scroll[1].value === "13 he quick brown fox j", "scroll moves one character per step");
+ok(scroll.every((x) => Array.from(x.value).length === 23), "scroll window is 20 characters");
+ok(testAt(0, fr).value === fr[0].value && testAt(roundMs(fr) + 1, fr).value === fr[0].value, "starts over after a round");
+ok(testAt(8000 + 10, fr).value.startsWith("2 Wide"), "second frame after 8 s");
 let t = 0; const sent = [];
 const dt = new DisplayTest({ update: (a) => sent.push(a), now: () => t });
-dt.tick(); dt.tick(); t = LINE_MS + 1; dt.tick();
+dt.tick(); dt.tick(); t = 8001; dt.tick();
 ok(sent.length === 2 && sent[0].state === "ON" && sent[1].value.startsWith("2 "), "pushes only when the text changes");
+console.log(`round: ${Math.round(roundMs(fr) / 1000)} s`);
 console.log(fails ? `${fails} FAILED` : "ALL PASSED"); process.exit(fails ? 1 : 0);
