@@ -137,7 +137,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities, own };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, statsApi = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, statsApi = null, displaysApi = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
   /** Everything set up here as one backup; withPictures = include the custom pictures (base64). */
   async function buildBackup(withPictures) {
     const core = getCore();
@@ -526,6 +526,21 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       const which = Array.isArray(body.parts) ? body.parts.map(String) : null;
       const r = await doRestore(b, which);
       send(res, r.errors.length && !r.done.length ? 422 : 200, { ok: !r.errors.length, ...r });
+    },
+    "GET /api/displays": async (req, res) => {
+      if (!displaysApi) return send(res, 404, { error: "Displays aren't available." });
+      send(res, 200, displaysApi.get());
+    },
+    "POST /api/displays": async (req, res) => {
+      if (!displaysApi) return send(res, 404, { error: "Displays aren't available." });
+      const r = displaysApi.save(await readJson(req));
+      send(res, r.ok ? 200 : 422, r);
+    },
+    "POST /api/displays/test": async (req, res) => {
+      if (!displaysApi) return send(res, 404, { error: "Displays aren't available." });
+      const body = await readJson(req);
+      try { send(res, 200, { summary: displaysApi.test(String(body.id || ""), Array.isArray(body.messages) && body.messages.length ? body.messages.map(String).slice(0, 5) : ["Test"]) }); }
+      catch (e) { send(res, 400, { error: e.message }); }
     },
     "GET /api/extras": async (req, res) => send(res, 200, { ...extras().config, status: extras().status() }),
     "POST /api/extras": async (req, res) => {

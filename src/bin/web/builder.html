@@ -184,12 +184,32 @@ button.small { min-height: 30px; padding: 3px 10px; font-size: 13px; }
 .line textarea { flex: 1 1 260px; min-height: 60px; }
 .subhead { font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
 .empty { color: var(--muted); font-size: 13px; font-style: italic; }
+#icons-app[data-show="display"] .nodisp { display: none; }
+.dsp-box { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.dsp-box.live { border-color: var(--accent); }
+.dsp-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dsp-row > .k { width: 52px; font-weight: 600; font-size: 13px; color: var(--muted); }
+.dsp-steps { display: flex; flex-direction: column; gap: 4px; margin-left: 58px; }
+@media (max-width: 600px) { .dsp-steps { margin-left: 0; } }
+.dsp-prev { font-size: 13px; color: var(--muted); }
+.dsp-prev b, .dsp-text { font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif, ucicons; }
+.dsp-prev b { color: var(--fg); background: var(--inset, rgba(127,127,127,.12)); border-radius: 6px; padding: 1px 6px; white-space: pre-wrap; }
+.dsp-cnt { font-size: 12px; color: var(--muted); min-width: 42px; }
+.dsp-cnt.over, .dsp-warn { color: var(--accent); font-weight: 600; }
+.dsp-pop { position: absolute; z-index: 50; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.2); padding: 10px; width: 320px; max-width: calc(100vw - 24px); }
+.dsp-pop .tabs2 { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.dsp-pop .tabs2 button { border-radius: 999px; padding: 1px 9px; font-size: 12px; }
+.dsp-pop .tabs2 button[aria-pressed="true"] { border-color: var(--accent); font-weight: 600; }
+.dsp-pop .gl { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; max-height: 220px; overflow: auto; }
+.dsp-pop .gl button { height: 32px; font-size: 17px; padding: 0; }
+.dsp-pop .gl button.glyph { font-family: ucicons; }
 .result { font: 12.5px/1.4 var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
 .login { max-width: 420px; margin: 40px auto; }
 details summary { cursor: pointer; font-weight: 500; }
 details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .badge { font-size: 12px; color: var(--muted); }
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; }
+.tabs > * { flex: none; }
 .tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-weight: 600; padding: 8px 14px; }
 .tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
 .pagegrid { display: grid; gap: 6px; background: #0f1114; padding: 10px; border-radius: 14px; width: min(100%, 320px); }
@@ -405,13 +425,26 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     <div class="createbar">
       <button class="primary" id="icon-add" type="button" data-sec="icon">+ Create state icon</button>
       <button class="primary" id="slider-add" type="button" data-sec="slider">+ Create slider</button>
+      <button class="primary" id="disp-add" type="button" data-sec="display">+ Create display sensor</button>
+      <select id="disp-tmpl" aria-label="Create a display from a template" data-sec="display">
+        <option value="">or start from a template…</option>
+        <option value="volume">Volume, with a Control taking over</option>
+        <option value="status">Status line: time, songs, battery warning</option>
+        <option value="door">Doorbell message (for a smart control)</option>
+        <option value="ticker">Message ticker</option>
+      </select>
     </div>
     <div id="icons-editor"></div>
-    <h2 class="list-title">Your state icons and sliders</h2>
-    <div id="icons-list" class="bars"></div>
+    <div id="disp-editor" data-sec="display"></div>
+    <h2 class="list-title nodisp">Your state icons and sliders</h2>
+    <div id="icons-list" class="bars nodisp"></div>
+    <h2 class="list-title" data-sec="display">Your display sensors</h2>
+    <div id="disp-list" class="bars" data-sec="display"></div>
+    <p class="note" data-sec="display">Each display is its own <b>sensor</b> of this integration, like each smart control is a button. After saving a new one, add it to the remote (Integrations → Remote Self-Control → add entities, or the Page Editor's "Not added yet"), then put it on a page with the Page Editor's <b>sensor widget</b>. It updates at once (no page rewrite). Smart controls can send it messages with the step <b>Show on a display</b>.</p>
     <p id="icons-check" class="hint" data-sec="icon"></p>
     <details class="panel">
-      <summary>How state icons and sliders work</summary>
+      <summary>How state icons, sliders and displays work</summary>
+      <p class="note"><b>Displays</b> are sensors that show text: a default value (a device's volume, a slider, the time…) with text before and after it, that switches to something else for a while when a condition is met (a value changes, goes above or below a number, a Control is on, an activity starts), then goes back. They can also show messages one after another. The remote's font has most symbols and emoji, but not block characters, so bars are made of ◼◻, 🟩⬜ and the like.</p>
       <p class="note"><b>Sliders</b> are light entities for a number on one of your devices, like the receiver's volume. Put one on a home page: tapping the tile opens the remote's slider pop-up. On a Remote 3 you can also assign it to an activity's touch slider. New sliders are in the <b>Remote Sliders &amp; Menus</b> group when you add them to the integration.</p>
       <p class="note">Pick a button on an activity page. Its current icon or text is the <b>default</b> look. Then drop an image (or type a label) for each state of a device, like <i>ON</i> or an input name. (Level graphics that follow a number are part of <b>sliders</b>: Create slider → Show the level on a page.) The button switches look within about 2 seconds of the change and goes back to its default when no state matches. What the button does when pressed doesn't change.</p>
       <p class="note">Only activities with <b>one page</b> are offered: when a page of the activity on screen changes, the remote jumps back to that activity's first page, which would interrupt you on activities with more pages.</p>
@@ -585,6 +618,7 @@ function stepIn(a, A) {
   if (a.restore_settings) return { t: "restore", name: a.restore_settings };
   if (a.stop) return { t: "stop" };
   if (a.page) return { t: "page", act: a.activity ? A[a.activity] || a.activity : "", page: String(a.page) };
+  if (a.display) return { t: "display", display: a.display, messages: (a.messages || []).join(" | "), secs: Number(a.secs ?? 1) };
   return { t: "raw", json: JSON.stringify(a) };
 }
 function stepOut(s) {
@@ -604,6 +638,7 @@ function stepOut(s) {
     case "restore": return { restore_settings: s.name || "saved" };
     case "stop": return { stop: true };
     case "page": return s.act ? { page: s.page, activity: s.act } : { page: s.page };
+    case "display": return { display: s.display, messages: String(s.messages || "").split("|").map((x) => x.trim()).filter(Boolean), secs: Number(s.secs) || 1 };
     default: try { return JSON.parse(s.json); } catch { return { invalid_json: s.json }; }
   }
 }
@@ -801,7 +836,7 @@ function cmdFields(id, step, filter) {
 
 function stepRow(step, list, idx) {
   const id = nid("s");
-  const kinds = [["cmd", "Device command"], ["self", "This remote's control"], ["delay", "Wait (time)"], ["wait", "Wait until"], ["setvar", "Set memory"], ["save", "Remember remote settings"], ["restore", "Restore remote settings"], ["page", "Go to page"], ["stop", "Stop"], ["raw", "Advanced (JSON)"]];
+  const kinds = [["cmd", "Device command"], ["self", "This remote's control"], ["display", "Show on a display"], ["delay", "Wait (time)"], ["wait", "Wait until"], ["setvar", "Set memory"], ["save", "Remember remote settings"], ["restore", "Restore remote settings"], ["page", "Go to page"], ["stop", "Stop"], ["raw", "Advanced (JSON)"]];
   const row = el("div", { class: "line" });
   row.append(select(id + "-k", kinds, step.t, (t) => { list[idx] = newStep(t); notify(true); }, "Step type"));
   if (step.t === "cmd") {
@@ -831,6 +866,11 @@ function stepRow(step, list, idx) {
     row.append(el("span", { class: "sep" }, "backlight, display, sound and haptics as"), input(id + "-n", step.name, (v) => { step.name = v; notify(false); }, { label: "Name", cls: "mono", placeholder: "before_night_mode" }));
   } else if (step.t === "page") {
     row.append(...pageStepFields(id, step, notify));
+  } else if (step.t === "display") {
+    const ds = DISP?.displays || [];
+    row.append(select(id + "-ds", ds.length ? ds.map((d) => [d.id, d.name]) : [["", "No displays yet (Icons & Sliders → Displays)"]], step.display, (v) => { step.display = v; notify(false); }, "Display"),
+      input(id + "-m", step.messages, (v) => { step.messages = v; notify(false); }, { label: "Messages, separated by |", placeholder: "Ding dong | at the door" }),
+      input(id + "-s", step.secs, (v) => { step.secs = Number(v); notify(false); }, { label: "Seconds per message", type: "number", cls: "num" }), el("span", { class: "sep" }, "s each"));
   } else if (step.t === "raw") {
     row.append(el("textarea", { id: id + "-j", "aria-label": "Step JSON", on: { input: (e) => { step.json = e.target.value; notify(false); } } }, step.json || "{}"));
   }
@@ -863,7 +903,8 @@ function newStep(t) {
     setvar: { t, name: "my_var", to: "on" },
     save: { t, name: "saved" }, restore: { t, name: "saved" },
     stop: { t }, raw: { t, json: "{}" },
-    page: { t, act: "", page: "#1" }
+    page: { t, act: "", page: "#1" },
+    display: { t, display: DISP?.displays?.[0]?.id || "", messages: "Ding dong | at the door", secs: 1 }
   }[t];
 }
 
@@ -1006,7 +1047,7 @@ function uniqueId(list, item, base) {
   while (list.some((x) => x !== item && x.id === id)) id = `${root}_${n++}`.slice(0, 43);
   item.id = id;
 }
-const BAR_SEC = { Smart: "smart", Menu: "menu", Icon: "icon", Slider: "slider" };
+const BAR_SEC = { Smart: "smart", Menu: "menu", Icon: "icon", Slider: "slider", Display: "display" };
 function bar({ name, kind, sub, state, stateErr, editing, onEdit, flash }) {
   return el("div", { class: "bar" + (editing ? " editing" : "") + (flash ? " flash" : ""), "data-sec": BAR_SEC[kind] },
     el("div", { class: "bar-main" },
@@ -1038,6 +1079,7 @@ function describeStep(s) {
     case "self": return `${CAT.controls[s.key]?.name || s.key} → ${s.val}`;
     case "delay": return `wait ${s.ms} ms`;
     case "wait": return `wait until ${devName(s.ent)} ${OPS[s.op] || s.op} ${s.val}`;
+    case "display": return `show on ${DISP?.displays?.find((d) => d.id === s.display)?.name || s.display}: ${s.messages}`;
     case "setvar": return `memory ${s.name} = ${s.to}`;
     case "save": return `remember settings`;
     case "restore": return `restore settings`;
@@ -1707,6 +1749,9 @@ function useValue(where, ent, attr, value) {
     e.item.entity = ent; e.item.attr = attr;
     extrasChanged(true);
     st.msg = { text: `The slider now reads ${name} ${attr}.` };
+  } else if (DED && CUR_TAB === "icons" && secOf("icons") === "display") {
+    const m = dspPickValue(ent, attr, value, name);
+    st.msg = { text: m || "Pick one of the remote's settings or a device's value for a display." };
   } else if (lastValueInput && document.contains(lastValueInput)) {
     // put it straight into the value field clicked last (a condition's value, a step's value, a state)
     const text = String(value);
@@ -2484,6 +2529,7 @@ async function loadIcons() {
   iconsLoaded = true;
   attachLevels();
   renderIcons();
+  loadDisplays();
 }
 
 $("#icon-add").addEventListener("click", () => {
@@ -3383,7 +3429,362 @@ function picSlot(o) {
 // ---------------------------------------------------------------------------
 // Section bar (the Page Editor's): each tab's parts, its status, ⓘ for what the tab is for
 // ---------------------------------------------------------------------------
-const SECS = { stats: [["overview", "Overview"], ["acts", "Activities"], ["battery", "Battery"], ["data", "Data"]], smart: [["smart", "Smart controls"], ["menu", "Quick menus"]], icons: [["icon", "State icons"], ["slider", "Sliders"]], ret: [["ret", "↩ buttons"], ["starts", "Start pages"]], ctl: [["ctl", "Controls"], ["set", "Settings"]], launch: [["launch", "Launchers"]] };
+// ---------------------------------------------------------------------------
+// Displays: sensors that show a default value and switch when something changes (Icons & Sliders tab).
+// Only characters that showed on the remote (display tests 1.2.10–1.2.12) are offered.
+// ---------------------------------------------------------------------------
+let DISP = null;   // { displays: [...], status: { id: { text, changed, why, until } } }
+let DED = null;    // { item, snap, isNew, msg }
+const DSP_BARS = { sq: ["◼", "◻", "Squares ◼◼◼◻◻"], small: ["▪", "▫", "Small squares ▪▪▪▫▫"], green: ["🟩", "⬜", "Green 🟩🟩⬜⬜"], dots: ["🟢", "⚪", "Green dots 🟢🟢⚪⚪"], blue: ["🟦", "⬛", "Blue 🟦🟦⬛⬛"], black: ["⚫", "⚪", "Black dots ⚫⚫⚪⚪"], hash: ["#", "-", "Keyboard [##--]"], pipe: ["|", "·", "Lines ||··"] };
+const DSP_FIT = { "4x2": 16, "4x1": 26, "2x1": 16, "1x1": 8 };
+const DSP_SYMBOLS = {
+  Symbols: "★ ☀ ☾ ⚠ ♪ ♫ ✓ ✕ ● ■ ▲ ◼ ◻ ▪ ▫ · •".split(" "),
+  Media: "▶ ⏸ ⏯ ⏹ ⏮ ⏭ ⏻ 🔊 🔉 🔈 🔇".split(" "),
+  Arrows: "→ ← ↑ ↓ ⇄ ⇅ ↩".split(" "),
+  Emoji: "💡 📺 🎬 🎵 🎮 🔔 🌙 🔥 ❄️ 🌡️ 🚪 🍿 📻 👍 🎉 🟢 🔴 🟡 🔵".split(" "),
+};
+const dspWidth = (t) => Array.from(String(t)).reduce((n, ch) => n + (/\p{Extended_Pictographic}/u.test(ch) ? 2 : ch === "️" ? 0 : 1), 0);
+const dspClone = (x) => JSON.parse(JSON.stringify(x));
+/** Sources: special ones as "ent|attr", devices as "dev|<entity id>" (then an attribute). */
+function dspSourceOptions() {
+  const remote = [["clock|time", "Time"], ["clock|date", "Date"], ["clock|datetime", "Day and time"], ["activity|name", "Activity on screen"], ["control|value", "The Control that's on: its value"], ["control|name", "The Control that's on: its name"]];
+  for (const [k, label] of Object.entries(CAT.settings || {})) remote.push(["self:remote|" + k, label]);
+  const out = [{ group: "This remote", items: remote }];
+  if (SLIDERS.length) out.push({ group: "Your sliders", items: SLIDERS.filter((s) => s.id).map((s) => ["slider:" + s.id + "|value", "Slider: " + s.name]) });
+  for (const g of deviceOptions((d) => d.type !== "activity" && d.type !== "macro", { own: false })) out.push({ group: g.group, items: g.items.map(([id, n]) => ["dev|" + id, n]) });
+  return out;
+}
+const dspKey = (src) => (!src ? "" : src.ent.includes(".") && !src.ent.startsWith("slider:") ? "dev|" + src.ent : src.ent + "|" + src.attr);
+function dspSrcName(src) {
+  if (!src) return "?";
+  if (src.ent.includes(".") && !src.ent.startsWith("slider:")) return `${devName(src.ent)} · ${String(src.attr).replace(/_/g, " ")}`;
+  for (const g of dspSourceOptions()) for (const [k, n] of g.items) if (k === dspKey(src)) return n;
+  return src.ent + " " + src.attr;
+}
+/** Source picker: what, and for a device which value. */
+function dspSrcFields(id, src, onChange) {
+  const out = [select(id + "-s", dspSourceOptions(), dspKey(src), (v) => {
+    const [a, b] = v.split("|");
+    if (a === "dev") { const d = DEV[b]; const attrs = d ? Object.keys(d.values) : []; onChange({ ent: b, attr: attrs.includes("volume") ? "volume" : attrs.includes("state") ? "state" : attrs[0] || "state" }); }
+    else onChange({ ent: a, attr: b });
+  }, "Value")];
+  if (src && src.ent.includes(".") && !src.ent.startsWith("slider:")) {
+    const d = DEV[src.ent];
+    const attrs = d ? Object.keys(d.values) : [];
+    if (!attrs.includes(src.attr)) attrs.unshift(src.attr);
+    out.push(select(id + "-a", attrs.map((a) => [a, a.replace(/_/g, " ")]), src.attr, (v) => onChange({ ent: src.ent, attr: v }), "Which value"));
+  }
+  return out;
+}
+/** A sample value for the preview: a slider's value, a device's last seen value, the time… */
+function dspSample(src) {
+  if (!src) return { v: undefined };
+  if (src.ent.startsWith("slider:")) { const s = SLIDERS.find((x) => x.id === src.ent.slice(7)); const c = CAT.controls?.[src.ent]; return { v: Number(c?.current ?? s?.min ?? 0), min: Number(s?.min ?? 0), max: Number(s?.max ?? 100) }; }
+  if (src.ent === "clock") return { v: src.attr === "date" ? new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) };
+  if (src.ent === "control") return src.attr === "name" ? { v: "Light" } : { v: 60, min: 0, max: 100 };
+  if (src.ent === "activity") return { v: CAT.activities[0]?.name || "Watch TV" };
+  if (src.ent === "self:remote") return { v: src.attr === "battery.level" ? 78 : 50, min: 0, max: 100 };
+  const seen = DEV[src.ent]?.values?.[src.attr];
+  if (seen && !Array.isArray(seen) && typeof seen === "object") return { v: seen.max, min: seen.min, max: seen.max };
+  if (Array.isArray(seen) && seen.length) return { v: seen[seen.length - 1] };
+  return { v: src.attr === "volume" ? 37 : "…" };
+}
+function dspFormat(v, sh, range = {}) {
+  if (v === undefined || v === null || v === "") return "–";
+  const n = typeof v === "number" ? v : Number.isFinite(Number(v)) && String(v).trim() !== "" ? Number(v) : null;
+  if (sh.fmt === "num") return n === null ? String(v) : String(Math.round(n));
+  if (sh.fmt === "dec") return n === null ? String(v) : (n < 0 ? "−" : "") + Math.abs(n).toFixed(1);
+  if (sh.fmt === "bar") {
+    if (n === null) return String(v);
+    const min = sh.min ?? range.min ?? 0, max = sh.max ?? range.max ?? 100, f = Math.max(0, Math.min(1, max > min ? (n - min) / (max - min) : 0));
+    const b = DSP_BARS[sh.bar] || DSP_BARS.sq, cells = sh.cells || 8, on = Math.round(f * cells);
+    const bar = b[0].repeat(on) + b[1].repeat(cells - on);
+    return (sh.bar === "hash" ? `[${bar}]` : bar) + (sh.pct ? ` ${Math.round(f * 100)} %` : "");
+  }
+  return String(v);
+}
+const dspText = (sh) => (sh.type === "messages" ? sh.steps.map((s) => s.t).join(" · ") : (sh.before || "") + dspFormat(dspSample(sh.src).v, sh, dspSample(sh.src)) + (sh.after || ""));
+
+// ---- symbol picker ------------------------------------------------------------------------
+let dspPopTab = "Symbols";
+async function dspGlyphs() {
+  if (!PW.builtin?.length) {
+    try {
+      const mr = await fetch("/api/editor/iconmap", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : {}));
+      PW.builtin = Object.entries(mr.glyphs || {}).sort().map(([n, g]) => ({ id: "uc:" + n, name: n, glyph: g }));
+      if (PW.builtin.length && !PW.font) { const f = new FontFace("ucicons", "url(/api/editor/iconfont)"); document.fonts.add(await f.load()); PW.font = true; }
+    } catch {}
+  }
+  return (PW.builtin || []).filter((x) => x.glyph);
+}
+function dspPicker(btn, onPick) {
+  document.querySelector(".dsp-pop")?.remove();
+  const pop = el("div", { class: "dsp-pop", role: "dialog", "aria-label": "Symbols" });
+  const draw = async () => {
+    const tabs = [...Object.keys(DSP_SYMBOLS), "Remote icons"];
+    const head = el("div", { class: "tabs2" }, tabs.map((t) => el("button", { type: "button", class: "small", "aria-pressed": String(t === dspPopTab), on: { click: (e) => { e.stopPropagation(); dspPopTab = t; draw(); } } }, t)));
+    let grid;
+    if (dspPopTab === "Remote icons") {
+      const g = await dspGlyphs();
+      grid = g.length ? el("div", { class: "gl" }, g.map((x) => el("button", { type: "button", class: "glyph", title: x.name, on: { click: (e) => { e.stopPropagation(); onPick(x.glyph); pop.remove(); } } }, x.glyph)))
+        : el("p", { class: "hint" }, "The remote's icon font wasn't found.");
+    } else grid = el("div", { class: "gl" }, DSP_SYMBOLS[dspPopTab].map((c) => el("button", { type: "button", on: { click: (e) => { e.stopPropagation(); onPick(c); pop.remove(); } } }, c)));
+    pop.replaceChildren(head, grid, el("p", { class: "hint" }, "Only characters that showed on the remote are offered (□ ○ ▼ and block characters like █ ░ show as a crossed box there)."));
+  };
+  draw();
+  const r = btn.getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(window.scrollX + r.left - 140, window.scrollX + document.documentElement.clientWidth - 336)) + "px";
+  pop.style.top = window.scrollY + r.bottom + 6 + "px";
+  document.body.append(pop);
+  setTimeout(() => document.addEventListener("click", function off(e) { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener("click", off); } }), 0);
+}
+function dspTextField(id, value, onInput, { label, placeholder, width = "110px", where = "end" } = {}) {
+  const inp = input(id, value, onInput, { label, placeholder });
+  inp.style.width = width; inp.classList.add("dsp-text");
+  const b = el("button", { type: "button", class: "small", title: "Add a symbol, emoji or remote icon", "aria-label": "Add a symbol to " + label, on: { click: (e) => { e.stopPropagation(); dspPicker(b, (c) => {
+    const cur = inp.value || "";
+    const next = where === "start" ? c + " " + cur.trimStart() : cur + (cur && !/\s$/.test(cur) ? " " : "") + c;
+    inp.value = next; onInput(next); dspChanged(true);
+  }); } } }, "☺");
+  return el("span", { class: "dsp-row", style: "gap:2px" }, inp, b);
+}
+
+// ---- editor -------------------------------------------------------------------------------
+function dspChanged(rerender) { if (rerender) renderDisplays(); else { const p = document.querySelectorAll("#disp-editor .dsp-prev[data-k]"); for (const x of p) x._upd?.(); } }
+function dspFitNote(sh, size) {
+  const t = dspText(sh), w = dspWidth(t), fit = DSP_FIT[size] || 26;
+  const prev = el("div", { class: "dsp-prev", "data-k": "1" });
+  const upd = () => {
+    const t2 = dspText(sh), w2 = dspWidth(t2);
+    prev.replaceChildren("Shows: ", el("b", {}, t2), " ", w2 <= fit ? el("span", {}, `${w2} of about ${fit} characters on one line`) : el("span", { class: "dsp-warn" }, `${w2} characters: longer than one line (about ${fit})`));
+  };
+  prev._upd = upd; upd();
+  const out = [prev];
+  if (sh.type === "value" && w > fit) out.push(el("div", { class: "dsp-row" }, el("span", { class: "k" }), select(nid("dl"), [["wrap", "wrap onto the next line"], ["scroll", "scroll it through on one line"]], sh.long || "wrap", (v) => { sh.long = v; dspChanged(false); }, "Long text")));
+  return out;
+}
+function dspShowFields(sh, size, { allowMessages = true, onType } = {}) {
+  const id = nid("ds");
+  const typeSel = select(id + "-t", [["value", "a value"], ...(allowMessages ? [["messages", "messages, one after another"]] : [])], sh.type, (v) => {
+    if (v === "messages") Object.assign(sh, { type: "messages", steps: sh.steps || [{ t: "message", s: 1 }, { t: "message 2", s: 1 }], repeat: sh.repeat || "once" });
+    else Object.assign(sh, { type: "value", src: sh.src || { ent: "clock", attr: "time" }, fmt: sh.fmt || "text", before: sh.before || "", after: sh.after || "" });
+    onType?.(); dspChanged(true);
+  }, "Show");
+  if (sh.type === "messages") {
+    const steps = el("div", { class: "dsp-steps" }, sh.steps.map((s, i) => {
+      const cnt = el("span", { class: "dsp-cnt" });
+      const upd = () => { const w = dspWidth(s.t), fit = DSP_FIT[size] || 26; cnt.textContent = `${w}/${fit}`; cnt.classList.toggle("over", w > fit); cnt.title = w > fit ? "Longer than one line: it wraps" : "characters / about how many fit on one line"; };
+      upd();
+      return el("div", { class: "dsp-row" }, el("span", { class: "hint" }, String(i + 1)),
+        dspTextField(id + "-m" + i, s.t, (v) => { s.t = v; upd(); dspChanged(false); }, { label: "Message " + (i + 1), width: "220px" }), cnt,
+        input(id + "-ms" + i, s.s, (v) => { s.s = Number(v); dspChanged(false); }, { label: "Seconds", type: "number", cls: "num" }), el("span", { class: "sep" }, "s"),
+        el("button", { type: "button", class: "ghost small", "aria-label": "Remove message " + (i + 1), disabled: sh.steps.length < 2, on: { click: () => { sh.steps.splice(i, 1); dspChanged(true); } } }, "✕"));
+    }), el("div", { class: "dsp-row" }, el("button", { type: "button", class: "small", disabled: sh.steps.length >= 20, on: { click: () => { sh.steps.push({ t: "message " + (sh.steps.length + 1), s: 1 }); dspChanged(true); } } }, "+ Message"),
+      el("span", { class: "hint" }, `${sh.steps.length} messages, ${sh.steps.reduce((a, s) => a + Number(s.s || 0), 0)} s ${sh.repeat === "loop" ? "per round" : "in all"}.`)));
+    return [el("div", { class: "dsp-row" }, el("span", { class: "k" }, "Show"), typeSel, select(id + "-r", [["once", "once"], ["loop", "over and over"]], sh.repeat, (v) => { sh.repeat = v; onType?.(); dspChanged(true); }, "Repeat")), steps];
+  }
+  const fmtOpts = [["text", "as it is"], ["num", "a number (37)"], ["dec", "with a decimal (−35.5)"], ["bar", "a bar ◼◼◼◻◻"]];
+  const rows = [
+    el("div", { class: "dsp-row" }, el("span", { class: "k" }, "Show"), typeSel, ...dspSrcFields(id, sh.src, (src) => { sh.src = src; dspChanged(true); })),
+    el("div", { class: "dsp-row" }, el("span", { class: "k" }),
+      dspTextField(id + "-b", sh.before, (v) => { sh.before = v; dspChanged(false); }, { label: "Text before the value", placeholder: "text before", where: "start" }),
+      select(id + "-f", fmtOpts, sh.fmt || "text", (v) => { sh.fmt = v; if (v === "bar") { sh.bar = sh.bar || "sq"; sh.cells = sh.cells || 8; } dspChanged(true); }, "Value shows as"),
+      dspTextField(id + "-a", sh.after, (v) => { sh.after = v; dspChanged(false); }, { label: "Text after the value", placeholder: "text after" })),
+  ];
+  if (sh.fmt === "bar") {
+    const r = dspSample(sh.src);
+    rows.push(el("div", { class: "dsp-row" }, el("span", { class: "k" }),
+      select(id + "-bs", Object.entries(DSP_BARS).map(([k, b]) => [k, b[2]]), sh.bar || "sq", (v) => { sh.bar = v; dspChanged(true); }, "Bar style"),
+      el("span", { class: "sep" }, "cells"), input(id + "-bc", sh.cells || 8, (v) => { sh.cells = Number(v); dspChanged(false); }, { label: "Bar cells", type: "number", cls: "num" }),
+      el("label", { class: "check" }, el("input", { type: "checkbox", checked: !!sh.pct, on: { change: (e) => { sh.pct = e.target.checked; dspChanged(false); } } }), " and the % after it"),
+      el("span", { class: "sep" }, "from"), input(id + "-bmin", sh.min ?? "", (v) => { sh.min = v === "" ? undefined : Number(v); dspChanged(false); }, { label: "Lowest", type: "number", cls: "num", placeholder: String(r.min ?? 0) }),
+      el("span", { class: "sep" }, "to"), input(id + "-bmax", sh.max ?? "", (v) => { sh.max = v === "" ? undefined : Number(v); dspChanged(false); }, { label: "Highest", type: "number", cls: "num", placeholder: String(r.max ?? 100) })));
+  }
+  return rows;
+}
+const DSP_WHEN = [["changes", "a value changes"], ["above", "a value goes above"], ["below", "a value goes below"], ["equals", "a value is"], ["control", "a Control is on"], ["activity", "an activity starts"]];
+const DSP_STATEFUL = ["above", "below", "equals", "control"];
+function dspWhenText(w) {
+  const s = w.src ? dspSrcName(w.src) : "";
+  return { changes: `${s} changes`, above: `${s} goes above ${w.val}`, below: `${s} goes below ${w.val}`, equals: `${s} is ${w.val}`, control: `${w.control ? (CTL?.controls.find((c) => c.id === w.control)?.name || w.control) : "a Control"} is on`, activity: `${devName(w.activity)} starts` }[w.type] || w.type;
+}
+function dspFixDur(r) {
+  const st = DSP_STATEFUL.includes(r.when.type);
+  if (r.show.type === "messages" && r.show.repeat === "once") { if (r.dur === "while" && !st) r.dur = "once"; else if (!["once", "while", "next"].includes(r.dur) && !st) r.dur = "once"; }
+  if (r.dur === "while" && !st) r.dur = "4";
+  if (r.dur === "once" && !(r.show.type === "messages" && r.show.repeat === "once")) r.dur = st ? "while" : "4";
+}
+function dspRuleBox(d, r, i, live) {
+  const id = nid("dr");
+  const w = r.when;
+  const whenRow = el("div", { class: "dsp-row" }, el("span", { class: "k" }, "When"), select(id + "-w", DSP_WHEN, w.type, (v) => {
+    r.when = { type: v };
+    if (["changes", "above", "below", "equals"].includes(v)) r.when.src = w.src || dspClone(r.show.src || d.def.src || { ent: "clock", attr: "time" });
+    if (v === "above" || v === "below") r.when.val = 0;
+    if (v === "equals") r.when.val = "";
+    if (v === "control") r.when.control = "";
+    if (v === "activity") r.when.activity = CAT.activities[0]?.id || "";
+    r.dur = DSP_STATEFUL.includes(v) ? "while" : r.show.type === "messages" && r.show.repeat === "once" ? "once" : "4";
+    dspChanged(true);
+  }, "When"));
+  if (["changes", "above", "below", "equals"].includes(w.type)) whenRow.append(...dspSrcFields(id, w.src, (src) => { w.src = src; dspChanged(true); }));
+  if (w.type === "above" || w.type === "below") whenRow.append(input(id + "-v", w.val, (v) => { w.val = v === "" ? "" : Number(v); dspChanged(false); }, { label: "Number", type: "number", cls: "num" }));
+  if (w.type === "equals") whenRow.append(input(id + "-v", w.val, (v) => { w.val = v; dspChanged(false); }, { label: "Value", placeholder: "PLAYING" }));
+  if (w.type === "control") whenRow.append(select(id + "-c", [["", "any Control"], ...(CTL?.controls || []).map((c) => [c.id, c.name])], w.control || "", (v) => { w.control = v; dspChanged(false); }, "Control"));
+  if (w.type === "activity") whenRow.append(select(id + "-act", CAT.activities.map((a) => [a.id, a.name]), w.activity, (v) => { w.activity = v; dspChanged(false); }, "Activity"));
+  const st = DSP_STATEFUL.includes(w.type);
+  const durs = [["2", "2 s"], ["4", "4 s"], ["8", "8 s"], ["15", "15 s"], ["30", "30 s"], ["60", "1 minute"]];
+  if (st) durs.unshift(["while", w.type === "control" ? "while the Control is on" : "while it's true"]);
+  if (r.show.type === "messages" && r.show.repeat === "once") durs.unshift(["once", "once through"]);
+  durs.push(["next", "until something else changes"]);
+  const forRow = el("div", { class: "dsp-row" }, el("span", { class: "k" }, "For"),
+    select(id + "-d", durs, String(r.dur), (v) => { r.dur = v; dspChanged(false); }, "How long"),
+    select(id + "-p", [["normal", "Normal priority"], ["high", "High: not interrupted by normal ones"]], r.prio || "normal", (v) => { r.prio = v; dspChanged(false); }, "Priority"));
+  return el("div", { class: "dsp-box" + (live ? " live" : "") },
+    el("div", { class: "dsp-row" }, el("b", {}, `${i + 1}.`), el("span", { class: "hint" }, dspWhenText(w)), el("span", { class: "grow" }), live ? el("span", { class: "kind" }, "on screen now") : null,
+      el("button", { type: "button", class: "ghost small", "aria-label": "Move change up", disabled: i === 0, on: { click: () => { [d.rules[i - 1], d.rules[i]] = [d.rules[i], d.rules[i - 1]]; dspChanged(true); } } }, "↑"),
+      el("button", { type: "button", class: "ghost", "aria-label": "Remove change " + (i + 1), on: { click: () => { d.rules.splice(i, 1); dspChanged(true); } } }, "Remove")),
+    whenRow, ...dspShowFields(r.show, d.size, { onType: () => dspFixDur(r) }), ...dspFitNote(r.show, d.size), forRow);
+}
+function dspEditor() {
+  const d = DED.item, st = DISP?.status?.[d.id];
+  const nameIn = input("disp-name", d.name, (v) => { d.name = v; if (DED.isNew) { idIn.value = d.id = dspId(v); } }, { label: "Name (shown on the remote)" });
+  const idIn = input("disp-id", d.id, (v) => { d.id = v; }, { label: "Id", cls: "mono" });
+  if (!DED.isNew) { idIn.readOnly = true; idIn.title = "Saved: the id can't change because your pages use it. The name can."; idIn.classList.add("locked"); }
+  const card = el("div", { class: "card" },
+    el("div", { class: "card-head" },
+      el("label", { class: "grow" }, el("span", { class: "hint" }, "Name (shown on the remote)"), nameIn),
+      el("label", {}, el("span", { class: "hint" }, "Id"), idIn),
+      el("label", {}, el("span", { class: "hint" }, "Widget size it's on (for the character count)"), select("disp-size", [["4x1", "4 × 1"], ["4x2", "4 × 2"], ["2x1", "2 × 1"], ["1x1", "1 × 1"]], d.size || "4x1", (v) => { d.size = v; dspChanged(true); }, "Widget size"))),
+    st ? el("p", { class: "hint" }, "On the remote now: ", el("b", { class: "dsp-text" }, st.text || "–"), st.changed ? " (temporary change)" : "") : null,
+    el("h3", { class: "hint", style: "margin:4px 0 0;text-transform:uppercase;letter-spacing:.04em" }, "Default"),
+    el("p", { class: "hint" }, "What the display shows when no temporary change is on."),
+    el("div", { class: "dsp-box" }, ...dspShowFields(d.def, d.size), ...dspFitNote(d.def, d.size)),
+    el("h3", { class: "hint", style: "margin:4px 0 0;text-transform:uppercase;letter-spacing:.04em" }, "Temporary changes"),
+    el("p", { class: "hint" }, "When a condition is met, the display switches, then goes back to the default. The newest change wins, but a high-priority one isn't interrupted by normal ones. When one ends while another condition is still true (a Control still on, battery still low), that one shows next."),
+    ...d.rules.map((r, i) => dspRuleBox(d, r, i, false)),
+    el("div", { class: "dsp-row" }, el("button", { type: "button", class: "small", disabled: d.rules.length >= 16, on: { click: () => {
+      const src = d.def.type === "value" ? dspClone(d.def.src) : SLIDERS[0] ? { ent: "slider:" + SLIDERS[0].id, attr: "value" } : { ent: "clock", attr: "time" };
+      d.rules.push({ when: { type: "changes", src }, show: { type: "value", src: dspClone(src), fmt: "num", before: "", after: "" }, dur: "4", prio: "normal" }); dspChanged(true);
+    } } }, "+ Temporary change"), el("span", { class: "hint" }, "Tip: click a value in Device states (on the right) to add “when it changes, show it”.")));
+  const status = el("div", { class: "status edstatus" + (DED.msg?.cls ? " " + DED.msg.cls : ""), role: "status" }, DED.msg?.text || "");
+  const errs = el("ul", { class: "errors" }, (DED.msg?.errors || []).map((x) => el("li", {}, x)));
+  errs.hidden = !(DED.msg?.errors || []).length;
+  let del = null;
+  if (!DED.isNew) {
+    del = el("button", { class: "ghost danger", type: "button" }, "Delete");
+    del.addEventListener("click", () => { if (del.dataset.armed === "1") return dspDelete(); del.dataset.armed = "1"; del.textContent = "Click again to delete"; setTimeout(() => { del.dataset.armed = ""; del.textContent = "Delete"; }, 4000); });
+  }
+  return el("section", { class: "editbox", "aria-label": "Display" },
+    el("div", { class: "editbox-head" }, el("h2", {}, DED.isNew ? "New display sensor" : "Edit: " + (JSON.parse(DED.snap).name || "display")), el("button", { class: "ghost", type: "button", "aria-label": "Close without saving", on: { click: dspCancel } }, "✕")),
+    card,
+    el("div", { class: "editbox-foot" },
+      el("button", { class: "primary", type: "button", on: { click: () => dspSave(true) } }, DED.isNew ? "Save" : "Save changes"),
+      el("button", { type: "button", on: { click: dspCancel } }, "Cancel"),
+      DED.isNew ? null : el("button", { type: "button", title: "Shows a test message on this display for a moment", on: { click: dspTest } }, "Test message"),
+      el("span", { class: "grow" }), del),
+    status, errs);
+}
+const dspId = (name) => { const base = "disp_" + (String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "display"); let id = base.slice(0, 44), n = 2; while ((DISP?.displays || []).some((x) => x !== DED?.item && x.id === id)) id = `${base.slice(0, 40)}_${n++}`; return id; };
+function dspMsg(cls, text, errors) { if (!DED) return; DED.msg = { cls, text, errors }; renderDisplays(); }
+function dspOpen(item, isNew) {
+  DED = { item, snap: JSON.stringify(item), isNew, msg: null };
+  SEC.icons = "display"; applySec("icons");
+  renderDisplays();
+  setTimeout(() => { const box = document.querySelector("#disp-editor .editbox"); box?.scrollIntoView({ behavior: "smooth", block: "start" }); if (isNew) box?.querySelector("input")?.focus(); }, 0);
+}
+function dspCancel() {
+  if (DED && !DED.isNew) { const i = DISP.displays.indexOf(DED.item); if (i >= 0) DISP.displays[i] = JSON.parse(DED.snap); }
+  if (DED?.isNew) { const i = DISP.displays.indexOf(DED.item); if (i >= 0) DISP.displays.splice(i, 1); }
+  DED = null; renderDisplays();
+}
+async function dspPost(list) {
+  const r = await api("POST", "/api/displays", { displays: list });
+  if (r.ok) { const keepId = DED?.item?.id; DISP = r.data; return { ok: true, keepId }; }
+  return { ok: false, error: r.data.error, errors: r.data.errors };
+}
+async function dspSave(close) {
+  const d = DED.item;
+  if (!String(d.name || "").trim()) return dspMsg("err", "Give it a name first.");
+  if (!d.id) d.id = dspId(d.name);
+  dspMsg("", "Saving…");
+  const r = await dspPost(DISP.displays);
+  if (!r.ok) return dspMsg("err", r.error || "Not saved. Fix these and save again:", r.errors);
+  if (close) { flashId = d.id; DED = null; }
+  else { const it = DISP.displays.find((x) => x.id === d.id); DED = { item: it, snap: JSON.stringify(it), isNew: false, msg: { cls: "ok", text: "Saved." } }; }
+  renderDisplays();
+}
+async function dspDelete() {
+  const i = DISP.displays.indexOf(DED.item);
+  if (i >= 0) DISP.displays.splice(i, 1);
+  const r = await dspPost(DISP.displays);
+  if (!r.ok) { DISP.displays.splice(i, 0, DED.item); return dspMsg("err", "Couldn't delete: " + (r.error || ""), r.errors); }
+  DED = null; renderDisplays();
+}
+async function dspTest() {
+  const r = await api("POST", "/api/displays/test", { id: DED.item.id, messages: ["Test ✓", DED.item.name] });
+  dspMsg(r.ok ? "ok" : "err", r.ok ? "Showing a test message on the remote: " + r.data.summary : r.data.error || "Couldn't show it.");
+}
+/** A value clicked in the device states panel: add "when it changes, show it" to the display being edited. */
+function dspPickValue(ent, attr, value, name) {
+  if (!DED) return false;
+  const isRemote = ent === "self:remote";
+  if (isRemote && String(attr).startsWith("control:")) return false;
+  const src = { ent, attr };
+  const n = typeof value === "number";
+  DED.item.rules.push({ when: { type: "changes", src }, show: { type: "value", src: dspClone(src), fmt: n ? "num" : "text", before: (isRemote ? (CAT.settings?.[attr] || attr) : String(attr).replace(/_/g, " ")).replace(/\s*\(.*\)$/, "") + " ", after: "" }, dur: "4", prio: "normal" });
+  renderDisplays();
+  return `Added “when ${name} ${attr} changes, show it” to the display you're editing.`;
+}
+const DSP_TEMPLATES = {
+  volume: () => ({ name: "Volume", size: "4x2", def: SLIDERS[0] ? { type: "value", src: { ent: "slider:" + SLIDERS[0].id, attr: "value" }, fmt: "num", before: "🔊 ", after: "" } : { type: "value", src: { ent: "clock", attr: "time" }, fmt: "text", before: "", after: "" },
+    rules: [{ when: { type: "control", control: "" }, show: { type: "value", src: { ent: "control", attr: "value" }, fmt: "bar", bar: "green", cells: 5, pct: true, before: "💡 ", after: "" }, dur: "while", prio: "high" }] }),
+  status: () => ({ name: "Status", size: "4x1", def: { type: "value", src: { ent: "clock", attr: "time" }, fmt: "text", before: "", after: "" },
+    rules: [{ when: { type: "below", src: { ent: "self:remote", attr: "battery.level" }, val: 20 }, show: { type: "messages", steps: [{ t: "⚠ Battery low", s: 2 }, { t: "Charge me", s: 2 }], repeat: "loop" }, dur: "while", prio: "normal" },
+      { when: { type: "changes", src: { ent: "activity", attr: "name" } }, show: { type: "value", src: { ent: "activity", attr: "name" }, fmt: "text", before: "▶ ", after: "", long: "scroll" }, dur: "4", prio: "normal" }] }),
+  door: () => ({ name: "Doorbell", size: "4x1", def: { type: "value", src: { ent: "clock", attr: "date" }, fmt: "text", before: "", after: "" }, rules: [] }),
+  ticker: () => ({ name: "Ticker", size: "4x1", def: { type: "messages", steps: [{ t: "Welcome", s: 3 }, { t: "🍿 Movie night: Friday", s: 3 }], repeat: "loop" }, rules: [] }),
+};
+function dspCreate(tmpl) {
+  if (!DISP) return;
+  if (DED) dspCancel();
+  const base = tmpl && DSP_TEMPLATES[tmpl] ? DSP_TEMPLATES[tmpl]() : { name: "", size: "4x1", def: { type: "value", src: { ent: "clock", attr: "time" }, fmt: "text", before: "", after: "" }, rules: [] };
+  const item = { id: "", ...base };
+  DISP.displays.push(item);
+  DED = { item, snap: JSON.stringify(item), isNew: true, msg: null };
+  if (item.name) item.id = dspId(item.name);
+  dspOpen(item, true);
+}
+function renderDisplays() {
+  const ed = $("#disp-editor"), list = $("#disp-list");
+  if (!ed || !list) return;
+  if (!DISP) { list.replaceChildren(el("p", { class: "hint" }, "Loading your displays…")); return; }
+  ed.replaceChildren(...(DED ? [dspEditor()] : []));
+  const shown = DISP.displays.filter((d) => !(DED && DED.isNew && d === DED.item));
+  list.replaceChildren(...shown.map((d) => {
+    const st = DISP.status?.[d.id];
+    return bar({ name: d.name, kind: "Display", sub: `self_control.main.${d.id} · ${plural(d.rules.length, "temporary change")} · default: ${d.def.type === "messages" ? "messages" : dspSrcName(d.def.src)}`, state: st ? (st.text || "–") + (st.changed ? " (changed)" : "") : "not saved yet", editing: DED && DED.item === d, flash: flashOnce(d.id), onEdit: () => dspOpen(d, false) });
+  }));
+  if (!shown.length) list.append(el("p", { class: "empty" }, "No displays yet. A display is a sensor that shows text, like the volume, the time or a message, and switches to something else for a while when a condition is met."));
+  const s = $("#sec-status"); if (s && CUR_TAB === "icons") s.textContent = secStatus("icons");
+}
+async function loadDisplays() {
+  if (!CTL) { try { await loadControls(); } catch {} }
+  const r = await api("GET", "/api/displays");
+  if (!r.ok) { $("#disp-list").replaceChildren(el("p", { class: "status err" }, r.data.error || "Couldn't read the displays.")); return; }
+  DISP = r.data;
+  renderDisplays();
+}
+// what each display shows now, while the list is open (not while editing, so typing isn't interrupted)
+setInterval(async () => {
+  if (!DISP || DED || CUR_TAB !== "icons" || secOf("icons") !== "display" || document.hidden) return;
+  const r = await api("GET", "/api/displays");
+  if (r.ok && !DED) { DISP.status = r.data.status; renderDisplays(); }
+}, 2000);
+$("#disp-add").addEventListener("click", () => dspCreate(null));
+$("#disp-tmpl").addEventListener("change", (e) => { const v = e.target.value; e.target.value = ""; if (v) dspCreate(v); });
+
+const SECS = { stats: [["overview", "Overview"], ["acts", "Activities"], ["battery", "Battery"], ["data", "Data"]], smart: [["smart", "Smart controls"], ["menu", "Quick menus"]], icons: [["icon", "State icons"], ["slider", "Sliders"], ["display", "Displays"]], ret: [["ret", "↩ buttons"], ["starts", "Start pages"]], ctl: [["ctl", "Controls"], ["set", "Settings"]], launch: [["launch", "Launchers"]] };
 const PIC_SECS = { smart: ["menu"], icons: ["icon", "slider"], ret: ["ret"], launch: ["launch"] };
 const SEC = {};
 try { Object.assign(SEC, JSON.parse(localStorage.getItem("scb_secs") || "{}")); } catch {}
@@ -3393,7 +3794,7 @@ function secStatus(tab) {
   const n = (x, one, many) => `${x} ${x === 1 ? one : many}`;
   try {
     if (tab === "smart") return `${n(buttons.length, "smart control", "smart controls")} · ${n((MENUS || []).length, "quick menu", "quick menus")}`;
-    if (tab === "icons") return iconsLoaded ? `${n(ICONS.filter((b) => b.kind !== "level").length, "state icon", "state icons")} · ${n((SLIDERS || []).length, "slider", "sliders")}` : "";
+    if (tab === "icons") return iconsLoaded ? `${n(ICONS.filter((b) => b.kind !== "level").length, "state icon", "state icons")} · ${n((SLIDERS || []).length, "slider", "sliders")} · ${n((DISP?.displays || []).length, "display", "displays")}` : "";
     if (tab === "ret") return $("#ret-status").textContent || (RET ? n(RET.cfg.hosts.length, "activity with ↩", "activities with ↩") : "");
     if (tab === "ctl") return CTL ? n(CTL.controls.length, "control", "controls") : "";
     if (tab === "launch") return LAUNCH ? n(LAUNCH.length, "launcher", "launchers") : "";
@@ -3681,7 +4082,7 @@ for (const k of Object.keys(TABS)) $("#tab-" + k).addEventListener("click", () =
 // Session
 // ---------------------------------------------------------------------------
 function showLogin(msg) {
-  $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = ED.ret = ED.ctl = null; RET = null; CTL = null; STARTS = null; LAUNCH = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
+  $("#app").hidden = true; $("#icons-app").hidden = true; extrasLoaded = false; ED.smart = ED.icons = ED.extras = ED.ret = ED.ctl = null; RET = null; CTL = null; STARTS = null; LAUNCH = null; DISP = null; DED = null; $("#tabs").hidden = true; $("#session-bar").hidden = true; $("#login").hidden = false; iconsLoaded = false;
   $("#editor-app").hidden = true; $("#editor-frame").removeAttribute("src"); document.body.classList.remove("wide");
   $("#secbar").hidden = true; $("#about").hidden = true; $("#picwin").hidden = true; CUR_TAB = null;
   $("#login-status").className = msg ? "status err" : "status"; $("#login-status").textContent = msg || "";
@@ -3703,7 +4104,7 @@ async function loadAll() {
   saved = JSON.stringify(toRules(buttons), null, 2);
   $("#json").textContent = saved;
   $("#login").hidden = true; $("#tabs").hidden = false; $("#session-bar").hidden = false;
-  await Promise.all([loadExtras(), loadReturn(), loadControls(), loadSeen()]);
+  await Promise.all([loadExtras(), loadReturn(), loadControls(), loadSeen(), loadDisplays()]);
   startStates("smart"); startStates("icons"); startStates("ret"); startStates("launch");
   changed(true);
   let tab = "editor";

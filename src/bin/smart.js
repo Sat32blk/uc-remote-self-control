@@ -32,6 +32,8 @@
 //     remember / put back the remote's backlight, display, sound and haptic settings
 //   { "page": "Apps", "activity": "<activity id or alias>" }  go to a page (name, page id or "#n");
 //     without "activity" the activity on screen jumps to it, otherwise that activity opens on it next time
+//   { "display": "disp_door", "messages": ["Ding dong", "at the door"], "secs": 1 }
+//     show messages one after another on one of this integration's display sensors
 //   { "stop": true }
 
 import fs from "node:fs";
@@ -113,8 +115,12 @@ export function vActions(list, path, errs, ctx) {
     } else if ("page" in a) {
       if (typeof a.page !== "string" || !a.page.trim() || a.page.length > 80) errs.push(`${p}.page: a page name, page id or "#n"`);
       if (a.activity !== undefined && a.activity !== null && (typeof a.activity !== "string" || !ctx.resolvable(a.activity))) errs.push(`${p}.activity: unknown activity "${a.activity}"`);
+    } else if ("display" in a) {
+      if (typeof a.display !== "string" || !/^disp_[a-z0-9_]{1,40}$/.test(a.display)) errs.push(`${p}.display: pick a display`);
+      if (!Array.isArray(a.messages) || !a.messages.length || a.messages.length > 20 || a.messages.some((m) => typeof m !== "string" || !m.trim() || m.length > 120)) errs.push(`${p}.messages: 1–20 messages of up to 120 characters`);
+      if (a.secs !== undefined && !(Number(a.secs) >= 0.5 && Number(a.secs) <= 60)) errs.push(`${p}.secs: 0.5–60 seconds per message`);
     } else if (!("stop" in a)) {
-      errs.push(`${p}: unknown step (use cmd, self, page, delay, wait_until, set_var, save_settings, restore_settings or stop)`);
+      errs.push(`${p}: unknown step (use cmd, self, page, display, delay, wait_until, set_var, save_settings, restore_settings or stop)`);
     }
   });
 }
@@ -333,6 +339,9 @@ export class SmartEngine {
         if (!/^no page |^no activity on screen/.test(e.message)) throw e;
         trail.push(`${e.message}, page jump skipped`);
       }
+    } else if (a.display) {
+      if (!this.self.display) throw new Error("displays aren't available");
+      trail.push(this.self.display(a.display, a.messages, a.secs ?? 1));
     } else if ("delay" in a) {
       await sleep(Number(a.delay));
     } else if (a.wait_until) {

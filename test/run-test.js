@@ -19,6 +19,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const srv = await start(CORE_PORT);
 const binDir = path.resolve("src/bin");
 fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
+// one display sensor, to check it's offered as an entity
+fs.writeFileSync(path.join(cfgDir, "displays.json"), JSON.stringify({ displays: [{ id: "disp_test", name: "Test display", size: "4x1", def: { type: "value", src: { ent: "clock", attr: "time" }, fmt: "text" }, rules: [] }] }));
 const drv = spawn(process.execPath, ["driver.js"], {
   cwd: binDir,
   env: { ...process.env, UC_CONFIG_HOME: cfgDir, UC_INTEGRATION_HTTP_PORT: String(WS_PORT), UC_DISABLE_MDNS_PUBLISH: "true", UC_SELF_BUILDER_PORT: "10931" },
@@ -48,7 +50,7 @@ const send = (msg, msg_data) => ws.send(JSON.stringify({ kind: "event", msg, msg
 
 // --- before setup
 let r = await req("get_driver_version");
-ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.2.12", "driver_version 1.2.12");
+ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.3.0", "driver_version 1.3.0");
 send("connect");
 await sleep(300);
 r = await req("get_device_state");
@@ -128,7 +130,8 @@ r = await req("get_available_entities");
 const avail = r.msg_data.available_entities;
 const ids = avail.map((e) => e.entity_id).sort();
 console.log("     entities:", ids.join(", "));
-ok(avail.length === 21 && avail.some((e) => e.entity_id === "display_test"), "21 entities offered (14 settings + Smart Test Button + result sensor + Previous Activity + Display test + Control, Control Level, Control Active)");
+ok(avail.length === 21, "21 entities offered (14 settings + Smart Test Button + result sensor + Previous Activity + Control, Control Level, Control Active + 1 display)");
+ok(avail.find((e) => e.entity_id === "disp_test")?.entity_type === "sensor", "the display is offered as a sensor");
 const ctl = avail.find((e) => e.entity_id === "control");
 ok(ctl?.entity_type === "media_player" && ctl.features.includes("volume") && ctl.features.includes("volume_up_down") && avail.filter((e) => e.area === "Remote Controls").length === 3 && avail.find((e) => e.entity_id === "control_level")?.entity_type === "light" && avail.find((e) => e.entity_id === "control_active")?.entity_type === "sensor", "Controls: Control media player, Control Level light, Control Active sensor");
 ok(avail.find((e) => e.entity_id === "previous_activity")?.area === "Remote Navigation" && avail.find((e) => e.entity_id === "previous_activity")?.entity_type === "sensor", "Previous Activity sensor in Remote Navigation");
@@ -153,6 +156,7 @@ ok(st.sound_volume.current_option === "80 %", "volume 80 %");
 ok(st.backlight_color.current_option === "Ice blue" && st.backlight_color.options.includes("Movie red"), "backlight color select shows Ice blue");
 ok(st.backlight_level.current_option === "100 %" && st.display_level.current_option === "50 %", "level selects show 100 % / 50 %");
 ok(st.wake_on_wlan.state === "ON" && st.haptic.state === "ON", "switches ON");
+ok(/\d:\d\d/.test(String(st.disp_test?.value || "")), "the display shows the time: " + JSON.stringify(st.disp_test));
 r = await req("get_device_state");
 ok(r.msg_data.state === "CONNECTED", "device CONNECTED after setup");
 

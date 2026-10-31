@@ -24,7 +24,7 @@ import { Launchers, validateLaunchers, LIMITS as LAUNCHER_LIMITS } from "./launc
 import { Stats } from "./stats.js";
 import { isReturnItem } from "./returnbtn.js";
 import { spotsOf } from "./stateicons.js";
-import { DisplayTest } from "./displaytest.js";
+import { Displays, validateDisplays } from "./displays.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -521,6 +521,11 @@ const sliderStep = (s) => (s.mode === "steps" ? Number(s.per_press) || 1 : Numbe
 const selfApi = {
   get keys() { return [...Object.keys(SELECTS), ...Object.keys(SWITCHES), ...(extras?.sliders || []).map((s) => "slider:" + s.id)]; },
   // "Go to page" step: activity null = the one on screen
+  // "Show on a display" step: messages one after another on a display sensor
+  display(id, messages, secs) {
+    if (!displays) throw new Error("displays not ready");
+    return displays.showMessages(id, messages, secs);
+  },
   async page(activity, spec) {
     if (!pageJumper) throw new Error("pages not ready");
     syncCoreEvents();
@@ -642,21 +647,76 @@ function updatePreviousSensor() {
   if (!api.updateEntityAttributes(previousSensor.id, attrs)) Object.assign(previousSensor.attributes, attrs);
 }
 
-// Test build: "Display test" sensor (what a sensor widget can show, how fast it redraws). See displaytest.js.
-const displayTestSensor = new uc.Sensor("display_test", { en: "Display test" }, {
-  area: "Remote Self-Control test",
-  attributes: { state: uc.SensorStates.On, value: "starting…", unit: "" }
-});
-const displayTest = new DisplayTest({
-  update: (attrs) => { if (!api.updateEntityAttributes(displayTestSensor.id, attrs)) Object.assign(displayTestSensor.attributes, attrs); },
-  warn: (...a) => warn(...a),
-});
+// ---------------------------------------------------------------------------
+// Display sensors: text that shows a default value and switches when something changes. See displays.js.
+// ---------------------------------------------------------------------------
+const AREA_DISPLAYS = "Remote Displays";
+const displayEntities = {};
+let displays = null;
+const entityValues = new Map(); // device entity id -> attributes (read for displays, kept fresh by the remote's events)
+let displayReadAt = 0;
+
+function buildDisplayEntities() {
+  for (const k of Object.keys(displayEntities)) delete displayEntities[k];
+  for (const d of displays?.displays || []) {
+    displayEntities[d.id] = new uc.Sensor(d.id, { en: d.name }, { area: AREA_DISPLAYS, attributes: { state: uc.SensorStates.On, value: displays.shown.get(d.id) ?? "" } });
+  }
+}
+function publishDisplay(id, attrs) {
+  const e = displayEntities[id];
+  if (!e) return;
+  if (!api.updateEntityAttributes(id, attrs)) Object.assign(e.attributes, attrs);
+}
+const localization = () => cache?.localization || {};
+function clockText(attr) {
+  const loc = localization(), tz = loc.time_zone || loc.timezone || undefined, h24 = loc.time_format_24h;
+  const opts = (o) => { try { return new Date().toLocaleString(loc.language_code ? String(loc.language_code).replace("_", "-") : undefined, { ...o, ...(tz ? { timeZone: tz } : {}) }); } catch { return new Date().toLocaleString(undefined, o); } };
+  if (attr === "date") return opts({ weekday: "short", month: "short", day: "numeric" });
+  const time = opts({ hour: "numeric", minute: "2-digit", ...(h24 === undefined ? {} : { hour12: !h24 }) });
+  return attr === "datetime" ? `${opts({ weekday: "short" })} ${time}` : time;
+}
+/** The current value of a display's source: { v, min, max }. */
+function displayValue(src) {
+  if (!src) return undefined;
+  const { ent, attr } = src;
+  if (ent.startsWith("slider:")) {
+    const sl = extras?.slider(ent.slice(7));
+    if (!sl) return undefined;
+    return { v: extras.values[sl.id], min: Number(sl.min ?? 0), max: Number(sl.max ?? 100) };
+  }
+  if (ent === "self:remote") {
+    const v = selfApi.read(attr);
+    return { v: v !== undefined ? v : remoteState().attributes[attr], min: 0, max: 100 };
+  }
+  if (ent === "clock") return { v: clockText(attr) };
+  if (ent === "control") {
+    if (!controls?.active) return { v: undefined };
+    return attr === "name" ? { v: controls.control(controls.active)?.name || "" } : { v: controls.value, min: 0, max: 100 };
+  }
+  if (ent === "activity") { const id = onScreen(); return { v: id ? returnTracker?.nameOf(id) || "" : "" }; }
+  const a = entityValues.get(ent);
+  return a ? { v: a[attr] } : undefined;
+}
+/** Reads the devices the displays use (every second while the remote is awake); events fill in between. */
+async function readDisplayDevices() {
+  if (!core || standby || !displays?.displays.length || Date.now() - displayReadAt < 1000) return;
+  displayReadAt = Date.now();
+  const ids = [...new Set(displays.sources().map((s) => s.ent).filter((e) => e.includes(".") && !e.startsWith("slider:")))];
+  for (const id of ids) {
+    try { const e = await core.get(`/entities/${encodeURI(id)}`); if (e) entityValues.set(id, e.attributes || {}); } catch {}
+  }
+}
+/** An entity_change event from the remote: keep the device's values fresh for the displays. */
+function displayEntityEvent(id, attrs) {
+  if (!entityValues.has(id) || !attrs) return;
+  entityValues.set(id, { ...entityValues.get(id), ...attrs });
+}
 
 function registerEntities() {
   api.clearAvailableEntities();
   for (const [, id] of LAYOUT) api.addAvailableEntity(entities[id]);
   api.addAvailableEntity(previousSensor);
-  api.addAvailableEntity(displayTestSensor);
+  for (const e of Object.values(displayEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(smartEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(extraEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(controlEntities)) api.addAvailableEntity(e);
@@ -1143,11 +1203,13 @@ let launchers = null;
 let screenActivity; // activity on screen per the events (undefined = not known yet, null = none)
 const onScreen = () => (screenActivity === undefined ? returnTracker?.current || null : screenActivity);
 function syncCoreEvents() {
-  const want = !!(core && connected && !standby && config?.apiKey && (returnTracker?.enabled || pageJumper?.enabled || launchers?.enabled));
+  const want = !!(core && connected && !standby && config?.apiKey && (returnTracker?.enabled || pageJumper?.enabled || launchers?.enabled || displays?.displays.length));
   if (want) {
     if (!coreEvents) coreEvents = new CoreEvents({ address: config.address, apiKey: config.apiKey, log, warn,
+      onEntity: (id, attrs) => displayEntityEvent(id, attrs),
       onActivity: (id) => {
         screenActivity = id;
+        displays?.activityStarted(id);
         returnTracker.opened(id).catch((e) => warn("return:", e.message));
         pageJumper?.opened(id).catch((e) => warn("pages:", e.message));
         launchers?.opened().catch((e) => warn("launcher:", e.message));
@@ -1543,7 +1605,6 @@ async function pinSetup(v) {
 
 api.on(uc.Events.Connect, async () => {
   connected = true;
-  displayTest.run();
   if (!core) {
     await api.setDeviceState(uc.DeviceStates.Disconnected);
     return;
@@ -1605,6 +1666,17 @@ controls = new Controls({
   warn
 });
 buildControlEntities();
+displays = new Displays({
+  file: path.join(api.getConfigDirPath(), "displays.json"),
+  value: displayValue,
+  controlOn: (id) => !!controls?.active && (!id || controls.active === id),
+  publish: publishDisplay,
+  log,
+  warn
+});
+buildDisplayEntities();
+displays.start(250);
+setInterval(() => { readDisplayDevices().catch((e) => warn("displays:", e.message)); }, 1000);
 deviceStates = new DeviceStates({ getCore: () => core, file: path.join(api.getConfigDirPath(), "states_seen.json"), remote: remoteState, log, warn });
 initSmart();
 pageJumper = new PageJumper({ getCore: () => core, onScreen, test: (c) => smart.test(c, new Map()), file: path.join(api.getConfigDirPath(), "pages.json"), log, warn });
@@ -1655,6 +1727,20 @@ const webServer = startWebServer({
   editorPath: path.join(HERE, "web", "editor.html"),
   dataDir: api.getConfigDirPath(),
   onScreen: () => onScreen(),
+  displaysApi: {
+    get: () => ({ ...displays.config, status: displays.status() }),
+    save: (body) => {
+      const v = validateDisplays(body);
+      if (v.errors.length) return { ok: false, errors: v.errors };
+      displays.replace(v.displays);
+      buildDisplayEntities();
+      registerEntities();
+      syncCoreEvents();
+      log(`displays: ${v.displays.length} saved`);
+      return { ok: true, errors: [], ...displays.config, status: displays.status() };
+    },
+    test: (id, messages) => displays.showMessages(id, messages, 1),
+  },
   statsApi: { data: () => stats.data(), setConfig: (c) => stats.setConfig(c), clear: () => stats.clear(), csv: () => stats.csv() },
   getCore: () => core,
   makePinClient: (pin) => new CoreClient(config?.address || "127.0.0.1", { pin }),

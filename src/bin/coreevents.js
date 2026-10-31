@@ -11,8 +11,8 @@ import { wroteActivity } from "./core.js";
 const MAX = 40;
 
 export class CoreEvents {
-  constructor({ address, apiKey, onActivity = () => {}, onActivityOff = () => {}, log = () => {}, warn = () => {} }) {
-    Object.assign(this, { address, apiKey, onActivity, onActivityOff, log, warn });
+  constructor({ address, apiKey, onActivity = () => {}, onActivityOff = () => {}, onEntity = () => {}, log = () => {}, warn = () => {} }) {
+    Object.assign(this, { address, apiKey, onActivity, onActivityOff, onEntity, log, warn });
     this.events = [];
     this.ws = null;
     this.state = "off";
@@ -82,6 +82,10 @@ export class CoreEvents {
     }
     if (m.msg === "entity_change" && d.entity_type === "activity" && d.entity_id && String(state || "").toUpperCase() === "OFF") {
       try { this.onActivityOff(d.entity_id); } catch (e) { this.warn("events: " + e.message); }
+    }
+    // any other device: its new values (display sensors keep them fresh this way)
+    if (m.msg === "entity_change" && d.entity_type !== "activity" && d.entity_id && d.new_state?.attributes) {
+      try { this.onEntity(d.entity_id, d.new_state.attributes); } catch (e) { this.warn("events: " + e.message); }
     }
     if (d.entity_type !== "activity") return; // keep the panel to activities
     const text = JSON.stringify(d);

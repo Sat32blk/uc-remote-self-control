@@ -565,6 +565,13 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.3.0:** **Display sensors** (Icons & Sliders → Displays). Each display is its own sensor entity that shows text on a page (the Page Editor's sensor widget) and updates at once, without rewriting the page:
+  - a **default**: a device's value, one of your sliders, the remote's battery or settings, the time or date, the activity on screen, or messages one after another; with **text before and after** it and a ☺ picker for symbols, emoji and the remote's own icons (only characters the remote's font has: no block characters);
+  - values as they are, as a number, with a decimal, or as a **bar** (◼◻, ▪▫, 🟩⬜, 🟢⚪, 🟦⬛, ⚫⚪, [##--], ||··) with the % after it;
+  - **temporary changes**: when a value changes, goes above / below a number or is a value, while a Control is on, or when an activity starts, it shows something else for a few seconds, while that's true, once through its messages or until the next change, with normal or high priority; a condition that's still true shows again when another change ends;
+  - long text wraps or scrolls through on one line; templates for volume, a status line, a doorbell message and a ticker;
+  - smart controls get a step **Show on a display** (messages one after another, e.g. "Ding dong | at the door").
+  Devices a display uses are read every second and kept fresh by the remote's events. The Display test sensor (1.2.10–1.2.12) is gone; its results are in the project notes. The builder's tab row scrolls on a phone instead of widening the page.
 - **1.2.12 (test build):** Display test round 3: each bar character on its own after a letter (A■ B□ … ), repeated characters, and emoji bars (🟩⬜, 🟢⚪, 🟦⬛, 🔵⚫), to see which ones the remote's font has.
 - **1.2.11 (test build):** Display test round 2: a character ruler and wide / narrow letters (how much fits per widget size), six bar styles, a moving bar (0.3 s and 0.2 s steps) and scrolling text (one character every 0.3 s), other bar characters (▰▱, ▮▯, # and -, | and ·), three and four lines, a long paragraph and a big two-line value.
 - **1.2.10 (test build):** a **Display test** sensor (area "Remote Self-Control test") that cycles through numbered lines (plain text, emoji, symbols, media symbols, arrows, shapes, bar characters, the remote's own icon font, accents, long text, two lines, a unit) every 4 s, then counts 1–20 every 0.5 s, to find out what a sensor widget on the remote can show and how quickly it redraws. It will be replaced by display sensors.
