@@ -412,12 +412,13 @@ details.more summary{cursor:pointer;font-weight:600}
 .tl .tli{padding-left:25ch;text-indent:-25ch}
 .tl .nw{background:var(--chg)}
 .modal{width:min(1000px,100%) !important}
-.fus-start { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--acc); white-space: nowrap; text-decoration: none; }
-.fus-start:hover { text-decoration: underline; }
 .fus-crumb { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--mute); margin-top: 6px; }
 .fus-list { display: flex; flex-direction: column; gap: 6px; }
 .fus-fold { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.fus-fh { display: flex; gap: 8px; align-items: center; width: 100%; padding: 6px 8px; background: var(--soft); border: 0; border-radius: 0; cursor: pointer; text-align: left; color: var(--ink); font: inherit; }
+.fus-head { display: flex; align-items: center; background: var(--soft); }
+.fus-head .btn { margin: 0 6px 0 0; flex: none; }
+.fus-fh { display: flex; gap: 8px; align-items: center; flex: 1 1 auto; min-width: 0; padding: 6px 8px; background: none; border: 0; border-radius: 0; cursor: pointer; text-align: left; color: var(--ink); font: inherit; }
+.fus-fh b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fus-fh .arr { width: 16px; color: var(--mute); font-size: 12px; }
 .fus-fh b { font-size: 14px; }
 .fus-fh .meta { margin-left: auto; font-size: 11.5px; color: var(--mute); white-space: nowrap; }
@@ -555,7 +556,6 @@ details.more summary{cursor:pointer;font-weight:600}
         <div class="lib hidden" data-lib="fus">
           <div class="row" style="margin-top:8px;gap:8px;align-items:center">
             <input type="search" id="fq" placeholder="Search tiles…" aria-label="Search tiles" style="flex:1 1 120px;min-width:80px">
-            <a class="fus-start" id="fus-start" target="image_fusionner" rel="noopener">▶ Start Image Fusionner</a>
           </div>
           <div class="fus-crumb" id="fus-crumb"></div>
           <p class="hint" id="fus-info" style="margin:6px 0"></p>
@@ -739,7 +739,7 @@ details.more summary{cursor:pointer;font-weight:600}
 // browser's folder chooser and read again with "Reload tiles" after Image Fusionner renders.
 // ---------------------------------------------------------------------------
 const FUS = {
-  DB: "rsc_fusionner", URL: "http://localhost:8765/",
+  DB: "rsc_fusionner",
   path() { try { return localStorage.getItem("scb_fus_path") || ""; } catch { return ""; } },
   setPath(p) { try { if (p) localStorage.setItem("scb_fus_path", p); else localStorage.removeItem("scb_fus_path"); } catch {} },
   data: null, urls: [],
@@ -2398,18 +2398,20 @@ function renderFus() {
   const d = FUS.data;
   if (!d) return;
   renderLibCount();
-  const a = $("#fus-start"); a.href = FUS.URL; a.title = `Opens Image Fusionner's layout editor. If it isn't running yet, double-click Start GUI.cmd in ${FUS.path() || "the Image_Fusionner folder"} first.`;
   $("#fus-crumb").replaceChildren(el("span", {}, "📁 ", el("b", {}, d.root || FUS.path().split(/[\\/]/).pop() || "Image_Fusionner"), " › Output_Images"), el("span", { style: "flex:1" }),
     d.at ? el("span", {}, FUS.when(d.at)) : "",
+    Object.values(FUS_OPEN).some(Boolean) ? el("button", { type: "button", class: "btn small", title: "Close every folder", on: { click: () => { FUS_OPEN = {}; try { localStorage.setItem("scb_fus_open", "{}"); } catch {} renderFus(); } } }, "Close all") : "",
     el("button", { type: "button", class: "btn small", title: "Read the tiles again (after Image Fusionner rendered)", on: { click: () => $("#fusdir").click() } }, d.folders.length ? "↻ Reload tiles" : "Read the tiles…"));
-  $("#fus-info").textContent = d.folders.length ? "Drag a tile onto the remote, or click it and then a spot. It's uploaded to the remote when you save." : `No tiles read yet. Click "Read the tiles…" and pick ${FUS.path() || "the Image_Fusionner folder"} (your browser asks to allow it).`;
+  $("#fus-info").textContent = d.folders.length ? (mode === "home" ? "Click a tile, then a home screen tile to give it that picture." : "Drag a tile onto the remote, or click it and then a spot. Add to page puts a folder's tiles on every empty spot of this page. Tiles are uploaded to the remote when you save.") : `No tiles read yet. Click "Read the tiles…" and pick ${FUS.path() || "the Image_Fusionner folder"} (your browser asks to allow it).`;
   const q = fquery.trim().toLowerCase();
   $("#fus-list").replaceChildren(...d.folders.map((f) => {
     const tiles = q ? f.tiles.filter((t) => (f.layout + " " + t.name).toLowerCase().includes(q)) : f.tiles;
     if (!tiles.length) return null;
     const open = q ? true : !!FUS_OPEN[f.key];
-    const head = el("button", { type: "button", class: "fus-fh", "aria-expanded": String(open), on: { click: () => { FUS_OPEN[f.key] = !FUS_OPEN[f.key]; try { localStorage.setItem("scb_fus_open", JSON.stringify(FUS_OPEN)); } catch {} renderFus(); } } },
+    const toggle = el("button", { type: "button", class: "fus-fh", "aria-expanded": String(open), on: { click: () => { FUS_OPEN[f.key] = !FUS_OPEN[f.key]; try { localStorage.setItem("scb_fus_open", JSON.stringify(FUS_OPEN)); } catch {} renderFus(); } } },
       el("span", { class: "arr" }, open ? "▾" : "▸"), el("span", {}, open ? "📂" : "📁"), el("b", {}, f.title), el("span", { class: "meta" }, `${f.cols} × ${f.rows} tiles`));
+    const head = el("div", { class: "fus-head" }, toggle,
+      mode !== "pages" ? "" : el("button", { type: "button", class: "btn small", title: "Put this folder's tiles, in order, on every empty spot of the page you're editing", on: { click: () => fusAddAll(f, tiles) } }, "＋ Add to page"));
     const box = el("div", { class: "fus-fold" }, head);
     if (open) {
       const cols = q ? Math.min(f.cols, 4) : f.cols;
@@ -2426,6 +2428,24 @@ function renderFus() {
     return box;
   }).filter(Boolean));
   if (d.folders.length && !$("#fus-list").children.length) $("#fus-list").append(el("p", { class: "hint" }, "No tile matches."));
+}
+/** ＋ Add to page: a folder's tiles, in order, as icon buttons on every empty spot of the page (left to right, top to bottom). */
+function fusAddAll(f, tiles) {
+  if (!act().editable) { msg(lockText(act()), "err"); return; }
+  const pg = page(), free = [];
+  for (let y = 0; y < pg.grid.h; y++) for (let x = 0; x < pg.grid.w; x++) if (!itemAt(pg, x, y)) free.push({ x, y });
+  if (!free.length) { msg(`This page has no empty spot left (${pg.grid.w} × ${pg.grid.h}).`, "err"); return; }
+  const n = Math.min(free.length, tiles.length);
+  for (let i = 0; i < n; i++) {
+    const t = tiles[i];
+    const p = localAsPic({ id: t.name, name: FUS.remoteName(t.name), folder: f.key, url: FUS.url(t), size: t.size, file: t.blob instanceof File ? t.blob : new File([t.blob], FUS.remoteName(t.name), { type: "image/png" }) });
+    pg.items.push({ id: nid("i"), type: "icon", icon: p.id, loc: free[i], size: { w: 1, h: 1 }, cmd: null });
+  }
+  selId = null; picked = null;
+  log(`${n} tiles from ${f.title} added to ${pg.name || "the page"}`);
+  renderAll(); renderFus();
+  const left = tiles.length - n;
+  msg(`Added ${n} tile${n === 1 ? "" : "s"} from ${f.title} on the empty spots.` + (left ? ` ${left} didn't fit: the page is full (make the grid bigger or add another page for the rest).` : free.length > n ? ` ${free.length - n} spot${free.length - n === 1 ? "" : "s"} still empty.` : "") + " They're uploaded when you save; give them commands by clicking each one.", left ? "err" : "ok");
 }
 $("#fusdir").addEventListener("change", async (e) => { try { await FUS.take(e.target.files); } catch (err) { msg(err.message, "err"); } e.target.value = ""; renderFus(); });
 $("#fq").addEventListener("input", (e) => { fquery = e.target.value; renderFus(); });
@@ -3331,6 +3351,7 @@ function setMode(m) {
   const which = m === "groups" ? "groups" : subView;
   $("#dd-label").textContent = which === "groups" ? "Activity groups" : which === "seq" ? "Start/Stop" : "Interface";
   for (const [id, k] of [["#sub-pages", "pages"], ["#sub-seq", "seq"], ["#sub-groups", "groups"]]) { $(id).classList.toggle("on", which === k); $(id).setAttribute("aria-checked", String(which === k)); }
+  if (LIB === "fus" && FUS.data) renderFus();
   if (m === "home") renderHome(); else if (m === "macros") renderMacros(); else if (m === "groups") renderGroups(); else if (m === "dev") renderDevices(); else renderAll();
 }
 $("#mode-pages").addEventListener("click", () => { const m = $("#dd-menu"); const open = m.classList.toggle("hidden") === false; $("#mode-pages").setAttribute("aria-expanded", String(open)); if (open) $(subView === "seq" ? "#sub-seq" : "#sub-pages").focus(); });

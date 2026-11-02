@@ -50,7 +50,7 @@ const send = (msg, msg_data) => ws.send(JSON.stringify({ kind: "event", msg, msg
 
 // --- before setup
 let r = await req("get_driver_version");
-ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.3.2-image-fusionner", "driver_version 1.3.2-image-fusionner");
+ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.3.3-fusionner", "driver_version 1.3.3-fusionner");
 send("connect");
 await sleep(300);
 r = await req("get_device_state");

@@ -117,8 +117,6 @@ header > div:last-child { flex-direction: row !important; align-items: center !i
 .st-tip { position: fixed; pointer-events: none; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.15); opacity: 0; transition: opacity .1s; z-index: 50; max-width: 280px; }
 .pw-sub { display: flex; gap: 8px; align-items: center; }
 .pw-sub input { flex: 1 1 auto; min-width: 80px; }
-.fus-start { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--accent); white-space: nowrap; text-decoration: none; }
-.fus-start:hover { text-decoration: underline; }
 .fus-list { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; padding-right: 2px; }
 .fus-crumb { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
 .fus-fold { border: 1px solid var(--line); border-radius: 10px; flex: none; overflow: hidden; }
@@ -3264,7 +3262,7 @@ async function loadExtras() {
 // browser's folder chooser and read again with "Reload tiles" after Image Fusionner renders.
 // ---------------------------------------------------------------------------
 const FUS = {
-  DB: "rsc_fusionner", URL: "http://localhost:8765/",
+  DB: "rsc_fusionner",
   path() { try { return localStorage.getItem("scb_fus_path") || ""; } catch { return ""; } },
   setPath(p) { try { if (p) localStorage.setItem("scb_fus_path", p); else localStorage.removeItem("scb_fus_path"); } catch {} },
   data: null, urls: [],
@@ -3376,14 +3374,10 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.q
 addEventListener("storage", (e) => { if (e.key === "scb_fus_at") { FUS.forget(); FUS.get().then(() => { if (PW.src === "fus") pwRender(); }); } if (e.key === "scb_fus_path") pwRender(); });
 let FUS_OPEN = {};
 try { FUS_OPEN = JSON.parse(localStorage.getItem("scb_fus_open") || "{}"); } catch {}
-/** ▶ Start Image Fusionner: its layout editor (a page can't run Start GUI.cmd, so it opens the editor if it's running). */
-function fusStartLink() {
-  return el("a", { class: "fus-start", href: FUS.URL, target: "image_fusionner", rel: "noopener", title: `Opens Image Fusionner's layout editor. If it isn't running yet, double-click Start GUI.cmd in ${FUS.path() || "the Image_Fusionner folder"} first.` }, "▶ Start Image Fusionner");
-}
 /** The Image Fusionner view of the Pictures window: one folder per layout, tiles laid out like the layout. */
 function fusView(parts) {
   const search = el("input", { type: "search", placeholder: "Search tiles…", value: PW.q, "aria-label": "Search tiles", on: { input: (e) => { PW.q = e.target.value; fusFill(); } } });
-  parts.push(el("div", { class: "pw-sub" }, search, fusStartLink()));
+  parts.push(el("div", { class: "pw-sub" }, search));
   const dir = el("input", { type: "file", webkitdirectory: true, directory: true, multiple: true, hidden: true, on: { change: async (e) => {
     try { await FUS.take(e.target.files); pwSay(""); } catch (err) { pwSay(err.message); }
     e.target.value = ""; fusFill();
@@ -3399,6 +3393,7 @@ function fusFill() {
   const d = FUS.data, q = PW.q.trim().toLowerCase();
   crumb.replaceChildren(el("span", {}, "📁 ", el("b", {}, d.root || FUS.path().split(/[\\/]/).pop() || "Image_Fusionner"), " › Output_Images"), el("span", { style: "flex:1" }),
     d.at ? el("span", {}, FUS.when(d.at)) : null,
+    Object.values(FUS_OPEN).some(Boolean) ? el("button", { type: "button", class: "small", title: "Close every folder", on: { click: () => { FUS_OPEN = {}; try { localStorage.setItem("scb_fus_open", "{}"); } catch {} fusFill(); } } }, "Close all") : null,
     el("button", { type: "button", class: "small", title: "Read the tiles again (after Image Fusionner rendered)", on: { click: () => PW.fusDir?.click() } }, d.folders.length ? "↻ Reload tiles" : "Read the tiles…"));
   if (!d.folders.length) { list.replaceChildren(el("p", { class: "empty" }, `No tiles read yet. Click "Read the tiles…" and pick ${FUS.path() || "the Image_Fusionner folder"} (your browser asks to allow it).`)); return; }
   list.replaceChildren(...d.folders.map((f) => {
