@@ -413,7 +413,8 @@ details.more summary{cursor:pointer;font-weight:600}
 .tl .nw{background:var(--chg)}
 .modal{width:min(1000px,100%) !important}
 .fus-crumb { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--mute); margin-top: 6px; }
-.fus-list { display: flex; flex-direction: column; gap: 6px; }
+.fus-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; flex: 1 1 auto; padding-right: 2px; }
+.fus-fold { flex: none; }
 .fus-fold { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .fus-head { display: flex; align-items: center; background: var(--soft); }
 .fus-head .btn { margin: 0 6px 0 0; flex: none; }
@@ -2274,10 +2275,10 @@ try { LIB = localStorage.getItem("pe_lib") || "icons"; } catch {}
 function fitPictures(off) {
   const lib = $("#libcard"), card = $("#remotecard");
   if (!lib) return;
-  for (const x of lib.querySelectorAll(".pics")) x.style.maxHeight = "";
+  for (const x of lib.querySelectorAll(".pics, .fus-list")) x.style.maxHeight = "";
   lib.style.height = "";
   if (off || !card || !card.offsetHeight) return;
-  const pics = lib.querySelector(".lib:not(.hidden) .pics") || lib.querySelector(".lib:not(.hidden)")?.querySelector(".pics");
+  const pics = lib.querySelector(".lib:not(.hidden) .pics, .lib:not(.hidden) .fus-list");
   lib.style.height = card.offsetHeight + "px";
   if (!pics) return;
   const over = lib.scrollHeight - lib.clientHeight;
@@ -2421,7 +2422,7 @@ function renderFus() {
     Object.values(FUS_OPEN).some(Boolean) ? el("button", { type: "button", class: "btn small", title: "Close every folder", on: { click: () => { FUS_OPEN = {}; try { localStorage.setItem("scb_fus_open", "{}"); } catch {} renderFus(); } } }, "Close all") : "",
     el("button", { type: "button", class: "btn small", title: "Read the tiles again (after Image Fusionner rendered)", on: { click: () => $("#fusdir").click() } }, d.folders.length ? "↻ Reload tiles" : "Read the tiles…"));
   $("#fus-info").textContent = d.folders.length ? (mode === "home" ? "Click a tile, then a home screen tile to give it that picture." : "Drag a tile onto the remote, or click it and then a spot. On an empty page, ＋ Add to page shows on the folders with the same grid and puts every tile on its own spot. Tiles are uploaded to the remote when you save.") : `No tiles read yet. Click "Read the tiles…" and pick ${FUS.path() || "the Image_Fusionner folder"} (your browser asks to allow it).`;
-  const q = fquery.trim().toLowerCase();
+  const q = fquery.trim().toLowerCase(), keep = $("#fus-list").scrollTop;
   $("#fus-list").replaceChildren(...d.folders.map((f) => {
     const tiles = q ? f.tiles.filter((t) => (f.layout + " " + t.name).toLowerCase().includes(q)) : f.tiles;
     if (!tiles.length) return null;
@@ -2446,6 +2447,8 @@ function renderFus() {
   }).filter(Boolean));
   if (d.folders.length && !$("#fus-list").children.length) $("#fus-list").append(el("p", { class: "hint" }, "No tile matches."));
   fusHeads();
+  $("#fus-list").scrollTop = keep;
+  if (mode === "pages") requestAnimationFrame(() => { fitPictures(); $("#fus-list").scrollTop = keep; }); // the folders scroll inside the Pictures window
 }
 const fusCols = () => Number(getComputedStyle($("#view-pages")).getPropertyValue("--cols")) || 4;
 /** A tile as a picture of the Page Editor: uploaded on save under its remote name (its name + fingerprint). */

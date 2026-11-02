@@ -3408,7 +3408,7 @@ function fusView(parts) {
 function fusFill() {
   const list = $("#fus-list"), crumb = $("#fus-crumb");
   if (!list || !FUS.data) return;
-  const d = FUS.data, q = PW.q.trim().toLowerCase();
+  const d = FUS.data, q = PW.q.trim().toLowerCase(), keep = list.scrollTop;
   crumb.replaceChildren(el("span", {}, "📁 ", el("b", {}, d.root || FUS.path().split(/[\\/]/).pop() || "Image_Fusionner"), " › Output_Images"), el("span", { style: "flex:1" }),
     d.at ? el("span", {}, FUS.when(d.at)) : null,
     Object.values(FUS_OPEN).some(Boolean) ? el("button", { type: "button", class: "small", title: "Close every folder", on: { click: () => { FUS_OPEN = {}; try { localStorage.setItem("scb_fus_open", "{}"); } catch {} fusFill(); } } }, "Close all") : null,
@@ -3434,6 +3434,7 @@ function fusFill() {
     return box;
   }).filter(Boolean));
   if (!list.children.length) list.append(el("p", { class: "empty" }, "No tile matches."));
+  list.scrollTop = keep;
 }
 /** A tile used: uploaded to the remote once (by its name), then that picture is used. */
 async function fusUpload(key) {
