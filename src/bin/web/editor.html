@@ -766,25 +766,63 @@ const FUS = {
     } catch { FUS.data = { root: "", at: 0, folders: [] }; }
     return FUS.data;
   },
-  /** Keeps the tiles of a picked folder (the Image_Fusionner folder, or its Output_Images). Returns the new set. */
-  async take(fileList) {
-    const tiles = [];
-    let root = "";
-    for (const f of fileList) {
-      const parts = String(f.webkitRelativePath || f.name).split("/");
-      const i = parts.indexOf("Output_Images");
-      if (i < 0 || parts.length !== i + 4 || !/\.png$/i.test(f.name) || f.size > 64 * 1024) continue;
-      root = root || parts[0];
-      tiles.push({ folder: parts[i + 1] + "/" + parts[i + 2], name: f.name, size: f.size, mod: f.lastModified || 0, h: await FUS.hash(f), blob: f });
+  /** Reads the tiles of the ONE Image_Fusionner folder (the one with Grid_layout and Output_Images) that matches the
+   *  folder in ⚙ Settings, keeping only the layouts that still have a file in Grid_layout. Replaces what was read before. */
+  async take(fileList, want = FUS.path()) {
+    const files = [...fileList].map((f) => ({ f, parts: String(f.webkitRelativePath || f.name).split("/") }));
+    const roots = new Map(); // "a/b" (relative to the folder picked) → Set of layout output folders (lower case) → name
+    for (const { parts } of files) {
+      const n = parts.length;
+      if (n < 2 || parts[n - 2] !== "Grid_layout" || !/\.txt$/i.test(parts[n - 1])) continue;
+      const k = parts.slice(0, n - 2).join("/");
+      if (!roots.has(k)) roots.set(k, new Map());
+      const folder = FUS.folderOf(parts[n - 1].replace(/\.txt$/i, ""));
+      roots.get(k).set(folder.toLowerCase(), folder);
     }
-    if (!tiles.length) throw new Error("no Image Fusionner tiles there: pick the Image_Fusionner folder (the one with Start GUI.cmd and Output_Images)");
-    const rec = { root, at: Date.now(), tiles };
+    const picked = files[0]?.parts[0] || "the folder";
+    if (!roots.size) throw new Error(`"${picked}" isn't an Image_Fusionner folder: pick the folder with Start GUI.cmd, Grid_layout and Output_Images in it`);
+    const segs = (p) => String(p || "").split(/[\\/]+/).filter(Boolean).map((s) => s.toLowerCase());
+    const ws = segs(want);
+    const fits = (k) => { const ks = segs(k); return ks.length <= ws.length && ks.every((s, i) => s === ws[ws.length - ks.length + i]); };
+    let cands = [...roots.keys()];
+    if (ws.length) {
+      cands = cands.filter(fits).sort((a, b) => segs(b).length - segs(a).length).slice(0, 1); // the deepest one that is the Settings folder
+      if (!cands.length) throw new Error(`"${picked}" isn't the folder in ⚙ Settings (${want}). Pick that folder, or change the folder in Settings first.`);
+    } else if (cands.length > 1) throw new Error(`"${picked}" has ${cands.length} Image_Fusionner folders in it (${cands.join(", ")}): pick just one.`);
+    const k = cands[0], ks = k ? k.split("/") : [], layouts = roots.get(k);
+    const tiles = [], left = new Set();
+    for (const { f, parts } of files) {
+      if (parts.length !== ks.length + 4 || parts[ks.length] !== "Output_Images" || parts.slice(0, ks.length).join("/") !== k) continue;
+      if (!/\.png$/i.test(f.name) || f.size > 64 * 1024) continue;
+      const lay = parts[ks.length + 1];
+      if (!layouts.has(lay.toLowerCase())) { left.add(lay); continue; } // its layout file was deleted
+      tiles.push({ folder: lay + "/" + parts[ks.length + 2], name: f.name, size: f.size, mod: f.lastModified || 0, h: await FUS.hash(f), blob: f });
+    }
+    const made = new Set(tiles.map((t) => t.folder.split("/")[0].toLowerCase()));
+    const rec = { root: ks[ks.length - 1] || picked, path: want || "", at: Date.now(), tiles, left: [...left].sort(), empty: [...layouts.entries()].filter(([l]) => !made.has(l)).map(([, n]) => n).sort() };
     await FUS.save(rec);
+    FUS.use(rec);
+    return FUS.data;
+  },
+  use(rec) {
     for (const u of FUS.urls) URL.revokeObjectURL(u);
     FUS.urls = [];
     FUS.data = FUS.shape(rec);
-    try { localStorage.setItem("scb_fus_at", String(rec.at)); } catch {} // tells the other page (builder / editor) to read them again
-    return FUS.data;
+    try { localStorage.setItem("scb_fus_at", String(Date.now())); } catch {} // tells the other page (builder / editor) to read them again
+  },
+  /** Forgets the tiles (the folder in Settings changed): nothing from the old place is shown. */
+  async clear() { const rec = { root: "", path: "", at: 0, tiles: [], left: [], empty: [] }; await FUS.save(rec).catch(() => {}); FUS.use(rec); },
+  /** The Output_Images folder Image Fusionner makes for a layout file name (script.ps1: every && becomes "-"). */
+  folderOf(name) {
+    const n = /&&/.test(name) ? name.replace(/\s*&&\s*/g, "-").replace(/^-+|-+$/g, "") : name;
+    return n.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").trim() || "layout";
+  },
+  /** One line about what was left out, for the Pictures window. */
+  notes(d) {
+    const out = [];
+    if (d.left?.length) out.push(`Left out (no layout file in Grid_layout any more): ${d.left.join(", ")}.`);
+    if (d.empty?.length) out.push(`Not rendered yet: ${d.empty.join(", ")}.`);
+    return out.join(" ");
   },
   forget() { FUS.data = null; },
   /** A short fingerprint of a tile's picture (FNV-1a), so a re-rendered tile gets a new name on the remote. */
@@ -815,7 +853,7 @@ const FUS = {
     }).sort((a, b) => a.key.localeCompare(b.key));
     const twice = new Set(folders.map((f) => f.layout).filter((l, i, a) => a.indexOf(l) !== i));
     for (const f of folders) f.title = twice.has(f.layout) ? `${f.layout} · ${f.bg}` : f.layout;
-    return { root: rec.root || "", at: rec.at || 0, folders };
+    return { root: rec.root || "", path: rec.path, at: rec.at || 0, left: rec.left || [], empty: rec.empty || [], folders };
   },
   /** Row and column of a tile from its name: …_r<row>c<col>-… or a merged group …_r<R0>-<R1>c<C0>-<C1>-…-<n>.png */
   pos(file) {
@@ -2421,7 +2459,7 @@ function renderFus() {
     d.at ? el("span", {}, FUS.when(d.at)) : "",
     Object.values(FUS_OPEN).some(Boolean) ? el("button", { type: "button", class: "btn small", title: "Close every folder", on: { click: () => { FUS_OPEN = {}; try { localStorage.setItem("scb_fus_open", "{}"); } catch {} renderFus(); } } }, "Close all") : "",
     el("button", { type: "button", class: "btn small", title: "Read the tiles again (after Image Fusionner rendered)", on: { click: () => $("#fusdir").click() } }, d.folders.length ? "↻ Reload tiles" : "Read the tiles…"));
-  $("#fus-info").textContent = d.folders.length ? (mode === "home" ? "Click a tile, then a home screen tile to give it that picture." : "Drag a tile onto the remote, or click it and then a spot. On an empty page, ＋ Add to page shows on the folders with the same grid and puts every tile on its own spot. Tiles are uploaded to the remote when you save.") : `No tiles read yet. Click "Read the tiles…" and pick ${FUS.path() || "the Image_Fusionner folder"} (your browser asks to allow it).`;
+  $("#fus-info").textContent = (d.folders.length ? FUS.notes(d) + " " : "") + (d.folders.length ? (mode === "home" ? "Click a tile, then a home screen tile to give it that picture." : "Drag a tile onto the remote, or click it and then a spot. On an empty page, ＋ Add to page shows on the folders with the same grid and puts every tile on its own spot. Tiles are uploaded to the remote when you save.") : `No tiles read yet. Click "Read the tiles…" and pick ${FUS.path() || "the Image_Fusionner folder"} (your browser asks to allow it).`);
   const q = fquery.trim().toLowerCase(), keep = $("#fus-list").scrollTop;
   $("#fus-list").replaceChildren(...d.folders.map((f) => {
     const tiles = q ? f.tiles.filter((t) => (f.layout + " " + t.name).toLowerCase().includes(q)) : f.tiles;
@@ -2487,7 +2525,7 @@ function fusAddAll(f) {
   const empty = pg.grid.w * pg.grid.h - f.spots.size;
   msg(`Added ${f.spots.size} tiles from ${f.title}, each on its own spot.` + (empty ? ` ${empty} spot${empty === 1 ? "" : "s"} had no tile.` : "") + " They're uploaded when you save; click each one to give it a command.", "ok");
 }
-$("#fusdir").addEventListener("change", async (e) => { try { await FUS.take(e.target.files); } catch (err) { msg(err.message, "err"); } e.target.value = ""; renderFus(); });
+$("#fusdir").addEventListener("change", async (e) => { try { await FUS.take(e.target.files); msg(""); } catch (err) { msg("Tiles not read: " + err.message, "err"); } e.target.value = ""; renderFus(); });
 $("#fq").addEventListener("input", (e) => { fquery = e.target.value; renderFus(); });
 addEventListener("storage", (e) => {
   if (e.key === "scb_fus_at") { FUS.forget(); FUS.get().then(() => { renderLibCount(); if (LIB === "fus") renderFus(); }); }

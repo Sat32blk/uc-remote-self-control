@@ -3288,25 +3288,63 @@ const FUS = {
     } catch { FUS.data = { root: "", at: 0, folders: [] }; }
     return FUS.data;
   },
-  /** Keeps the tiles of a picked folder (the Image_Fusionner folder, or its Output_Images). Returns the new set. */
-  async take(fileList) {
-    const tiles = [];
-    let root = "";
-    for (const f of fileList) {
-      const parts = String(f.webkitRelativePath || f.name).split("/");
-      const i = parts.indexOf("Output_Images");
-      if (i < 0 || parts.length !== i + 4 || !/\.png$/i.test(f.name) || f.size > 64 * 1024) continue;
-      root = root || parts[0];
-      tiles.push({ folder: parts[i + 1] + "/" + parts[i + 2], name: f.name, size: f.size, mod: f.lastModified || 0, h: await FUS.hash(f), blob: f });
+  /** Reads the tiles of the ONE Image_Fusionner folder (the one with Grid_layout and Output_Images) that matches the
+   *  folder in ⚙ Settings, keeping only the layouts that still have a file in Grid_layout. Replaces what was read before. */
+  async take(fileList, want = FUS.path()) {
+    const files = [...fileList].map((f) => ({ f, parts: String(f.webkitRelativePath || f.name).split("/") }));
+    const roots = new Map(); // "a/b" (relative to the folder picked) → Set of layout output folders (lower case) → name
+    for (const { parts } of files) {
+      const n = parts.length;
+      if (n < 2 || parts[n - 2] !== "Grid_layout" || !/\.txt$/i.test(parts[n - 1])) continue;
+      const k = parts.slice(0, n - 2).join("/");
+      if (!roots.has(k)) roots.set(k, new Map());
+      const folder = FUS.folderOf(parts[n - 1].replace(/\.txt$/i, ""));
+      roots.get(k).set(folder.toLowerCase(), folder);
     }
-    if (!tiles.length) throw new Error("no Image Fusionner tiles there: pick the Image_Fusionner folder (the one with Start GUI.cmd and Output_Images)");
-    const rec = { root, at: Date.now(), tiles };
+    const picked = files[0]?.parts[0] || "the folder";
+    if (!roots.size) throw new Error(`"${picked}" isn't an Image_Fusionner folder: pick the folder with Start GUI.cmd, Grid_layout and Output_Images in it`);
+    const segs = (p) => String(p || "").split(/[\\/]+/).filter(Boolean).map((s) => s.toLowerCase());
+    const ws = segs(want);
+    const fits = (k) => { const ks = segs(k); return ks.length <= ws.length && ks.every((s, i) => s === ws[ws.length - ks.length + i]); };
+    let cands = [...roots.keys()];
+    if (ws.length) {
+      cands = cands.filter(fits).sort((a, b) => segs(b).length - segs(a).length).slice(0, 1); // the deepest one that is the Settings folder
+      if (!cands.length) throw new Error(`"${picked}" isn't the folder in ⚙ Settings (${want}). Pick that folder, or change the folder in Settings first.`);
+    } else if (cands.length > 1) throw new Error(`"${picked}" has ${cands.length} Image_Fusionner folders in it (${cands.join(", ")}): pick just one.`);
+    const k = cands[0], ks = k ? k.split("/") : [], layouts = roots.get(k);
+    const tiles = [], left = new Set();
+    for (const { f, parts } of files) {
+      if (parts.length !== ks.length + 4 || parts[ks.length] !== "Output_Images" || parts.slice(0, ks.length).join("/") !== k) continue;
+      if (!/\.png$/i.test(f.name) || f.size > 64 * 1024) continue;
+      const lay = parts[ks.length + 1];
+      if (!layouts.has(lay.toLowerCase())) { left.add(lay); continue; } // its layout file was deleted
+      tiles.push({ folder: lay + "/" + parts[ks.length + 2], name: f.name, size: f.size, mod: f.lastModified || 0, h: await FUS.hash(f), blob: f });
+    }
+    const made = new Set(tiles.map((t) => t.folder.split("/")[0].toLowerCase()));
+    const rec = { root: ks[ks.length - 1] || picked, path: want || "", at: Date.now(), tiles, left: [...left].sort(), empty: [...layouts.entries()].filter(([l]) => !made.has(l)).map(([, n]) => n).sort() };
     await FUS.save(rec);
+    FUS.use(rec);
+    return FUS.data;
+  },
+  use(rec) {
     for (const u of FUS.urls) URL.revokeObjectURL(u);
     FUS.urls = [];
     FUS.data = FUS.shape(rec);
-    try { localStorage.setItem("scb_fus_at", String(rec.at)); } catch {} // tells the other page (builder / editor) to read them again
-    return FUS.data;
+    try { localStorage.setItem("scb_fus_at", String(Date.now())); } catch {} // tells the other page (builder / editor) to read them again
+  },
+  /** Forgets the tiles (the folder in Settings changed): nothing from the old place is shown. */
+  async clear() { const rec = { root: "", path: "", at: 0, tiles: [], left: [], empty: [] }; await FUS.save(rec).catch(() => {}); FUS.use(rec); },
+  /** The Output_Images folder Image Fusionner makes for a layout file name (script.ps1: every && becomes "-"). */
+  folderOf(name) {
+    const n = /&&/.test(name) ? name.replace(/\s*&&\s*/g, "-").replace(/^-+|-+$/g, "") : name;
+    return n.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").trim() || "layout";
+  },
+  /** One line about what was left out, for the Pictures window. */
+  notes(d) {
+    const out = [];
+    if (d.left?.length) out.push(`Left out (no layout file in Grid_layout any more): ${d.left.join(", ")}.`);
+    if (d.empty?.length) out.push(`Not rendered yet: ${d.empty.join(", ")}.`);
+    return out.join(" ");
   },
   forget() { FUS.data = null; },
   /** A short fingerprint of a tile's picture (FNV-1a), so a re-rendered tile gets a new name on the remote. */
@@ -3337,7 +3375,7 @@ const FUS = {
     }).sort((a, b) => a.key.localeCompare(b.key));
     const twice = new Set(folders.map((f) => f.layout).filter((l, i, a) => a.indexOf(l) !== i));
     for (const f of folders) f.title = twice.has(f.layout) ? `${f.layout} · ${f.bg}` : f.layout;
-    return { root: rec.root || "", at: rec.at || 0, folders };
+    return { root: rec.root || "", path: rec.path, at: rec.at || 0, left: rec.left || [], empty: rec.empty || [], folders };
   },
   /** Row and column of a tile from its name: …_r<row>c<col>-… or a merged group …_r<R0>-<R1>c<C0>-<C1>-…-<n>.png */
   pos(file) {
@@ -3365,9 +3403,9 @@ function openSettings() {
   document.querySelector(".set-ov")?.remove();
   const pathIn = el("input", { type: "text", id: "set-fus-path", value: FUS.path(), placeholder: "C:\\…\\Image_Fusionner", "aria-label": "Image_Fusionner folder" });
   const status = el("p", { class: "hint", role: "status" });
-  const say = async () => { const d = await FUS.get(); status.textContent = d.folders.length ? `Tiles read: ${d.folders.reduce((n, f) => n + f.tiles.length, 0)} in ${d.folders.length} folders, ${FUS.when(d.at)}.` : "No tiles read yet: Browse… to the folder (your browser asks you to allow it)."; };
+  const say = async () => { const d = await FUS.get(); status.textContent = d.folders.length ? `Tiles read: ${d.folders.reduce((n, f) => n + f.tiles.length, 0)} in ${d.folders.length} layout folders, ${FUS.when(d.at)}. ${FUS.notes(d)}` : "No tiles read yet: Browse… to the folder (your browser asks you to allow it)."; };
   const dir = el("input", { type: "file", webkitdirectory: true, directory: true, multiple: true, hidden: true, on: { change: async (e) => {
-    try { const d = await FUS.take(e.target.files); if (!pathIn.value.trim()) pathIn.value = d.root; await say(); }
+    try { const d = await FUS.take(e.target.files, pathIn.value.trim()); if (!pathIn.value.trim()) pathIn.value = d.root; await say(); }
     catch (err) { status.textContent = err.message; }
     e.target.value = "";
   } } });
@@ -3377,11 +3415,15 @@ function openSettings() {
       el("h2", {}, "Settings"),
       el("label", { class: "hint", for: "set-fus-path" }, "Image_Fusionner folder"),
       el("div", { class: "path" }, pathIn, el("label", { class: "btn small", style: "cursor:pointer" }, "Browse…", dir)),
-      el("p", { class: "hint" }, "The folder Image Fusionner runs from (it isn't installed). Browse… reads the tiles it has rendered (Output_Images) into this browser; the Pictures window's Reload tiles reads them again after it renders. Leave the folder empty to hide Image Fusionner."),
+      el("p", { class: "hint" }, "The folder Image Fusionner runs from (it isn't installed; the one with Start GUI.cmd, Grid_layout and Output_Images). Browse… reads the tiles of the layouts in Grid_layout into this browser; the Pictures window's Reload tiles reads them again after a render, adding new layouts and dropping deleted ones. Only this folder is read: changing it drops the tiles read from the old one. Leave it empty to hide Image Fusionner."),
       status,
       el("div", { class: "row", style: "justify-content:flex-end" },
         el("button", { type: "button", on: { click: close } }, "Cancel"),
-        el("button", { type: "button", class: "primary", on: { click: () => { FUS.setPath(pathIn.value.trim()); close(); if (FUS.path() && CUR_TAB) { PW.src = "fus"; try { localStorage.setItem("scb_pwsrc", "fus"); } catch {} } else if (PW.src === "fus") PW.src = "remote"; pwRender(); } } }, "Save"))));
+        el("button", { type: "button", class: "primary", on: { click: async () => {
+          const np = pathIn.value.trim();
+          // one place only: tiles read from another folder than the one saved now are dropped (Reload tiles reads the new one)
+          if (FUS.data?.folders.length && (FUS.data.path ?? FUS.path()) !== np) await FUS.clear();
+          FUS.setPath(np); close(); if (FUS.path() && CUR_TAB) { PW.src = "fus"; try { localStorage.setItem("scb_pwsrc", "fus"); } catch {} } else if (PW.src === "fus") PW.src = "remote"; pwRender(); } } }, "Save"))));
   document.body.append(ov);
   say();
   pathIn.focus();
@@ -3397,10 +3439,10 @@ function fusView(parts) {
   const search = el("input", { type: "search", placeholder: "Search tiles…", value: PW.q, "aria-label": "Search tiles", on: { input: (e) => { PW.q = e.target.value; fusFill(); } } });
   parts.push(el("div", { class: "pw-sub" }, search));
   const dir = el("input", { type: "file", webkitdirectory: true, directory: true, multiple: true, hidden: true, on: { change: async (e) => {
-    try { await FUS.take(e.target.files); pwSay(""); } catch (err) { pwSay(err.message); }
+    try { await FUS.take(e.target.files); pwSay(""); } catch (err) { pwSay("Tiles not read: " + err.message); }
     e.target.value = ""; fusFill();
   } } });
-  parts.push(el("div", { class: "fus-crumb", id: "fus-crumb" }), el("p", { class: "status", role: "status" }, PW.note || ""), el("div", { class: "fus-list", id: "fus-list" }));
+  parts.push(el("div", { class: "fus-crumb", id: "fus-crumb" }), el("p", { class: "status", role: "status" }, PW.note || ""), el("p", { class: "hint", id: "fus-notes" }), el("div", { class: "fus-list", id: "fus-list" }));
   parts.push(dir);
   PW.fusDir = dir;
   FUS.get().then(fusFill);
@@ -3413,6 +3455,7 @@ function fusFill() {
     d.at ? el("span", {}, FUS.when(d.at)) : null,
     Object.values(FUS_OPEN).some(Boolean) ? el("button", { type: "button", class: "small", title: "Close every folder", on: { click: () => { FUS_OPEN = {}; try { localStorage.setItem("scb_fus_open", "{}"); } catch {} fusFill(); } } }, "Close all") : null,
     el("button", { type: "button", class: "small", title: "Read the tiles again (after Image Fusionner rendered)", on: { click: () => PW.fusDir?.click() } }, d.folders.length ? "↻ Reload tiles" : "Read the tiles…"));
+  const notes = $("#fus-notes"); if (notes) { notes.textContent = FUS.notes(d); notes.hidden = !notes.textContent; }
   if (!d.folders.length) { list.replaceChildren(el("p", { class: "empty" }, `No tiles read yet. Click "Read the tiles…" and pick ${FUS.path() || "the Image_Fusionner folder"} (your browser asks to allow it).`)); return; }
   list.replaceChildren(...d.folders.map((f) => {
     const tiles = q ? f.tiles.filter((t) => (f.layout + " " + t.name).toLowerCase().includes(q)) : f.tiles;
