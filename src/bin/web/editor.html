@@ -422,11 +422,12 @@ details.more summary{cursor:pointer;font-weight:600}
 .fus-fh .arr { width: 16px; color: var(--mute); font-size: 12px; }
 .fus-fh b { font-size: 14px; }
 .fus-fh .meta { margin-left: auto; font-size: 11.5px; color: var(--mute); white-space: nowrap; }
-.fus-tiles { display: grid; gap: 6px; padding: 8px; }
+.fus-tiles { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 6px; padding: 8px; }
 .fus-tiles.dense { gap: 3px; padding: 6px; }
 .fus-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px 1px; border: 1px solid transparent; border-radius: 8px; cursor: grab; min-width: 0; color: var(--mute); }
 .fus-tile:hover, .fus-tile:focus-visible, .fus-tile.on { border-color: var(--acc); outline: none; }
 .fus-tile img { width: 100%; aspect-ratio: 1; border-radius: 6px; display: block; }
+.fus-tile.old { opacity: .45; }
 .fus-tile span { font-size: 10px; line-height: 1.2; width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-all; text-align: center; }
 .fus-tiles.dense .fus-tile span { font-size: 9px; }
 </style>
@@ -750,11 +751,16 @@ const FUS = {
       r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
     });
   },
+  async save(rec) {
+    const db = await FUS.db();
+    await new Promise((ok, no) => { const t = db.transaction("sets", "readwrite"); t.objectStore("sets").put(rec, "tiles"); t.oncomplete = ok; t.onerror = () => no(t.error); });
+  },
   async get() {
     if (FUS.data) return FUS.data;
     try {
       const db = await FUS.db();
       const d = await new Promise((ok, no) => { const q = db.transaction("sets").objectStore("sets").get("tiles"); q.onsuccess = () => ok(q.result || null); q.onerror = () => no(q.error); });
+      if (d && (d.tiles || []).some((t) => !t.h)) { for (const t of d.tiles) { t.h = t.h || await FUS.hash(t.blob); t.mod = t.mod || t.blob.lastModified || 0; } await FUS.save(d).catch(() => {}); } // read by an older build
       FUS.data = d ? FUS.shape(d) : { root: "", at: 0, folders: [] };
     } catch { FUS.data = { root: "", at: 0, folders: [] }; }
     return FUS.data;
@@ -768,12 +774,11 @@ const FUS = {
       const i = parts.indexOf("Output_Images");
       if (i < 0 || parts.length !== i + 4 || !/\.png$/i.test(f.name) || f.size > 64 * 1024) continue;
       root = root || parts[0];
-      tiles.push({ folder: parts[i + 1] + "/" + parts[i + 2], name: f.name, size: f.size, blob: f });
+      tiles.push({ folder: parts[i + 1] + "/" + parts[i + 2], name: f.name, size: f.size, mod: f.lastModified || 0, h: await FUS.hash(f), blob: f });
     }
     if (!tiles.length) throw new Error("no Image Fusionner tiles there: pick the Image_Fusionner folder (the one with Start GUI.cmd and Output_Images)");
     const rec = { root, at: Date.now(), tiles };
-    const db = await FUS.db();
-    await new Promise((ok, no) => { const t = db.transaction("sets", "readwrite"); t.objectStore("sets").put(rec, "tiles"); t.oncomplete = ok; t.onerror = () => no(t.error); });
+    await FUS.save(rec);
     for (const u of FUS.urls) URL.revokeObjectURL(u);
     FUS.urls = [];
     FUS.data = FUS.shape(rec);
@@ -781,19 +786,31 @@ const FUS = {
     return FUS.data;
   },
   forget() { FUS.data = null; },
-  /** { root, at, folders: [{ key, layout, bg, cols, rows, tiles: [{ key, name, label, size, blob, url, r, c }] }] } */
+  /** A short fingerprint of a tile's picture (FNV-1a), so a re-rendered tile gets a new name on the remote. */
+  async hash(blob) {
+    const a = new Uint8Array(await blob.arrayBuffer());
+    let h = 0x811c9dc5;
+    for (let i = 0; i < a.length; i++) { h ^= a[i]; h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(36).padStart(7, "0").slice(-7);
+  },
+  /** { root, at, folders: [{ key, layout, bg, cols, rows, tiles: [{ key, name, label, size, mod, h, blob, url, r, c }], spots: Map "r,c" → newest tile }] } */
   shape(rec) {
     const by = new Map();
     for (const t of rec.tiles || []) {
       if (!by.has(t.folder)) by.set(t.folder, []);
       const p = FUS.pos(t.name);
-      by.get(t.folder).push({ key: t.folder + "/" + t.name, name: t.name, label: t.name.replace(/\.png$/i, "").replace(/^[a-z0-9_]+?_(?=r\d)/i, ""), size: t.size, blob: t.blob, url: "", r: p ? p[0] : 0, c: p ? p[1] : 0 });
+      by.get(t.folder).push({ key: t.folder + "/" + t.name, name: t.name, label: t.name.replace(/\.png$/i, "").replace(/^[a-z0-9_]+?_(?=r\d)/i, ""), size: t.size, mod: t.mod || 0, h: t.h || "", blob: t.blob, url: "", r: p ? p[0] : 0, c: p ? p[1] : 0 });
     }
     const folders = [...by.entries()].map(([key, tiles]) => {
-      tiles.sort((a, b) => a.r - b.r || a.c - b.c || a.name.localeCompare(b.name));
+      tiles.sort((a, b) => a.r - b.r || a.c - b.c || b.mod - a.mod || a.name.localeCompare(b.name));
+      const spots = new Map();
+      for (const t of tiles) if (t.r && t.c && !spots.has(t.r + "," + t.c)) spots.set(t.r + "," + t.c, t); // newest first: an older render's leftover loses
+      const rest = tiles.filter((t) => ![...spots.values()].includes(t));
+      for (const t of rest) t.old = true; // shown last, faded, so the folder still lines up like the layout
+      tiles = [...spots.values(), ...rest];
       const cols = Math.max(1, ...tiles.map((t) => t.c)), rows = Math.max(1, ...tiles.map((t) => t.r));
       const [layout, bg] = key.split("/");
-      return { key, layout, bg, cols, rows, tiles };
+      return { key, layout, bg, cols, rows, tiles, spots };
     }).sort((a, b) => a.key.localeCompare(b.key));
     const twice = new Set(folders.map((f) => f.layout).filter((l, i, a) => a.indexOf(l) !== i));
     for (const f of folders) f.title = twice.has(f.layout) ? `${f.layout} · ${f.bg}` : f.layout;
@@ -809,11 +826,12 @@ const FUS = {
   },
   url(t) { if (!t.url) { t.url = URL.createObjectURL(t.blob); FUS.urls.push(t.url); } return t.url; },
   find(key) { for (const f of FUS.data?.folders || []) for (const t of f.tiles) if (t.key === key) return t; return null; },
-  /** The name a tile gets on the remote (letters, digits, . _ -; at most 80 characters). */
-  remoteName(name) {
-    let n = String(name).replace(/\.png$/i, "").replace(/[^A-Za-z0-9_.\-]+/g, "_");
-    if (n.length > 76) { let h = 0; for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0; n = n.slice(0, 68) + "_" + h.toString(36).slice(0, 7); }
-    return n + ".png";
+  /** The name a tile gets on the remote: its own name plus its fingerprint (letters, digits, . _ -; at most 80 characters).
+   *  The remote never replaces a picture of the same name, so a re-rendered tile must get a new one. */
+  remoteName(t) {
+    let n = String(t.name).replace(/\.png$/i, "").replace(/[^A-Za-z0-9_.\-]+/g, "_");
+    if (n.length > 68) { let h = 0; for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0; n = n.slice(0, 60) + "_" + h.toString(36).slice(0, 7); }
+    return n + (t.h ? "_v" + t.h : "") + ".png";
   },
   async base64(blob) { return new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(",")[1]); fr.readAsDataURL(blob); }); },
   when(at) { return at ? new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""; },
@@ -2402,7 +2420,7 @@ function renderFus() {
     d.at ? el("span", {}, FUS.when(d.at)) : "",
     Object.values(FUS_OPEN).some(Boolean) ? el("button", { type: "button", class: "btn small", title: "Close every folder", on: { click: () => { FUS_OPEN = {}; try { localStorage.setItem("scb_fus_open", "{}"); } catch {} renderFus(); } } }, "Close all") : "",
     el("button", { type: "button", class: "btn small", title: "Read the tiles again (after Image Fusionner rendered)", on: { click: () => $("#fusdir").click() } }, d.folders.length ? "↻ Reload tiles" : "Read the tiles…"));
-  $("#fus-info").textContent = d.folders.length ? (mode === "home" ? "Click a tile, then a home screen tile to give it that picture." : "Drag a tile onto the remote, or click it and then a spot. Add to page puts a folder's tiles on every empty spot of this page. Tiles are uploaded to the remote when you save.") : `No tiles read yet. Click "Read the tiles…" and pick ${FUS.path() || "the Image_Fusionner folder"} (your browser asks to allow it).`;
+  $("#fus-info").textContent = d.folders.length ? (mode === "home" ? "Click a tile, then a home screen tile to give it that picture." : "Drag a tile onto the remote, or click it and then a spot. On an empty page, ＋ Add to page shows on the folders with the same grid and puts every tile on its own spot. Tiles are uploaded to the remote when you save.") : `No tiles read yet. Click "Read the tiles…" and pick ${FUS.path() || "the Image_Fusionner folder"} (your browser asks to allow it).`;
   const q = fquery.trim().toLowerCase();
   $("#fus-list").replaceChildren(...d.folders.map((f) => {
     const tiles = q ? f.tiles.filter((t) => (f.layout + " " + t.name).toLowerCase().includes(q)) : f.tiles;
@@ -2411,41 +2429,60 @@ function renderFus() {
     const toggle = el("button", { type: "button", class: "fus-fh", "aria-expanded": String(open), on: { click: () => { FUS_OPEN[f.key] = !FUS_OPEN[f.key]; try { localStorage.setItem("scb_fus_open", JSON.stringify(FUS_OPEN)); } catch {} renderFus(); } } },
       el("span", { class: "arr" }, open ? "▾" : "▸"), el("span", {}, open ? "📂" : "📁"), el("b", {}, f.title), el("span", { class: "meta" }, `${f.cols} × ${f.rows} tiles`));
     const head = el("div", { class: "fus-head" }, toggle,
-      mode !== "pages" ? "" : el("button", { type: "button", class: "btn small", title: "Put this folder's tiles, in order, on every empty spot of the page you're editing", on: { click: () => fusAddAll(f, tiles) } }, "＋ Add to page"));
+      el("button", { type: "button", class: "btn small fus-add", "data-key": f.key, hidden: true, title: "Put every tile of this folder on its own spot of this empty page", on: { click: () => fusAddAll(f) } }, "＋ Add to page"));
     const box = el("div", { class: "fus-fold" }, head);
     if (open) {
-      const cols = q ? Math.min(f.cols, 4) : f.cols;
-      box.append(el("div", { class: "fus-tiles" + (cols > 4 ? " dense" : ""), style: `grid-template-columns:repeat(${cols},minmax(0,1fr))` }, ...tiles.map((t) => {
-        const x = { id: t.name, name: FUS.remoteName(t.name), folder: f.key, url: FUS.url(t), size: t.size, file: t.blob instanceof File ? t.blob : new File([t.blob], FUS.remoteName(t.name), { type: "image/png" }) };
-        const pid = () => localAsPic(x).id;
-        return el("div", { class: "fus-tile" + (picked && picked === ("local:" + x.name) ? " on" : ""), draggable: "true", role: "button", tabindex: "0", title: `${t.name} · ${(t.size / 1024).toFixed(1)} KB`,
+      // as many across as the page you're editing is wide, like the other pictures
+      box.append(el("div", { class: "fus-tiles" + (fusCols() > 4 ? " dense" : "") }, ...tiles.map((t) => {
+        const pid = () => fusPic(f, t).id;
+        return el("div", { class: "fus-tile" + (t.old ? " old" : "") + (picked && picked === "local:" + FUS.remoteName(t) ? " on" : ""), draggable: "true", role: "button", tabindex: "0", title: `${t.name} · ${(t.size / 1024).toFixed(1)} KB${t.old ? " · left over from an older render (another tile has this spot)" : ""}`,
           on: { dragstart: (e) => startDrag(e, { kind: "pic", id: pid() }), dragend: () => { endDrag(); renderPics(); },
             click: () => { const id = pid(); picked = picked === id ? null : id; renderFus(); renderPics(); (mode === "home" ? msg : dropMsg)(picked ? (mode === "home" ? "Now click a tile to give it this picture." : "Now click an empty spot or an icon button on the remote.") : "", ""); },
             keydown: (e) => { if (e.key === "Enter") { picked = pid(); renderFus(); } } } },
-          el("img", { src: x.url, alt: "", loading: "lazy" }), el("span", {}, t.label));
+          el("img", { src: FUS.url(t), alt: "", loading: "lazy" }), el("span", {}, t.label));
       })));
     }
     return box;
   }).filter(Boolean));
   if (d.folders.length && !$("#fus-list").children.length) $("#fus-list").append(el("p", { class: "hint" }, "No tile matches."));
+  fusHeads();
 }
-/** ＋ Add to page: a folder's tiles, in order, as icon buttons on every empty spot of the page (left to right, top to bottom). */
-function fusAddAll(f, tiles) {
-  if (!act().editable) { msg(lockText(act()), "err"); return; }
-  const pg = page(), free = [];
-  for (let y = 0; y < pg.grid.h; y++) for (let x = 0; x < pg.grid.w; x++) if (!itemAt(pg, x, y)) free.push({ x, y });
-  if (!free.length) { msg(`This page has no empty spot left (${pg.grid.w} × ${pg.grid.h}).`, "err"); return; }
-  const n = Math.min(free.length, tiles.length);
-  for (let i = 0; i < n; i++) {
-    const t = tiles[i];
-    const p = localAsPic({ id: t.name, name: FUS.remoteName(t.name), folder: f.key, url: FUS.url(t), size: t.size, file: t.blob instanceof File ? t.blob : new File([t.blob], FUS.remoteName(t.name), { type: "image/png" }) });
-    pg.items.push({ id: nid("i"), type: "icon", icon: p.id, loc: free[i], size: { w: 1, h: 1 }, cmd: null });
+const fusCols = () => Number(getComputedStyle($("#view-pages")).getPropertyValue("--cols")) || 4;
+/** A tile as a picture of the Page Editor: uploaded on save under its remote name (its name + fingerprint). */
+function fusPic(f, t) {
+  const name = FUS.remoteName(t);
+  return localAsPic({ id: name, name, folder: f.key, url: FUS.url(t), size: t.size, file: new File([t.blob], name, { type: "image/png", lastModified: t.mod || Date.now() }) });
+}
+/** Why a folder can't be added to the page you're editing ("" = it can). */
+function fusAddWhy(f) {
+  if (mode !== "pages" || !act()) return "only on an activity's page";
+  if (!act().editable) return lockText(act());
+  const pg = page();
+  if (!pg) return "no page";
+  if (pg.items.length) return "the page isn't empty";
+  if (f.cols !== pg.grid.w || f.rows !== pg.grid.h) return `the folder is ${f.cols} × ${f.rows}, the page ${pg.grid.w} × ${pg.grid.h}`;
+  if (!f.spots.size) return "no tile has a row and column in its name";
+  return "";
+}
+/** ＋ Add to page shows only on folders whose grid matches an empty page; tile columns follow the page's width. */
+function fusHeads() {
+  for (const b of document.querySelectorAll("#fus-list .fus-add")) {
+    const f = FUS.data?.folders.find((x) => x.key === b.dataset.key);
+    b.hidden = !f || !!fusAddWhy(f);
   }
+  for (const t of document.querySelectorAll("#fus-list .fus-tiles")) t.classList.toggle("dense", fusCols() > 4);
+}
+/** ＋ Add to page: every tile of the folder on its own spot (row r, column c → the page's r, c), newest render first. */
+function fusAddAll(f) {
+  const why = fusAddWhy(f);
+  if (why) { msg(`Can't add ${f.title}: ${why}.`, "err"); return; }
+  const pg = page();
+  for (const t of f.spots.values()) pg.items.push({ id: nid("i"), type: "icon", icon: fusPic(f, t).id, loc: { x: t.c - 1, y: t.r - 1 }, size: { w: 1, h: 1 }, cmd: null });
   selId = null; picked = null;
-  log(`${n} tiles from ${f.title} added to ${pg.name || "the page"}`);
+  log(`${f.spots.size} tiles from ${f.title} added to ${pg.name || "the page"}, each on its own spot`);
   renderAll(); renderFus();
-  const left = tiles.length - n;
-  msg(`Added ${n} tile${n === 1 ? "" : "s"} from ${f.title} on the empty spots.` + (left ? ` ${left} didn't fit: the page is full (make the grid bigger or add another page for the rest).` : free.length > n ? ` ${free.length - n} spot${free.length - n === 1 ? "" : "s"} still empty.` : "") + " They're uploaded when you save; give them commands by clicking each one.", left ? "err" : "ok");
+  const empty = pg.grid.w * pg.grid.h - f.spots.size;
+  msg(`Added ${f.spots.size} tiles from ${f.title}, each on its own spot.` + (empty ? ` ${empty} spot${empty === 1 ? "" : "s"} had no tile.` : "") + " They're uploaded when you save; click each one to give it a command.", "ok");
 }
 $("#fusdir").addEventListener("change", async (e) => { try { await FUS.take(e.target.files); } catch (err) { msg(err.message, "err"); } e.target.value = ""; renderFus(); });
 $("#fq").addEventListener("input", (e) => { fquery = e.target.value; renderFus(); });
