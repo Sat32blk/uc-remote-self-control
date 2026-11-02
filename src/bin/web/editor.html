@@ -412,6 +412,22 @@ details.more summary{cursor:pointer;font-weight:600}
 .tl .tli{padding-left:25ch;text-indent:-25ch}
 .tl .nw{background:var(--chg)}
 .modal{width:min(1000px,100%) !important}
+.fus-start { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--acc); white-space: nowrap; text-decoration: none; }
+.fus-start:hover { text-decoration: underline; }
+.fus-crumb { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--mute); margin-top: 6px; }
+.fus-list { display: flex; flex-direction: column; gap: 6px; }
+.fus-fold { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.fus-fh { display: flex; gap: 8px; align-items: center; width: 100%; padding: 6px 8px; background: var(--soft); border: 0; border-radius: 0; cursor: pointer; text-align: left; color: var(--ink); font: inherit; }
+.fus-fh .arr { width: 16px; color: var(--mute); font-size: 12px; }
+.fus-fh b { font-size: 14px; }
+.fus-fh .meta { margin-left: auto; font-size: 11.5px; color: var(--mute); white-space: nowrap; }
+.fus-tiles { display: grid; gap: 6px; padding: 8px; }
+.fus-tiles.dense { gap: 3px; padding: 6px; }
+.fus-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px 1px; border: 1px solid transparent; border-radius: 8px; cursor: grab; min-width: 0; color: var(--mute); }
+.fus-tile:hover, .fus-tile:focus-visible, .fus-tile.on { border-color: var(--acc); outline: none; }
+.fus-tile img { width: 100%; aspect-ratio: 1; border-radius: 6px; display: block; }
+.fus-tile span { font-size: 10px; line-height: 1.2; width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-all; text-align: center; }
+.fus-tiles.dense .fus-tile span { font-size: 9px; }
 </style>
 </head>
 <body>
@@ -490,6 +506,7 @@ details.more summary{cursor:pointer;font-weight:600}
             <option value="ch">Channel icons</option>
             <option value="made">Level pictures &amp; state icons (this integration)</option>
             <option value="local">Local folder (this computer)</option>
+            <option value="fus" hidden>Image Fusionner</option>
           </select>
           <span class="hint" style="margin-left:auto" id="lib-count"></span></div>
 
@@ -533,6 +550,17 @@ details.more summary{cursor:pointer;font-weight:600}
           <div class="selbar" id="sel-ch"></div>
           <div class="pics" id="chpics"></div>
           <span id="ch-count" class="hidden"></span>
+        </div>
+
+        <div class="lib hidden" data-lib="fus">
+          <div class="row" style="margin-top:8px;gap:8px;align-items:center">
+            <input type="search" id="fq" placeholder="Search tiles…" aria-label="Search tiles" style="flex:1 1 120px;min-width:80px">
+            <a class="fus-start" id="fus-start" target="image_fusionner" rel="noopener">▶ Start Image Fusionner</a>
+          </div>
+          <div class="fus-crumb" id="fus-crumb"></div>
+          <p class="hint" id="fus-info" style="margin:6px 0"></p>
+          <input type="file" id="fusdir" webkitdirectory directory multiple class="hidden">
+          <div class="fus-list" id="fus-list"></div>
         </div>
 
         <div class="lib hidden" data-lib="local">
@@ -704,6 +732,93 @@ details.more summary{cursor:pointer;font-weight:600}
 </div>
 
 <script>
+// ---------------------------------------------------------------------------
+// Image Fusionner: the tiles it renders (Output_Images\<layout>\<background>\*.png), read from the
+// folder you pick and kept in this browser (IndexedDB, shared by the builder and the Page Editor).
+// A web page can't read a typed path or start a .cmd file, so the folder is picked once with the
+// browser's folder chooser and read again with "Reload tiles" after Image Fusionner renders.
+// ---------------------------------------------------------------------------
+const FUS = {
+  DB: "rsc_fusionner", URL: "http://localhost:8765/",
+  path() { try { return localStorage.getItem("scb_fus_path") || ""; } catch { return ""; } },
+  setPath(p) { try { if (p) localStorage.setItem("scb_fus_path", p); else localStorage.removeItem("scb_fus_path"); } catch {} },
+  data: null, urls: [],
+  db() {
+    return new Promise((ok, no) => {
+      const r = indexedDB.open(FUS.DB, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("sets");
+      r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
+    });
+  },
+  async get() {
+    if (FUS.data) return FUS.data;
+    try {
+      const db = await FUS.db();
+      const d = await new Promise((ok, no) => { const q = db.transaction("sets").objectStore("sets").get("tiles"); q.onsuccess = () => ok(q.result || null); q.onerror = () => no(q.error); });
+      FUS.data = d ? FUS.shape(d) : { root: "", at: 0, folders: [] };
+    } catch { FUS.data = { root: "", at: 0, folders: [] }; }
+    return FUS.data;
+  },
+  /** Keeps the tiles of a picked folder (the Image_Fusionner folder, or its Output_Images). Returns the new set. */
+  async take(fileList) {
+    const tiles = [];
+    let root = "";
+    for (const f of fileList) {
+      const parts = String(f.webkitRelativePath || f.name).split("/");
+      const i = parts.indexOf("Output_Images");
+      if (i < 0 || parts.length !== i + 4 || !/\.png$/i.test(f.name) || f.size > 64 * 1024) continue;
+      root = root || parts[0];
+      tiles.push({ folder: parts[i + 1] + "/" + parts[i + 2], name: f.name, size: f.size, blob: f });
+    }
+    if (!tiles.length) throw new Error("no Image Fusionner tiles there: pick the Image_Fusionner folder (the one with Start GUI.cmd and Output_Images)");
+    const rec = { root, at: Date.now(), tiles };
+    const db = await FUS.db();
+    await new Promise((ok, no) => { const t = db.transaction("sets", "readwrite"); t.objectStore("sets").put(rec, "tiles"); t.oncomplete = ok; t.onerror = () => no(t.error); });
+    for (const u of FUS.urls) URL.revokeObjectURL(u);
+    FUS.urls = [];
+    FUS.data = FUS.shape(rec);
+    try { localStorage.setItem("scb_fus_at", String(rec.at)); } catch {} // tells the other page (builder / editor) to read them again
+    return FUS.data;
+  },
+  forget() { FUS.data = null; },
+  /** { root, at, folders: [{ key, layout, bg, cols, rows, tiles: [{ key, name, label, size, blob, url, r, c }] }] } */
+  shape(rec) {
+    const by = new Map();
+    for (const t of rec.tiles || []) {
+      if (!by.has(t.folder)) by.set(t.folder, []);
+      const p = FUS.pos(t.name);
+      by.get(t.folder).push({ key: t.folder + "/" + t.name, name: t.name, label: t.name.replace(/\.png$/i, "").replace(/^[a-z0-9_]+?_(?=r\d)/i, ""), size: t.size, blob: t.blob, url: "", r: p ? p[0] : 0, c: p ? p[1] : 0 });
+    }
+    const folders = [...by.entries()].map(([key, tiles]) => {
+      tiles.sort((a, b) => a.r - b.r || a.c - b.c || a.name.localeCompare(b.name));
+      const cols = Math.max(1, ...tiles.map((t) => t.c)), rows = Math.max(1, ...tiles.map((t) => t.r));
+      const [layout, bg] = key.split("/");
+      return { key, layout, bg, cols, rows, tiles };
+    }).sort((a, b) => a.key.localeCompare(b.key));
+    const twice = new Set(folders.map((f) => f.layout).filter((l, i, a) => a.indexOf(l) !== i));
+    for (const f of folders) f.title = twice.has(f.layout) ? `${f.layout} · ${f.bg}` : f.layout;
+    return { root: rec.root || "", at: rec.at || 0, folders };
+  },
+  /** Row and column of a tile from its name: …_r<row>c<col>-… or a merged group …_r<R0>-<R1>c<C0>-<C1>-…-<n>.png */
+  pos(file) {
+    let m = /_r(\d+)c(\d+)-/i.exec(file);
+    if (m) return [Number(m[1]), Number(m[2])];
+    m = /_r(\d+)-(\d+)c(\d+)-(\d+)-.*-(\d+)\.png$/i.exec(file);
+    if (m) { const [r0, , c0, c1, n] = m.slice(1).map(Number), w = c1 - c0 + 1; return [r0 + Math.floor((n - 1) / w), c0 + ((n - 1) % w)]; }
+    return null;
+  },
+  url(t) { if (!t.url) { t.url = URL.createObjectURL(t.blob); FUS.urls.push(t.url); } return t.url; },
+  find(key) { for (const f of FUS.data?.folders || []) for (const t of f.tiles) if (t.key === key) return t; return null; },
+  /** The name a tile gets on the remote (letters, digits, . _ -; at most 80 characters). */
+  remoteName(name) {
+    let n = String(name).replace(/\.png$/i, "").replace(/[^A-Za-z0-9_.\-]+/g, "_");
+    if (n.length > 76) { let h = 0; for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0; n = n.slice(0, 68) + "_" + h.toString(36).slice(0, 7); }
+    return n + ".png";
+  },
+  async base64(blob) { return new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(",")[1]); fr.readAsDataURL(blob); }); },
+  when(at) { return at ? new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""; },
+};
+
 "use strict";
 // ---------------------------------------------------------------------------------------------
 // Page Editor: reads from and saves to your remote through the builder
@@ -2159,19 +2274,22 @@ function savePicsLayout() {
   try { localStorage.setItem("pe_pics", JSON.stringify({ cols, w: lib.offsetWidth, h: lib.offsetHeight })); } catch {}
 }
 function setLib(v) {
-  LIB = ["icons", "builtin", "ch", "local", "made"].includes(v) ? v : "icons";
+  LIB = ["icons", "builtin", "ch", "local", "made", ...(FUS.path() ? ["fus"] : [])].includes(v) ? v : "icons";
   try { localStorage.setItem("pe_lib", LIB); } catch {}
   $("#libsel").value = LIB;
   for (const x of document.querySelectorAll("#libcard .lib")) x.classList.toggle("hidden", x.dataset.lib !== LIB);
   renderLibCount();
   if (LIB === "builtin") renderBuiltin();
   if (LIB === "made") renderMade();
+  if (LIB === "fus") FUS.get().then(renderFus);
   requestAnimationFrame(() => fitPictures());
 }
 function renderLibCount() {
-  const n = { icons: PICS.filter((x) => !x.local).length, builtin: UCICONS.length, ch: CHANNELS.length, local: LOCAL.length, made: MADE.length }[LIB];
-  $("#lib-count").textContent = LIB === "local" ? (n ? `${n} found` : "") : `${n} on the remote`;
-  for (const o of $("#libsel").options) o.textContent = { icons: `Icons on the remote (${PICS.filter((x) => !x.local).length})`, builtin: `Built-in icons (${UCICONS.length})`, ch: `Channel icons (${CHANNELS.length})`, local: "Local folder (this computer)", made: `Level pictures & state icons (${MADE.length})` }[o.value];
+  const fusN = FUS.data?.folders.length || 0;
+  const n = { icons: PICS.filter((x) => !x.local).length, builtin: UCICONS.length, ch: CHANNELS.length, local: LOCAL.length, made: MADE.length, fus: fusN }[LIB];
+  $("#lib-count").textContent = LIB === "local" ? (n ? `${n} found` : "") : LIB === "fus" ? (n ? `${n} tile folders` : "") : `${n} on the remote`;
+  const fo = $("#libsel").querySelector('option[value="fus"]'); if (fo) fo.hidden = !FUS.path();
+  for (const o of $("#libsel").options) o.textContent = { icons: `Icons on the remote (${PICS.filter((x) => !x.local).length})`, builtin: `Built-in icons (${UCICONS.length})`, ch: `Channel icons (${CHANNELS.length})`, local: "Local folder (this computer)", made: `Level pictures & state icons (${MADE.length})`, fus: `Image Fusionner${fusN ? ` (${fusN} tile folders)` : ""}` }[o.value];
 }
 $("#libsel").addEventListener("change", (e) => setLib(e.target.value));
 let biq = "";
@@ -2272,6 +2390,50 @@ function renderLocal() {
   }));
   $("#local-more").textContent = list.length > shown.length ? `Showing ${shown.length} of ${list.length}: search or pick a folder to narrow it down.` : "";
 }
+
+// ---- Image Fusionner: its rendered tiles, one folder per layout, laid out like the layout ----------------
+let FUS_OPEN = {}, fquery = "";
+try { FUS_OPEN = JSON.parse(localStorage.getItem("scb_fus_open") || "{}"); } catch {}
+function renderFus() {
+  const d = FUS.data;
+  if (!d) return;
+  renderLibCount();
+  const a = $("#fus-start"); a.href = FUS.URL; a.title = `Opens Image Fusionner's layout editor. If it isn't running yet, double-click Start GUI.cmd in ${FUS.path() || "the Image_Fusionner folder"} first.`;
+  $("#fus-crumb").replaceChildren(el("span", {}, "📁 ", el("b", {}, d.root || FUS.path().split(/[\\/]/).pop() || "Image_Fusionner"), " › Output_Images"), el("span", { style: "flex:1" }),
+    d.at ? el("span", {}, FUS.when(d.at)) : "",
+    el("button", { type: "button", class: "btn small", title: "Read the tiles again (after Image Fusionner rendered)", on: { click: () => $("#fusdir").click() } }, d.folders.length ? "↻ Reload tiles" : "Read the tiles…"));
+  $("#fus-info").textContent = d.folders.length ? "Drag a tile onto the remote, or click it and then a spot. It's uploaded to the remote when you save." : `No tiles read yet. Click "Read the tiles…" and pick ${FUS.path() || "the Image_Fusionner folder"} (your browser asks to allow it).`;
+  const q = fquery.trim().toLowerCase();
+  $("#fus-list").replaceChildren(...d.folders.map((f) => {
+    const tiles = q ? f.tiles.filter((t) => (f.layout + " " + t.name).toLowerCase().includes(q)) : f.tiles;
+    if (!tiles.length) return null;
+    const open = q ? true : !!FUS_OPEN[f.key];
+    const head = el("button", { type: "button", class: "fus-fh", "aria-expanded": String(open), on: { click: () => { FUS_OPEN[f.key] = !FUS_OPEN[f.key]; try { localStorage.setItem("scb_fus_open", JSON.stringify(FUS_OPEN)); } catch {} renderFus(); } } },
+      el("span", { class: "arr" }, open ? "▾" : "▸"), el("span", {}, open ? "📂" : "📁"), el("b", {}, f.title), el("span", { class: "meta" }, `${f.cols} × ${f.rows} tiles`));
+    const box = el("div", { class: "fus-fold" }, head);
+    if (open) {
+      const cols = q ? Math.min(f.cols, 4) : f.cols;
+      box.append(el("div", { class: "fus-tiles" + (cols > 4 ? " dense" : ""), style: `grid-template-columns:repeat(${cols},minmax(0,1fr))` }, ...tiles.map((t) => {
+        const x = { id: t.name, name: FUS.remoteName(t.name), folder: f.key, url: FUS.url(t), size: t.size, file: t.blob instanceof File ? t.blob : new File([t.blob], FUS.remoteName(t.name), { type: "image/png" }) };
+        const pid = () => localAsPic(x).id;
+        return el("div", { class: "fus-tile" + (picked && picked === ("local:" + x.name) ? " on" : ""), draggable: "true", role: "button", tabindex: "0", title: `${t.name} · ${(t.size / 1024).toFixed(1)} KB`,
+          on: { dragstart: (e) => startDrag(e, { kind: "pic", id: pid() }), dragend: () => { endDrag(); renderPics(); },
+            click: () => { const id = pid(); picked = picked === id ? null : id; renderFus(); renderPics(); (mode === "home" ? msg : dropMsg)(picked ? (mode === "home" ? "Now click a tile to give it this picture." : "Now click an empty spot or an icon button on the remote.") : "", ""); },
+            keydown: (e) => { if (e.key === "Enter") { picked = pid(); renderFus(); } } } },
+          el("img", { src: x.url, alt: "", loading: "lazy" }), el("span", {}, t.label));
+      })));
+    }
+    return box;
+  }).filter(Boolean));
+  if (d.folders.length && !$("#fus-list").children.length) $("#fus-list").append(el("p", { class: "hint" }, "No tile matches."));
+}
+$("#fusdir").addEventListener("change", async (e) => { try { await FUS.take(e.target.files); } catch (err) { msg(err.message, "err"); } e.target.value = ""; renderFus(); });
+$("#fq").addEventListener("input", (e) => { fquery = e.target.value; renderFus(); });
+addEventListener("storage", (e) => {
+  if (e.key === "scb_fus_at") { FUS.forget(); FUS.get().then(() => { renderLibCount(); if (LIB === "fus") renderFus(); }); }
+  if (e.key === "scb_fus_path") { if (!FUS.path() && LIB === "fus") setLib("icons"); renderLibCount(); }
+});
+FUS.get().then(() => { renderLibCount(); if (LIB === "fus") renderFus(); });
 $("#dir").addEventListener("change", (e) => { takeLocal(e.target.files, "folder"); e.target.value = ""; });
 $("#files").addEventListener("change", (e) => { takeLocal(e.target.files, "files"); e.target.value = ""; });
 $("#lq").addEventListener("input", (e) => { lquery = e.target.value; renderLocal(); });

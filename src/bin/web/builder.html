@@ -115,6 +115,29 @@ header > div:last-child { flex-direction: row !important; align-items: center !i
 .st-note ul { margin: 6px 0 0; padding-left: 18px; }
 .st-table { width: 100%; } .st-table td.n, .st-table th.n { text-align: right; font-variant-numeric: tabular-nums; }
 .st-tip { position: fixed; pointer-events: none; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.15); opacity: 0; transition: opacity .1s; z-index: 50; max-width: 280px; }
+.pw-sub { display: flex; gap: 8px; align-items: center; }
+.pw-sub input { flex: 1 1 auto; min-width: 80px; }
+.fus-start { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--accent); white-space: nowrap; text-decoration: none; }
+.fus-start:hover { text-decoration: underline; }
+.fus-list { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; padding-right: 2px; }
+.fus-crumb { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.fus-fold { border: 1px solid var(--line); border-radius: 10px; flex: none; overflow: hidden; }
+.fus-fh { display: flex; gap: 8px; align-items: center; width: 100%; padding: 6px 8px; background: var(--inset); border: 0; border-radius: 0; cursor: pointer; text-align: left; color: var(--fg); font-weight: 400; }
+.fus-fh .arr { width: 16px; color: var(--muted); font-size: 12px; }
+.fus-fh b { font-size: 14px; }
+.fus-fh .meta { margin-left: auto; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.fus-tiles { display: grid; gap: 6px; padding: 8px; }
+.fus-tiles.dense { gap: 3px; padding: 6px; }
+.fus-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px 1px; border: 1px solid transparent; border-radius: 8px; background: none; cursor: grab; min-width: 0; color: var(--muted); font-weight: 400; }
+.fus-tile:hover, .fus-tile:focus-visible { border-color: var(--accent); outline: none; }
+.fus-tile img { width: 100%; aspect-ratio: 1; border-radius: 6px; display: block; }
+.fus-tile span { font-size: 10px; line-height: 1.2; width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-all; text-align: center; }
+.fus-tiles.dense .fus-tile span { font-size: 9px; }
+.set-ov { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-start; justify-content: center; padding: 40px 12px; overflow: auto; z-index: 60; }
+.set-dlg { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; width: 100%; max-width: 620px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+.set-dlg h2 { margin: 0; font-size: 19px; }
+.set-dlg .path { display: flex; gap: 6px; flex-wrap: wrap; }
+.set-dlg .path input { flex: 1 1 260px; font-family: var(--font-mono); font-size: 13px; }
 .pw-drop { border: 2px dashed var(--line); border-radius: 10px; padding: 14px; text-align: center; color: var(--muted); font-size: 13px; }
 .pw-drop.over { border-color: var(--accent); }
 .pslot { width: 72px; height: 72px; border: 2px dashed var(--line); border-radius: 10px; display: grid; place-items: center; font-size: 11px; line-height: 1.2; color: #9aa3ad; text-align: center; cursor: pointer; background: #0f1114; overflow: hidden; position: relative; padding: 0; min-height: 72px; container-type: inline-size; }
@@ -344,6 +367,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
       <span class="badge" id="device-count"></span>
       <button class="small" id="reload" type="button">Reload devices</button>
       <button class="small" id="backup-open" type="button" aria-expanded="false" aria-controls="backup-panel">Backup</button>
+      <button class="small" id="settings-open" type="button">⚙ Settings</button>
       <button class="small" id="logout" type="button">Log out</button>
     </div>
     </div>
@@ -3234,6 +3258,182 @@ async function loadExtras() {
 }
 
 // ---------------------------------------------------------------------------
+// Image Fusionner: the tiles it renders (Output_Images\<layout>\<background>\*.png), read from the
+// folder you pick and kept in this browser (IndexedDB, shared by the builder and the Page Editor).
+// A web page can't read a typed path or start a .cmd file, so the folder is picked once with the
+// browser's folder chooser and read again with "Reload tiles" after Image Fusionner renders.
+// ---------------------------------------------------------------------------
+const FUS = {
+  DB: "rsc_fusionner", URL: "http://localhost:8765/",
+  path() { try { return localStorage.getItem("scb_fus_path") || ""; } catch { return ""; } },
+  setPath(p) { try { if (p) localStorage.setItem("scb_fus_path", p); else localStorage.removeItem("scb_fus_path"); } catch {} },
+  data: null, urls: [],
+  db() {
+    return new Promise((ok, no) => {
+      const r = indexedDB.open(FUS.DB, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("sets");
+      r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
+    });
+  },
+  async get() {
+    if (FUS.data) return FUS.data;
+    try {
+      const db = await FUS.db();
+      const d = await new Promise((ok, no) => { const q = db.transaction("sets").objectStore("sets").get("tiles"); q.onsuccess = () => ok(q.result || null); q.onerror = () => no(q.error); });
+      FUS.data = d ? FUS.shape(d) : { root: "", at: 0, folders: [] };
+    } catch { FUS.data = { root: "", at: 0, folders: [] }; }
+    return FUS.data;
+  },
+  /** Keeps the tiles of a picked folder (the Image_Fusionner folder, or its Output_Images). Returns the new set. */
+  async take(fileList) {
+    const tiles = [];
+    let root = "";
+    for (const f of fileList) {
+      const parts = String(f.webkitRelativePath || f.name).split("/");
+      const i = parts.indexOf("Output_Images");
+      if (i < 0 || parts.length !== i + 4 || !/\.png$/i.test(f.name) || f.size > 64 * 1024) continue;
+      root = root || parts[0];
+      tiles.push({ folder: parts[i + 1] + "/" + parts[i + 2], name: f.name, size: f.size, blob: f });
+    }
+    if (!tiles.length) throw new Error("no Image Fusionner tiles there: pick the Image_Fusionner folder (the one with Start GUI.cmd and Output_Images)");
+    const rec = { root, at: Date.now(), tiles };
+    const db = await FUS.db();
+    await new Promise((ok, no) => { const t = db.transaction("sets", "readwrite"); t.objectStore("sets").put(rec, "tiles"); t.oncomplete = ok; t.onerror = () => no(t.error); });
+    for (const u of FUS.urls) URL.revokeObjectURL(u);
+    FUS.urls = [];
+    FUS.data = FUS.shape(rec);
+    try { localStorage.setItem("scb_fus_at", String(rec.at)); } catch {} // tells the other page (builder / editor) to read them again
+    return FUS.data;
+  },
+  forget() { FUS.data = null; },
+  /** { root, at, folders: [{ key, layout, bg, cols, rows, tiles: [{ key, name, label, size, blob, url, r, c }] }] } */
+  shape(rec) {
+    const by = new Map();
+    for (const t of rec.tiles || []) {
+      if (!by.has(t.folder)) by.set(t.folder, []);
+      const p = FUS.pos(t.name);
+      by.get(t.folder).push({ key: t.folder + "/" + t.name, name: t.name, label: t.name.replace(/\.png$/i, "").replace(/^[a-z0-9_]+?_(?=r\d)/i, ""), size: t.size, blob: t.blob, url: "", r: p ? p[0] : 0, c: p ? p[1] : 0 });
+    }
+    const folders = [...by.entries()].map(([key, tiles]) => {
+      tiles.sort((a, b) => a.r - b.r || a.c - b.c || a.name.localeCompare(b.name));
+      const cols = Math.max(1, ...tiles.map((t) => t.c)), rows = Math.max(1, ...tiles.map((t) => t.r));
+      const [layout, bg] = key.split("/");
+      return { key, layout, bg, cols, rows, tiles };
+    }).sort((a, b) => a.key.localeCompare(b.key));
+    const twice = new Set(folders.map((f) => f.layout).filter((l, i, a) => a.indexOf(l) !== i));
+    for (const f of folders) f.title = twice.has(f.layout) ? `${f.layout} · ${f.bg}` : f.layout;
+    return { root: rec.root || "", at: rec.at || 0, folders };
+  },
+  /** Row and column of a tile from its name: …_r<row>c<col>-… or a merged group …_r<R0>-<R1>c<C0>-<C1>-…-<n>.png */
+  pos(file) {
+    let m = /_r(\d+)c(\d+)-/i.exec(file);
+    if (m) return [Number(m[1]), Number(m[2])];
+    m = /_r(\d+)-(\d+)c(\d+)-(\d+)-.*-(\d+)\.png$/i.exec(file);
+    if (m) { const [r0, , c0, c1, n] = m.slice(1).map(Number), w = c1 - c0 + 1; return [r0 + Math.floor((n - 1) / w), c0 + ((n - 1) % w)]; }
+    return null;
+  },
+  url(t) { if (!t.url) { t.url = URL.createObjectURL(t.blob); FUS.urls.push(t.url); } return t.url; },
+  find(key) { for (const f of FUS.data?.folders || []) for (const t of f.tiles) if (t.key === key) return t; return null; },
+  /** The name a tile gets on the remote (letters, digits, . _ -; at most 80 characters). */
+  remoteName(name) {
+    let n = String(name).replace(/\.png$/i, "").replace(/[^A-Za-z0-9_.\-]+/g, "_");
+    if (n.length > 76) { let h = 0; for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0; n = n.slice(0, 68) + "_" + h.toString(36).slice(0, 7); }
+    return n + ".png";
+  },
+  async base64(blob) { return new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(",")[1]); fr.readAsDataURL(blob); }); },
+  when(at) { return at ? new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""; },
+};
+
+/** ⚙ Settings: the Image_Fusionner folder. */
+function openSettings() {
+  document.querySelector(".set-ov")?.remove();
+  const pathIn = el("input", { type: "text", id: "set-fus-path", value: FUS.path(), placeholder: "C:\\…\\Image_Fusionner", "aria-label": "Image_Fusionner folder" });
+  const status = el("p", { class: "hint", role: "status" });
+  const say = async () => { const d = await FUS.get(); status.textContent = d.folders.length ? `Tiles read: ${d.folders.reduce((n, f) => n + f.tiles.length, 0)} in ${d.folders.length} folders, ${FUS.when(d.at)}.` : "No tiles read yet: Browse… to the folder (your browser asks you to allow it)."; };
+  const dir = el("input", { type: "file", webkitdirectory: true, directory: true, multiple: true, hidden: true, on: { change: async (e) => {
+    try { const d = await FUS.take(e.target.files); if (!pathIn.value.trim()) pathIn.value = d.root; await say(); }
+    catch (err) { status.textContent = err.message; }
+    e.target.value = "";
+  } } });
+  const close = () => ov.remove();
+  const ov = el("div", { class: "set-ov", on: { click: (e) => { if (e.target === ov) close(); } } },
+    el("div", { class: "set-dlg", role: "dialog", "aria-modal": "true", "aria-label": "Settings" },
+      el("h2", {}, "Settings"),
+      el("label", { class: "hint", for: "set-fus-path" }, "Image_Fusionner folder"),
+      el("div", { class: "path" }, pathIn, el("label", { class: "btn small", style: "cursor:pointer" }, "Browse…", dir)),
+      el("p", { class: "hint" }, "The folder Image Fusionner runs from (it isn't installed). Browse… reads the tiles it has rendered (Output_Images) into this browser; the Pictures window's Reload tiles reads them again after it renders. Leave the folder empty to hide Image Fusionner."),
+      status,
+      el("div", { class: "row", style: "justify-content:flex-end" },
+        el("button", { type: "button", on: { click: close } }, "Cancel"),
+        el("button", { type: "button", class: "primary", on: { click: () => { FUS.setPath(pathIn.value.trim()); close(); if (FUS.path() && CUR_TAB) { PW.src = "fus"; try { localStorage.setItem("scb_pwsrc", "fus"); } catch {} } else if (PW.src === "fus") PW.src = "remote"; pwRender(); } } }, "Save"))));
+  document.body.append(ov);
+  say();
+  pathIn.focus();
+}
+$("#settings-open").addEventListener("click", openSettings);
+FUS.get().then(() => { if (PW.src === "fus" || FUS.path()) pwRender(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.querySelector(".set-ov")?.remove(); });
+addEventListener("storage", (e) => { if (e.key === "scb_fus_at") { FUS.forget(); FUS.get().then(() => { if (PW.src === "fus") pwRender(); }); } if (e.key === "scb_fus_path") pwRender(); });
+let FUS_OPEN = {};
+try { FUS_OPEN = JSON.parse(localStorage.getItem("scb_fus_open") || "{}"); } catch {}
+/** ▶ Start Image Fusionner: its layout editor (a page can't run Start GUI.cmd, so it opens the editor if it's running). */
+function fusStartLink() {
+  return el("a", { class: "fus-start", href: FUS.URL, target: "image_fusionner", rel: "noopener", title: `Opens Image Fusionner's layout editor. If it isn't running yet, double-click Start GUI.cmd in ${FUS.path() || "the Image_Fusionner folder"} first.` }, "▶ Start Image Fusionner");
+}
+/** The Image Fusionner view of the Pictures window: one folder per layout, tiles laid out like the layout. */
+function fusView(parts) {
+  const search = el("input", { type: "search", placeholder: "Search tiles…", value: PW.q, "aria-label": "Search tiles", on: { input: (e) => { PW.q = e.target.value; fusFill(); } } });
+  parts.push(el("div", { class: "pw-sub" }, search, fusStartLink()));
+  const dir = el("input", { type: "file", webkitdirectory: true, directory: true, multiple: true, hidden: true, on: { change: async (e) => {
+    try { await FUS.take(e.target.files); pwSay(""); } catch (err) { pwSay(err.message); }
+    e.target.value = ""; fusFill();
+  } } });
+  parts.push(el("div", { class: "fus-crumb", id: "fus-crumb" }), el("p", { class: "status", role: "status" }, PW.note || ""), el("div", { class: "fus-list", id: "fus-list" }));
+  parts.push(dir);
+  PW.fusDir = dir;
+  FUS.get().then(fusFill);
+}
+function fusFill() {
+  const list = $("#fus-list"), crumb = $("#fus-crumb");
+  if (!list || !FUS.data) return;
+  const d = FUS.data, q = PW.q.trim().toLowerCase();
+  crumb.replaceChildren(el("span", {}, "📁 ", el("b", {}, d.root || FUS.path().split(/[\\/]/).pop() || "Image_Fusionner"), " › Output_Images"), el("span", { style: "flex:1" }),
+    d.at ? el("span", {}, FUS.when(d.at)) : null,
+    el("button", { type: "button", class: "small", title: "Read the tiles again (after Image Fusionner rendered)", on: { click: () => PW.fusDir?.click() } }, d.folders.length ? "↻ Reload tiles" : "Read the tiles…"));
+  if (!d.folders.length) { list.replaceChildren(el("p", { class: "empty" }, `No tiles read yet. Click "Read the tiles…" and pick ${FUS.path() || "the Image_Fusionner folder"} (your browser asks to allow it).`)); return; }
+  list.replaceChildren(...d.folders.map((f) => {
+    const tiles = q ? f.tiles.filter((t) => (f.layout + " " + t.name).toLowerCase().includes(q)) : f.tiles;
+    if (!tiles.length) return null;
+    const open = q ? true : !!FUS_OPEN[f.key];
+    const head = el("button", { type: "button", class: "fus-fh", "aria-expanded": String(open), on: { click: () => { FUS_OPEN[f.key] = !FUS_OPEN[f.key]; try { localStorage.setItem("scb_fus_open", JSON.stringify(FUS_OPEN)); } catch {} fusFill(); } } },
+      el("span", { class: "arr" }, open ? "▾" : "▸"), el("span", {}, open ? "📂" : "📁"), el("b", {}, f.title), el("span", { class: "meta" }, `${f.cols} × ${f.rows} tiles`));
+    const box = el("div", { class: "fus-fold" }, head);
+    if (open) {
+      const cols = q ? Math.min(f.cols, 4) : f.cols;
+      box.append(el("div", { class: "fus-tiles" + (cols > 4 ? " dense" : ""), style: `grid-template-columns:repeat(${cols},minmax(0,1fr))` }, ...tiles.map((t) => {
+        const b = el("button", { type: "button", class: "fus-tile", draggable: "true", title: `${t.name} · ${(t.size / 1024).toFixed(1)} KB`, "aria-label": "Tile " + t.label, on: { click: () => pwPick({ id: "fus:" + t.key, fus: t.key, name: t.label }) } },
+          el("img", { src: FUS.url(t), alt: "", loading: "lazy" }), el("span", {}, t.label));
+        b.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/x-pic", "fus:" + t.key); e.dataTransfer.effectAllowed = "copy"; });
+        return b;
+      })));
+    }
+    return box;
+  }).filter(Boolean));
+  if (!list.children.length) list.append(el("p", { class: "empty" }, "No tile matches."));
+}
+/** A tile used: uploaded to the remote once (by its name), then that picture is used. */
+async function fusUpload(key) {
+  const t = FUS.find(key);
+  if (!t) throw new Error("that tile isn't read any more: Reload tiles");
+  const name = FUS.remoteName(t.name);
+  if (PW.remote.some((p) => p.id === "custom:" + name)) return "custom:" + name;
+  if (t.size > 32 * 1024) throw new Error("the tile is larger than 32 KB");
+  const r = await api("POST", "/api/icons/upload", { name, data: await FUS.base64(t.blob) });
+  if (!r.ok) throw new Error(r.data.error || "upload failed");
+  return r.data.icon;
+}
+
+// ---------------------------------------------------------------------------
 // Pictures window (the Page Editor's), beside every editor that takes a picture, and the
 // picture boxes it fills: click a box (orange frame), then a picture; or drag a picture onto a box.
 // ---------------------------------------------------------------------------
@@ -3295,7 +3495,8 @@ const PW_SOURCES = () => [
   ["builtin", `The remote's built-in icons (${PW.builtin.length})`],
   ["made", `Level pictures & state icons (${PW.made.length})`],
   ["tiles", `Drawn tile icons (${Object.keys(TILE_ICONS).length})`],
-  ["local", "From this computer"]
+  ["local", "From this computer"],
+  ...(FUS.path() ? [["fus", `Image Fusionner${FUS.data?.folders.length ? ` (${FUS.data.folders.length} tile folders)` : ""}`]] : [])
 ];
 function pwList() {
   const q = PW.q.trim().toLowerCase();
@@ -3328,6 +3529,12 @@ function pwRender() {
     : el("div", { class: "pw-target none" }, "Click a picture box to choose what it shows.");
   const note = el("p", { class: "status" + (PW.note ? " err" : ""), role: "status" }, PW.note || "");
   const parts = [head, src, tgt];
+  if (PW.src === "fus" && !FUS.path()) PW.src = "remote";
+  if (PW.src === "fus") {
+    fusView(parts);
+    w.replaceChildren(...parts);
+    return;
+  }
   if (PW.src === "local") {
     const inp = el("input", { type: "file", accept: "image/png,image/jpeg,image/svg+xml,image/webp,image/gif", multiple: true, hidden: true, on: { change: (e) => pwUpload([...e.target.files]) } });
     const z = el("label", { class: "pw-drop" }, "Drop pictures here, or click to choose them. They're resized to 90 × 90 and uploaded to the remote", t ? "; the first one goes in the box you picked." : ".", inp);
@@ -3355,7 +3562,7 @@ function pwGridFill() {
   }));
   if (!list.length) g.append(el("p", { class: "empty", style: "grid-column:1/-1" }, PW.loading ? (PW.q ? "No picture matches." : "Nothing here yet.") : "Loading…"));
 }
-const pwFind = (id) => [...PW.remote, ...PW.made, ...PW.builtin].find((p) => p.id === id) || (id.startsWith("tile:") ? { id, tile: id.slice(5), name: TILE_ICONS[id.slice(5)]?.name } : { id, name: pwShort(id) });
+const pwFind = (id) => (id.startsWith("fus:") ? { id, fus: id.slice(4), name: id.split("/").pop() } : null) || [...PW.remote, ...PW.made, ...PW.builtin].find((p) => p.id === id) || (id.startsWith("tile:") ? { id, tile: id.slice(5), name: TILE_ICONS[id.slice(5)]?.name } : { id, name: pwShort(id) });
 function pwSay(text) { PW.note = text; const n = $("#picwin .status"); if (n) { n.textContent = text; n.className = "status" + (text ? " err" : ""); } }
 /** Use a picture for the box being picked for. */
 async function pwPick(p, target = PW.target) {
@@ -3363,12 +3570,13 @@ async function pwPick(p, target = PW.target) {
   try {
     pwSay("");
     let icon = p.id;
+    if (p.fus) icon = await fusUpload(p.fus);
     if (p.tile) icon = await uploadCanvas(`ti_${p.tile}.png`, tileCanvas(p.tile));
     if (target.own) icon = await ownCopy(icon, target.prefix);
     target.set(icon);
     PW.target = target;
     pwRender();
-    if (p.tile || target.own) pwLoad(true);
+    if (p.tile || p.fus || target.own) pwLoad(true);
   } catch (e) { pwSay("Couldn't use that picture: " + e.message); }
 }
 /** Pictures from this computer: uploaded; the first goes in the box being picked for. */
