@@ -137,7 +137,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities, own };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, statsApi = null, displaysApi = null, autoTestApi = null, autoTestPage = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, statsApi = null, displaysApi = null, autoWidgetsApi = null, autoTestApi = null, autoTestPage = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
   /** Everything set up here as one backup; withPictures = include the custom pictures (base64). */
   async function buildBackup(withPictures) {
     const core = getCore();
@@ -533,6 +533,18 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
     "POST /api/autotest": async (req, res) => { if (!autoTestApi) return send(res, 404, { error: "not in this build" }); send(res, 200, autoTestApi.save(await readJson(req))); },
     "POST /api/autotest/browse": async (req, res) => { if (!autoTestApi) return send(res, 404, { error: "not in this build" }); send(res, 200, await autoTestApi.browse(await readJson(req))); },
     "POST /api/autotest/search": async (req, res) => { if (!autoTestApi) return send(res, 404, { error: "not in this build" }); send(res, 200, await autoTestApi.search(await readJson(req))); },
+    "GET /api/autowidgets": async (req, res) => {
+      if (!autoWidgetsApi) return send(res, 404, { error: "Auto Widgets aren't in this build." });
+      try { send(res, 200, await autoWidgetsApi.get(/[?&]fresh=1/.test(req.url))); } catch (e) { send(res, 502, { error: e.message }); }
+    },
+    "GET /api/autowidgets/status": async (req, res) => {
+      if (!autoWidgetsApi) return send(res, 404, { error: "Auto Widgets aren't in this build." });
+      send(res, 200, autoWidgetsApi.status());
+    },
+    "POST /api/autowidgets": async (req, res) => {
+      if (!autoWidgetsApi) return send(res, 404, { error: "Auto Widgets aren't in this build." });
+      try { const r = await autoWidgetsApi.save(await readJson(req)); send(res, r.ok ? 200 : 422, r); } catch (e) { send(res, 502, { ok: false, errors: [e.message] }); }
+    },
     "GET /api/displays": async (req, res) => {
       if (!displaysApi) return send(res, 404, { error: "Displays aren't available." });
       send(res, 200, displaysApi.get());

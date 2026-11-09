@@ -26,6 +26,7 @@ import { isReturnItem } from "./returnbtn.js";
 import { spotsOf } from "./stateicons.js";
 import { Displays, validateDisplays } from "./displays.js";
 import { AutoTest, AUTOTEST_ID, AUTOTEST_FEATURES } from "./autotest.js";
+import { AutoWidgets, validateAutoWidgets, MEDIA_FEATURES } from "./autowidgets.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -730,6 +731,39 @@ function buildAutoTestEntity() {
   autoEntity.browse = (o) => autoTest.browse(o);
   autoEntity.search = (o) => autoTest.search(o);
 }
+// ---------------------------------------------------------------------------
+// Auto Widgets: spots (real widgets on one-page activities) and Smart widgets (entities that show the
+// device the rules pick). See autowidgets.js.
+// ---------------------------------------------------------------------------
+const AREA_AUTO = "Remote Auto Widgets";
+const OWN_PREFIX = "self_control.main";
+let autoWidgets = null;
+const awEntities = {};
+function buildAutoWidgetEntities() {
+  for (const k of Object.keys(awEntities)) delete awEntities[k];
+  for (const w of autoWidgets?.smart() || []) {
+    const handler = async (entity, cmdId, params) => {
+      const r = await autoWidgets.command(w.id, cmdId, params);
+      return r.ok ? uc.StatusCodes.Ok : r.status === 404 ? uc.StatusCodes.NotFound : r.status === 409 || r.status === 503 ? uc.StatusCodes.ServiceUnavailable : uc.StatusCodes.ServerError;
+    };
+    let e;
+    if (w.kind === "media") {
+      e = new uc.MediaPlayer(w.id, { en: w.name }, { features: MEDIA_FEATURES, area: AREA_AUTO, deviceClass: "streaming_box", attributes: { state: uc.MediaPlayerStates.Unknown }, cmdHandler: handler });
+      e.browse = (o) => autoWidgets.browse(w.id, o, "browse");
+      e.search = (o) => autoWidgets.browse(w.id, o, "search");
+    } else if (w.kind === "select") {
+      e = new uc.Select(w.id, { en: w.name }, { area: AREA_AUTO, attributes: { state: uc.SelectStates.Unknown, options: [], current_option: "" }, cmdHandler: handler });
+    } else {
+      e = new uc.Sensor(w.id, { en: w.name }, { area: AREA_AUTO, attributes: { state: uc.SensorStates.On, value: "" } });
+    }
+    awEntities[w.id] = e;
+  }
+}
+function publishAutoWidget(id, attrs) {
+  const e = awEntities[id];
+  if (!e) return;
+  if (!api.updateEntityAttributes(id, attrs)) Object.assign(e.attributes, attrs);
+}
 function publishAutoTest(attrs) {
   if (!autoEntity) return;
   if (!api.updateEntityAttributes(AUTOTEST_ID, attrs)) Object.assign(autoEntity.attributes, attrs);
@@ -744,6 +778,7 @@ function registerEntities() {
   for (const e of Object.values(extraEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(controlEntities)) api.addAvailableEntity(e);
   if (autoEntity) api.addAvailableEntity(autoEntity);
+  for (const e of Object.values(awEntities)) api.addAvailableEntity(e);
   syncConfiguredEntities();
 }
 
@@ -1256,10 +1291,10 @@ let launchers = null;
 let screenActivity; // activity on screen per the events (undefined = not known yet, null = none)
 const onScreen = () => (screenActivity === undefined ? returnTracker?.current || null : screenActivity);
 function syncCoreEvents() {
-  const want = !!(core && connected && !standby && config?.apiKey && (returnTracker?.enabled || pageJumper?.enabled || launchers?.enabled || displays?.displays.length || autoTest?.enabled));
+  const want = !!(core && connected && !standby && config?.apiKey && (returnTracker?.enabled || pageJumper?.enabled || launchers?.enabled || displays?.displays.length || autoTest?.enabled || autoWidgets?.enabled));
   if (want) {
     if (!coreEvents) coreEvents = new CoreEvents({ address: config.address, apiKey: config.apiKey, log, warn,
-      onEntity: (id, attrs) => { displayEntityEvent(id, attrs); autoTest?.event(id, attrs); },
+      onEntity: (id, attrs) => { displayEntityEvent(id, attrs); autoTest?.event(id, attrs); autoWidgets?.event(id, attrs); },
       onActivity: (id) => {
         screenActivity = id;
         displays?.activityStarted(id);
@@ -1733,6 +1768,10 @@ autoTest = new AutoTest({ file: path.join(api.getConfigDirPath(), "autotest.json
 buildAutoTestEntity();
 setInterval(() => { if (!standby) autoTest.tick(); }, 500);
 setInterval(() => { readDisplayDevices().catch((e) => warn("displays:", e.message)); }, 1000);
+autoWidgets = new AutoWidgets({ getCore: () => core, test: (c, cache) => smart.test(c, cache), publish: publishAutoWidget, ownId: (id) => `${OWN_PREFIX}.${id}`, instance: OWN_PREFIX,
+  file: path.join(api.getConfigDirPath(), "autowidgets.json"), log, warn });
+buildAutoWidgetEntities();
+setInterval(() => { if (!standby && core && smart) autoWidgets.refresh(); }, 1000);
 deviceStates = new DeviceStates({ getCore: () => core, file: path.join(api.getConfigDirPath(), "states_seen.json"), remote: remoteState, log, warn });
 initSmart();
 pageJumper = new PageJumper({ getCore: () => core, onScreen, test: (c) => smart.test(c, new Map()), file: path.join(api.getConfigDirPath(), "pages.json"), log, warn });
@@ -1775,6 +1814,37 @@ launchers = new Launchers({
   controls.alias = alias;
 }
 
+// Activities with their pages for the Auto Widgets section (the pages as the user made them: spots and Smart
+// widgets left out). Cached for 30 s.
+let awActsCache = null;
+async function awActivities(fresh = false) {
+  if (!core) return [];
+  if (!fresh && awActsCache && Date.now() - awActsCache.at < 30000) return awActsCache.list;
+  const all = [];
+  for (let page = 1; page <= 20; page++) {
+    const part = await core.get(`/activities?limit=100&page=${page}`);
+    if (!Array.isArray(part) || !part.length) break;
+    all.push(...part);
+    if (part.length < 100) break;
+  }
+  const name = (n) => (n && typeof n === "object" ? n.en || Object.values(n)[0] || "" : n || "");
+  const ownIds = new Set(autoWidgets.smart().map((w) => `${OWN_PREFIX}.${w.id}`));
+  const list = [];
+  for (const a of all) {
+    if (!a?.entity_id || a.options?.editable === false || launchers?.originalOf?.(a.entity_id) !== a.entity_id) continue;
+    let pages = [];
+    try { pages = (await core.get(`/activities/${encodeURI(a.entity_id)}/ui/pages`)) || []; } catch {}
+    const base = autoWidgets.bases[a.entity_id];
+    list.push({ id: a.entity_id, name: name(a.name) || a.entity_id, pages: pages.map((p) => ({
+      page_id: p.page_id, name: p.name || "", grid: p.grid || { width: 4, height: 6 },
+      items: (base && pages.length === 1 ? base.items : p.items || []).filter((it) => !ownIds.has(it.media_player_id || it.select?.select_id || it.sensor?.sensor_id))
+    })) });
+  }
+  list.sort((x, y) => x.name.localeCompare(y.name));
+  awActsCache = { at: Date.now(), list };
+  return list;
+}
+
 const CONTROL_NAMES = Object.fromEntries(LAYOUT.map(([, id, name]) => [id, name]));
 Object.assign(CONTROL_NAMES_ALL, CONTROL_NAMES);
 const webServer = startWebServer({
@@ -1799,6 +1869,19 @@ const webServer = startWebServer({
         if (part.length < 100) break;
       }
       return list.filter((e) => e.entity_type === "media_player" && !String(e.entity_id).includes(AUTOTEST_ID)).map((e) => ({ id: e.entity_id, name: e.name?.en || Object.values(e.name || {})[0] || e.entity_id, features: e.features || [] }));
+    }
+  },
+  autoWidgetsApi: {
+    get: async (fresh) => ({ ...autoWidgets.view(), activities: await awActivities(fresh), own: OWN_PREFIX }),
+    status: () => ({ status: autoWidgets.status, paused: autoWidgets.paused }),
+    save: async (body) => {
+      const v = validateAutoWidgets(body);
+      if (v.errors.length) return { ok: false, errors: v.errors };
+      const r = await autoWidgets.replace(v.widgets, { beforePlace: async () => { buildAutoWidgetEntities(); registerEntities(); } });
+      syncCoreEvents();
+      if (r.errors.length) return { ok: false, errors: r.errors, notes: r.notes, ...autoWidgets.view() };
+      log(`auto widgets: ${v.widgets.length} saved`);
+      return { ok: true, errors: [], notes: r.notes, ...autoWidgets.view(), activities: await awActivities(true) };
     }
   },
   displaysApi: {

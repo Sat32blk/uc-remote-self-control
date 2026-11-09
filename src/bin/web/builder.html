@@ -207,6 +207,56 @@ button.small { min-height: 30px; padding: 3px 10px; font-size: 13px; }
 .subhead { font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
 .empty { color: var(--muted); font-size: 13px; font-style: italic; }
 #icons-app[data-show="display"] .nodisp { display: none; }
+#icons-app[data-show="auto"] .nodisp { display: none; }
+#aw-root { display: flex; flex-direction: column; gap: 14px; }
+.awstep h2 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.awnum { width: 26px; height: 26px; border-radius: 50%; background: var(--fg); color: var(--bg); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; }
+.awnote { border-radius: 9px; padding: 7px 10px; font-size: 13px; margin: 0; }
+.awnote.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.awnote.warn { background: var(--accent-soft); color: var(--accent); }
+.awnote.err { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.awthumbs { display: flex; flex-wrap: wrap; gap: 10px; }
+.awthumb { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px; border-radius: 12px; width: 128px; }
+.awthumb.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.awthumb .awpv { width: 112px; pointer-events: none; }
+.awthumb .tname { font-size: 12px; font-weight: 600; }
+.awthumb .tcount { font-size: 11.5px; color: var(--muted); } .awthumb .tcount.has { color: var(--ok); font-weight: 700; }
+.awcard { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
+.awcard.open { box-shadow: 0 0 0 2px var(--accent) inset; }
+.awhead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; cursor: pointer; }
+.awhead .prio { font-weight: 700; color: var(--muted); min-width: 16px; }
+.awhead .nm { font-weight: 700; }
+.awhead .kind { font-size: 11.5px; border-radius: 999px; padding: 1px 8px; background: var(--inset); color: var(--muted); font-weight: 600; }
+.awhead .nowtag { font-size: 12px; border-radius: 999px; padding: 1px 9px; background: var(--inset); }
+.awhead .nowtag.on { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); font-weight: 600; }
+.awhead .sum { flex: 1 1 260px; min-width: 0; color: var(--muted); font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.awbody { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 16px; padding: 12px; border-top: 1px solid var(--line); }
+@media (max-width: 820px) { .awbody { grid-template-columns: 1fr; } }
+.awbody > * { min-width: 0; }
+.awright { display: flex; flex-direction: column; gap: 6px; }
+.branch.awlive { box-shadow: 0 0 0 2px var(--ok) inset; }
+.awok { color: var(--ok); font-weight: 700; font-size: 12px; } .awno { color: var(--muted); font-size: 12px; }
+.awthen { background: var(--panel); }
+.awthen select { max-width: 100%; }
+.awwords { background: var(--inset); border-radius: 10px; padding: 8px 10px; font-size: 13px; margin: 0; }
+.awpv { display: grid; gap: 3px; background: #0c0e11; border-radius: 14px; padding: 6px; user-select: none; touch-action: none; position: relative; }
+.awpv .c { border: 1px dashed #333a44; border-radius: 6px; }
+.awpv .it { background: #2a2f37; color: #f2f4f7; border-radius: 7px; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; font-size: 10px; text-align: center; line-height: 1.1; pointer-events: none; }
+.awpv .it img, .awpv .it .tt { max-width: 60%; max-height: 60%; }
+.awpv .it.hid { opacity: .12; }
+.awpv .w { border-radius: 9px; background: #1b1f25; color: #f2f4f7; display: flex; flex-direction: column; justify-content: center; padding: 3px 6px; font-size: 10px; overflow: hidden; pointer-events: none; z-index: 1; }
+.awpv .w b { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.awpv .w span { color: #9aa3ad; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.awpv .w.me { border: 2px solid #f2a541; } .awpv .w.other { border: 2px dashed #7aa2ff; } .awpv .w.ghost { background: rgba(242,165,65,.15); border: 2px dashed #f2a541; }
+.awpv .drag { border-radius: 9px; border: 2px solid #3cc68a; background: rgba(60,198,138,.25); pointer-events: none; z-index: 2; }
+.awpv .drag.bad { border-color: #ef4444; background: rgba(239,68,68,.3); }
+.awpv.place { cursor: crosshair; outline: 2px solid var(--accent); outline-offset: 2px; }
+.awpv.small { gap: 2px; padding: 4px; border-radius: 9px; } .awpv.small .c { border: 0; } .awpv.small .it { border-radius: 3px; } .awpv.small .w { border-radius: 4px; padding: 0; border-width: 1px; }
+.awmini { display: grid; gap: 2px; background: #0c0e11; border-radius: 7px; padding: 3px; width: 76px; user-select: none; touch-action: none; cursor: crosshair; }
+.awmini div { background: #2a2f37; border-radius: 2px; aspect-ratio: 1; } .awmini div.ic { background: #3a404a; } .awmini div.in { background: var(--accent); }
+.awsavebar { position: sticky; bottom: 0; background: var(--bg); padding: 8px 0; z-index: 3; }
+.awuse { font-size: 11px; font-weight: 600; margin-top: 3px; white-space: nowrap; } .awuse.yes { color: var(--ok); } .awuse.no { color: var(--danger); }
+
 .dsp-box { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
 .dsp-box.live { border-color: var(--accent); }
 .dsp-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -468,6 +518,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
     </div>
     <div id="icons-editor"></div>
     <div id="disp-editor" data-sec="display"></div>
+    <div id="aw-root" data-sec="auto"></div>
     <h2 class="list-title nodisp">Your state icons and sliders</h2>
     <div id="icons-list" class="bars nodisp"></div>
     <h2 class="list-title" data-sec="display">Your display sensors</h2>
@@ -585,7 +636,7 @@ let CAT = { devices: [], activities: [], controls: {}, settings: {} };
 let DEV = {};           // id -> device
 let buttons = [];       // editor model
 let saved = "";         // JSON of the last saved rules, for dirty tracking
-let notify = (r) => { if (r) { render(); if (iconsLoaded) renderIcons(); if (STARTS) renderStarts(); if (LAUNCH) renderLaunchers(); } else if (LAUNCH) launchDirty(); }; // change hook used by the shared step/condition rows
+let notify = (r) => { if (AW && CUR_TAB === "icons" && secOf("icons") === "auto") { awChanged(r); return; } if (r) { render(); if (iconsLoaded) renderIcons(); if (STARTS) renderStarts(); if (LAUNCH) renderLaunchers(); } else if (LAUNCH) launchDirty(); }; // change hook used by the shared step/condition rows
 let LAUNCH = null; // launchers being edited (Smart Launchers tab)
 let STARTS = null; // start-page rules being edited (Return & Pages tab)
 
@@ -1722,7 +1773,8 @@ function renderStatesBody(where) {
     else for (const v of known.slice(0, 80)) chips.append(el("button", { type: "button", class: "chip" + (String(now) === v ? " now" : seenSet.has(v) ? " seen" : ""), title: seenSet.has(v) ? "Seen on this device" : "Listed by the device", on: { click: () => useValue(where, d.id, k, v) } }, v));
     const changed = st.prev && JSON.stringify(st.prev[k]) !== JSON.stringify(now);
     const label = d.labels?.[k];
-    return el("tr", { class: changed ? "changed" : "" }, el("td", { class: "k", title: k }, label || k), el("td", { class: "now" }, el("b", {}, now === "" ? "(empty)" : String(now))), el("td", {}, chips));
+    const uses = awUses(d.id, k).map((u) => el("div", { class: "awuse " + (u.ok === undefined ? "" : u.ok ? "yes" : "no") }, `${u.ok === undefined ? "•" : u.ok ? "✓" : "✗"} ${u.text}`));
+    return el("tr", { class: changed ? "changed" : "" }, el("td", { class: "k", title: k }, label || k), el("td", { class: "now" }, el("b", {}, now === "" ? "(empty)" : String(now)), ...uses), el("td", {}, chips));
   });
   out.replaceChildren(
     el("table", { class: "stable" }, el("thead", {}, el("tr", {}, el("th", {}, "Value"), el("th", {}, "Now"), el("th", {}, "Possible / seen"))), el("tbody", {}, rows)),
@@ -1745,7 +1797,7 @@ async function readStates(where) {
 let lastValueInput = null;
 document.addEventListener("focusin", (e) => {
   const t = e.target;
-  if (t instanceof HTMLInputElement && t.closest(".editbox, #starts-list, #launch-list") && (t.getAttribute("list") || /value/i.test(t.getAttribute("aria-label") || ""))) lastValueInput = t;
+  if (t instanceof HTMLInputElement && t.closest(".editbox, #starts-list, #launch-list, #aw-root") && (t.getAttribute("list") || /value/i.test(t.getAttribute("aria-label") || ""))) lastValueInput = t;
 });
 /** Copies text; works on plain http too (the builder isn't served over https, where navigator.clipboard is missing). */
 function copyText(text) {
@@ -4134,7 +4186,313 @@ setInterval(async () => {
 $("#disp-add").addEventListener("click", () => dspCreate(null));
 $("#disp-tmpl").addEventListener("change", (e) => { const v = e.target.value; e.target.value = ""; if (v) dspCreate(v); });
 
-const SECS = { stats: [["overview", "Overview"], ["acts", "Activities"], ["battery", "Battery"], ["data", "Data"]], smart: [["smart", "Smart controls"], ["menu", "Quick menus"]], icons: [["icon", "State icons"], ["slider", "Sliders"], ["display", "Displays"]], ret: [["ret", "↩ buttons"], ["starts", "Start pages"]], ctl: [["ctl", "Controls"], ["set", "Settings"]], launch: [["launch", "Launchers"]] };
+// ---- Auto Widgets (Icons & Sliders › Auto Widgets) ---------------------------
+// One-page activity: widget spots place the devices' real widgets by rules. Several pages: Smart widgets
+// (this integration's entities) stay put and show whichever device the rules pick. See autowidgets.js.
+let AW_LOADING = null;
+let AW = null; // { widgets (model), saved, acts, status, paused, act, page, open, placing, msg, timer }
+const AW_KINDS = { spot: "Widget spot", media: "Smart Media Widget", select: "Smart Select", sensor: "Smart Sensor" };
+const AW_TYPE = { media: "media_player", select: "select", sensor: "sensor" };
+const AW_TYPE_NAME = { media_player: "media widget", select: "select", sensor: "sensor" };
+const awIsOwn = (id) => /\.aw_[a-z0-9_]+$/.test(String(id || ""));
+function awCondsIn(c) {
+  if (c === true || c === undefined) return { join: "all", conds: [] };
+  if (c.all || c.any) return { join: c.all ? "all" : "any", conds: (c.all || c.any).map((x) => condIn(x, {})) };
+  return { join: "all", conds: [condIn(c, {})] };
+}
+const awIn = (list) => list.map((w) => ({
+  id: w.id, name: w.name, kind: w.kind, activity: w.activity, page: w.page, area: w.area ? { ...w.area } : null,
+  cases: w.cases.map((c) => ({ ...awCondsIn(c.if), show: c.show || "", type: c.type || "", area: c.area || null })),
+  otherwise: { show: w.otherwise?.show || "", type: w.otherwise?.type || "", area: w.otherwise?.area || null }
+}));
+function awOut() {
+  return AW.widgets.map((w) => ({
+    id: w.id, name: w.name, kind: w.kind, activity: w.activity, page: w.page, area: w.area,
+    cases: w.cases.map((c) => { const conds = c.conds.map(condOut); const o = { if: conds.length === 0 ? true : conds.length === 1 ? conds[0] : { [c.join]: conds }, show: c.show, type: c.show ? c.type || AW_TYPE[w.kind] : "" }; if (w.kind === "spot" && c.area) o.area = c.area; return o; }),
+    otherwise: { show: w.otherwise.show, type: w.otherwise.show ? w.otherwise.type || AW_TYPE[w.kind] : "", ...(w.kind === "spot" && w.otherwise.area ? { area: w.otherwise.area } : {}) }
+  }));
+}
+const awDirty = () => !!AW && JSON.stringify(awOut()) !== AW.saved;
+const awWidgetDirty = (w) => { try { const s = JSON.parse(AW.saved).find((x) => x.id === w.id); return !s || JSON.stringify(awOut().find((x) => x.id === w.id)) !== JSON.stringify(s); } catch { return true; } };
+const awAct = () => AW.acts.find((a) => a.id === AW.act) || null;
+const awOnePage = () => (awAct()?.pages.length || 0) === 1;
+const awPage = (pi = AW.page) => awAct()?.pages[pi] || null;
+const awOnPage = (pi = AW.page) => { const p = awPage(pi); return p ? AW.widgets.filter((w) => w.activity === AW.act && w.page === p.page_id) : []; };
+const awOverlap = (a, b) => !!a && !!b && !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+const awItemArea = (it) => ({ x: it.location?.x ?? 0, y: it.location?.y ?? 0, w: it.size?.width ?? 1, h: it.size?.height ?? 1 });
+const awWhere = (r) => (r ? `column ${r.x + 1}, row ${r.y + 1}, ${r.w} × ${r.h}` : "not placed yet");
+const awShowName = (w, show) => (show ? devName(show) : w.kind === "spot" ? "nothing (your icons show)" : "nothing");
+
+async function awLoad(fresh = false) {
+  const r = await api("GET", "/api/autowidgets" + (fresh ? "?fresh=1" : ""));
+  if (!r.ok) { AW = AW || { widgets: [], saved: "[]", acts: [], status: {}, paused: {} }; AW.msg = { err: true, text: r.data.error || "Couldn't load the Auto Widgets." }; renderAW(); return; }
+  const prev = AW;
+  AW = { widgets: awIn(r.data.widgets || []), saved: "", acts: r.data.activities || [], status: r.data.status || {}, paused: r.data.paused || {},
+    act: prev?.act || "", page: prev?.page || 0, open: prev?.open ?? null, placing: null, msg: prev?.msg || null, timer: prev?.timer || null };
+  AW.saved = JSON.stringify(awOut());
+  if (!AW.acts.some((a) => a.id === AW.act)) AW.act = AW.widgets[0]?.activity || AW.acts.find((a) => a.pages.length === 1)?.id || AW.acts[0]?.id || "";
+  if (AW.page >= (awAct()?.pages.length || 1)) AW.page = 0;
+  renderAW();
+  awPoll();
+}
+function awPoll() {
+  clearInterval(AW.timer);
+  AW.timer = setInterval(async () => {
+    if (CUR_TAB !== "icons" || secOf("icons") !== "auto" || document.hidden) return;
+    const r = await api("GET", "/api/autowidgets/status").catch(() => null);
+    if (!r?.ok) return;
+    const before = JSON.stringify([AW.status, AW.paused]);
+    AW.status = r.data.status || {}; AW.paused = r.data.paused || {};
+    if (JSON.stringify([AW.status, AW.paused]) !== before && !AW.placing && !document.activeElement?.closest?.("#aw-root input, #aw-root textarea")) renderAW();
+  }, 2000);
+}
+function awChanged(rerender) { if (rerender) renderAW(); else awSaveBar(); }
+
+/** What a saved widget shows now (from the integration), or null while it has unsaved changes. */
+function awLive(w) {
+  if (awWidgetDirty(w)) return null;
+  return AW.status[w.id] || null;
+}
+/** The widgets drawn on a page now: spots in list order (a higher one wins a spot), Smart widgets at their place. */
+function awResolve(pi = AW.page) {
+  const placed = [], st = {};
+  for (const w of awOnPage(pi)) {
+    const live = awLive(w);
+    if (!w.area) { st[w.id] = { state: "unplaced" }; continue; }
+    if (w.kind !== "spot") { st[w.id] = { state: "showing", show: live?.show ?? null, area: w.area }; placed.push({ w, area: w.area, show: live?.show ?? null }); continue; }
+    if (!live) { st[w.id] = { state: "unsaved" }; continue; }
+    if (!live.show) { st[w.id] = { state: "hidden" }; continue; }
+    const area = live.area || w.area;
+    const hit = placed.find((p) => awOverlap(p.area, area));
+    if (hit) { st[w.id] = { state: "blocked", by: hit.w }; continue; }
+    st[w.id] = { state: "showing", show: live.show, area };
+    placed.push({ w, area, show: live.show });
+  }
+  return { placed, st };
+}
+const awPos = (r) => `grid-column:${r.x + 1} / span ${r.w};grid-row:${r.y + 1} / span ${r.h}`;
+function awItemFace(it) {
+  if (it.type === "icon") return [iconUrl(it.icon) || String(it.icon || "").startsWith("uc:") ? iconImg(it.icon, "") : el("span", {}, "icon"), it.text ? el("span", { class: "lbl" }, it.text) : null];
+  if (it.type === "text") return [el("span", { class: "lbl" }, it.text || "text")];
+  const ent = it.media_player_id || it.select?.select_id || it.sensor?.sensor_id;
+  return [el("span", { class: "lbl" }, `${AW_TYPE_NAME[it.type] || it.type}${ent ? ": " + devName(ent) : ""}`)];
+}
+/** A page drawn as on the remote: your items, the widgets on top. focus = the widget being edited. */
+function awPageView(pi, focus, { place = false, small = false } = {}) {
+  const page = awPage(pi);
+  const g = page?.grid || { width: 4, height: 6 };
+  const { placed } = awResolve(pi);
+  const covered = (it) => placed.some((p) => p.w.kind === "spot" && awOverlap(p.area, awItemArea(it)));
+  const pv = el("div", { class: "awpv" + (place ? " place" : "") + (small ? " small" : ""), style: `grid-template-columns:repeat(${g.width},1fr);grid-template-rows:repeat(${g.height},${small ? 18 : 40}px)` });
+  for (let y = 0; y < g.height; y++) for (let x = 0; x < g.width; x++) pv.append(el("div", { class: "c", "data-x": x, "data-y": y, style: awPos({ x, y, w: 1, h: 1 }) }));
+  for (const it of page?.items || []) pv.append(el("div", { class: "it" + (covered(it) ? " hid" : ""), style: awPos(awItemArea(it)) }, ...(small ? [] : awItemFace(it))));
+  for (const p of placed) pv.append(el("div", { class: "w " + (p.w === focus ? "me" : "other"), style: awPos(p.area), title: p.w.name },
+    small ? null : el("b", {}, p.w.name), small ? null : el("span", {}, p.w.kind === "spot" ? devName(p.show) : `shows ${p.show ? devName(p.show) : "…"}`)));
+  if (focus?.area && !placed.some((p) => p.w === focus)) pv.append(el("div", { class: "w ghost", style: awPos(focus.area), title: "Where it goes (not showing now)" }));
+  if (place) pv.addEventListener("pointerdown", (e) => awDragStart(e, pv, pi, focus));
+  return pv;
+}
+function awPlaceWhy(r, w, pi = AW.page) {
+  const page = awPage(pi), g = page?.grid || { width: 4, height: 6 };
+  if (r.x + r.w > g.width || r.y + r.h > g.height) return "it goes past the page";
+  if (!awOnePage()) {
+    if ((page?.items || []).some((it) => awOverlap(awItemArea(it), r))) return `there are icons there. ${awAct().name} has ${awAct().pages.length} pages, so a widget can only go on empty spots`;
+    if (awOnPage(pi).some((o) => o !== w && awOverlap(o.area, r))) return "another widget is there";
+  }
+  return "";
+}
+let AW_DRAG = null;
+function awDragStart(e, pv, pi, w) {
+  const c = e.target.closest(".c"); if (!c) return;
+  e.preventDefault();
+  const s = [+c.dataset.x, +c.dataset.y];
+  AW_DRAG = { pv, pi, w, s, r: { x: s[0], y: s[1], w: 1, h: 1 } };
+  awDragShow();
+}
+function awDragShow() {
+  AW_DRAG.pv.querySelectorAll(".drag").forEach((x) => x.remove());
+  AW_DRAG.pv.append(el("div", { class: "drag" + (awPlaceWhy(AW_DRAG.r, AW_DRAG.w, AW_DRAG.pi) ? " bad" : ""), style: awPos(AW_DRAG.r) }));
+}
+addEventListener("pointermove", (e) => {
+  if (!AW_DRAG) return;
+  const c = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".c");
+  if (!c || !AW_DRAG.pv.contains(c)) return;
+  const x = +c.dataset.x, y = +c.dataset.y, s = AW_DRAG.s;
+  AW_DRAG.r = { x: Math.min(s[0], x), y: Math.min(s[1], y), w: Math.abs(x - s[0]) + 1, h: Math.abs(y - s[1]) + 1 };
+  awDragShow();
+});
+addEventListener("pointerup", () => {
+  if (!AW_DRAG) return;
+  const { r, w, pi } = AW_DRAG; AW_DRAG = null;
+  const why = awPlaceWhy(r, w, pi);
+  if (why) AW.msg = { err: true, text: "Can't place it there: " + why + "." };
+  else { w.area = r; AW.placing = null; AW.msg = { text: `${w.name} placed at ${awWhere(r)}. Save to put it on the remote.` }; }
+  renderAW();
+});
+/** A small grid to drag another place for one branch (one-page activities). */
+function awMini(r, onDone) {
+  const g = awPage()?.grid || { width: 4, height: 6 };
+  const m = el("div", { class: "awmini", style: `grid-template-columns:repeat(${g.width},1fr)`, title: "Drag to set where" });
+  let s = null;
+  const paint = () => m.querySelectorAll("div").forEach((c) => { const x = +c.dataset.x, y = +c.dataset.y; c.classList.toggle("in", x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h); });
+  const items = awPage()?.items || [];
+  for (let y = 0; y < g.height; y++) for (let x = 0; x < g.width; x++) {
+    const ic = items.some((it) => awOverlap(awItemArea(it), { x, y, w: 1, h: 1 }));
+    m.append(el("div", { class: ic ? "ic" : "", "data-x": x, "data-y": y, on: {
+      pointerdown: (e) => { e.preventDefault(); s = [x, y]; Object.assign(r, { x, y, w: 1, h: 1 }); paint(); },
+      pointerenter: () => { if (!s) return; Object.assign(r, { x: Math.min(s[0], x), y: Math.min(s[1], y), w: Math.abs(x - s[0]) + 1, h: Math.abs(y - s[1]) + 1 }); paint(); } } }));
+  }
+  const end = () => { if (s) { s = null; onDone(); } };
+  m.addEventListener("pointerup", end); m.addEventListener("pointerleave", end);
+  paint();
+  return m;
+}
+function awThenRow(w, then, id) {
+  const spot = w.kind === "spot";
+  const filter = spot ? (d) => ["media_player", "select", "sensor"].includes(d.type) && !awIsOwn(d.id) : (d) => d.type === AW_TYPE[w.kind] && !awIsOwn(d.id);
+  const opts = deviceOptions(filter, { own: true });
+  const sel = select(id + "-s", [["", spot ? "nothing (your icons show)" : "nothing"], ...opts], then.show, (v) => { then.show = v; then.type = DEV[v]?.type || (CAT.own || []).find((d) => d.id === v)?.type || ""; awChanged(true); }, spot ? "Widget to place" : "Device it shows");
+  const row = el("div", { class: "line awthen" }, el("b", {}, spot ? "Then place" : "Then it shows"), sel);
+  if (spot && then.show) {
+    const own = !then.area;
+    row.append(el("span", { class: "sep" }, "at"), select(id + "-w", [["own", `its usual place (${awWhere(w.area)})`], ["other", "another place…"]], own ? "own" : "other", (v) => { then.area = v === "own" ? null : { ...(w.area || { x: 0, y: 0, w: 1, h: 1 }) }; awChanged(true); }, "Where"));
+    if (!own) row.append(awMini(then.area, () => awChanged(true)), el("span", { class: "hint" }, awWhere(then.area)));
+  }
+  return row;
+}
+function awDescribe(w) {
+  const verb = (t) => (w.kind !== "spot" ? `it shows ${awShowName(w, t.show)}` : !t.show ? "nothing, your icons show" : `place ${devName(t.show)} ${t.area ? "at " + awWhere(t.area) : "in its usual place"}`);
+  return [...w.cases.map((c) => `If ${c.conds.map(describeCond).join(c.join === "any" ? " or " : " and ") || "always"}: ${verb(c)}`), `otherwise: ${verb(w.otherwise)}`].join(" · ");
+}
+function awCard(w, i, list, res) {
+  const id = nid("aw");
+  const d = res.st[w.id] || {}, open = AW.open === w.id, live = awLive(w);
+  const state = d.state === "showing" ? (w.kind === "spot" ? `showing ${devName(d.show)}` : d.show ? `showing ${devName(d.show)}` : "placed")
+    : d.state === "blocked" ? `blocked by ${d.by.name}` : d.state === "unplaced" ? "not placed yet" : d.state === "unsaved" ? "not saved yet" : "hidden";
+  const card = el("article", { class: "awcard" + (open ? " open" : "") });
+  card.append(el("div", { class: "awhead", on: { click: (e) => { if (e.target.closest("button")) return; AW.open = open ? null : w.id; AW.placing = null; renderAW(); } } },
+    awOnePage() ? el("span", { class: "prio", title: "Higher in the list wins when two spots would show on the same place" }, String(i + 1)) : null,
+    el("span", { class: "nm" }, w.name || "(no name)"), el("span", { class: "kind" }, AW_KINDS[w.kind]),
+    el("span", { class: "nowtag" + (d.state === "showing" ? " on" : "") }, state),
+    open ? el("span", { class: "grow" }) : el("span", { class: "sum" }, awDescribe(w)),
+    awOnePage() && i ? el("button", { type: "button", class: "small ghost", title: "Move up: wins over the ones below", on: { click: () => { const a = AW.widgets.indexOf(list[i - 1]), b = AW.widgets.indexOf(w); [AW.widgets[a], AW.widgets[b]] = [AW.widgets[b], AW.widgets[a]]; awChanged(true); } } }, "↑") : null,
+    el("span", { "aria-hidden": "true" }, open ? "▾" : "▸")));
+  if (!open) return card;
+  const left = el("div", { class: "lines" });
+  const nameIn = input(id + "-n", w.name, (v) => { w.name = v; awChanged(false); }, { label: "Name" });
+  left.append(el("div", { class: "fields" }, field(id + "-n", w.kind === "spot" ? "Name (for you)" : "Name (shown on the remote)", nameIn)));
+  left.append(el("p", { class: "hint awexpl" }, w.kind === "spot"
+    ? "This spot places your devices' own widgets (a media widget, select or sensor, also your Displays), each at its own place and size, over your icons if you like. When the rule in use changes, the page is redrawn in place. Buttons, browsing and search go straight to the device."
+    : `A ${AW_KINDS[w.kind]} is one of this integration's own widgets: a display for your other ${AW_TYPE_NAME[AW_TYPE[w.kind]]}s. It stays where you put it (a page that changes would jump the remote back to page 1) and shows the device the rules pick: its info, and its buttons${w.kind === "media" ? ", browsing and search" : ""} go to that device.`));
+  left.append(el("div", { class: "subhead" }, w.kind === "spot" ? "Usual place" : "Where it goes"),
+    el("div", { class: "row" }, el("span", {}, awWhere(w.area)),
+      el("button", { type: "button", class: "small" + (AW.placing === w ? " primary" : ""), on: { click: () => { AW.placing = AW.placing === w ? null : w; renderAW(); } } }, AW.placing === w ? "Drag across the page →" : w.area ? "Move / resize" : "Place it"),
+      el("span", { class: "hint" }, w.kind === "spot" ? "" : "empty spots only")));
+  left.append(el("div", { class: "subhead" }, w.kind === "spot" ? "Which widget goes here, and when" : "What it shows"));
+  w.cases.forEach((c, ci) => {
+    const inUse = live && live.branch === ci;
+    const br = el("div", { class: "branch" + (inUse ? " awlive" : "") });
+    br.append(el("div", { class: "branch-head" }, el("span", { class: "tag" }, ci ? "Else if" : "If"),
+      c.conds.length > 1 ? select(id + "-j" + ci, [["all", "all of these are true"], ["any", "any of these is true"]], c.join, (v) => { c.join = v; awChanged(false); }, "Combine conditions") : el("span", { class: "sep" }, c.conds.length ? "" : "always"),
+      inUse ? el("span", { class: "awok" }, "← in use now") : null, el("span", { class: "grow" }),
+      el("button", { class: "ghost small", type: "button", on: { click: () => { w.cases.splice(ci, 1); awChanged(true); } } }, "Remove branch")));
+    const cl = el("div", { class: "lines" });
+    c.conds.forEach((cond, k) => { const row = condRow(cond, c.conds, k); const t = live?.conds?.[ci]?.[k]; if (t !== undefined) row.insertBefore(el("span", { class: t ? "awok" : "awno" }, t ? "✓ true now" : "✗ not now"), row.lastChild); cl.append(row); });
+    br.append(cl, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { c.conds.push(newCond("device")); awChanged(true); } } }, "Add condition")), awThenRow(w, c, id + "-c" + ci));
+    left.append(br);
+  });
+  left.append(el("div", { class: "branch" + (live && live.branch < 0 ? " awlive" : "") }, el("div", { class: "branch-head" }, el("span", { class: "tag else" }, "Otherwise"), live && live.branch < 0 ? el("span", { class: "awok" }, "← in use now") : null), awThenRow(w, w.otherwise, id + "-o")));
+  left.append(el("div", { class: "row" },
+    el("button", { class: "small", type: "button", on: { click: () => { w.cases.push({ join: "all", conds: [newCond("device")], show: "", type: "", area: null }); awChanged(true); } } }, w.cases.length ? "Add else-if branch" : "Add if branch"),
+    el("span", { class: "grow" }),
+    el("button", { class: "small ghost", type: "button", on: { click: () => { AW.widgets.splice(AW.widgets.indexOf(w), 1); AW.open = null; AW.placing = null; awChanged(true); } } }, w.kind === "spot" ? "Delete spot" : "Delete widget")));
+  left.append(el("p", { class: "awwords" }, el("b", {}, "In words: "), awDescribe(w)));
+  const notes = [];
+  if (AW.paused[w.activity]) notes.push(["err", AW.paused[w.activity]]);
+  if (live?.error && !AW.paused[w.activity]) notes.push(["err", live.error]);
+  if (d.state === "blocked") notes.push(["err", `Not showing: "${d.by.name}" is higher in the list and shows on that place.`]);
+  if (awOnePage()) for (const o of list.slice(0, i)) {
+    const mine = [w.area, ...w.cases.map((c) => c.area), w.otherwise.area].filter(Boolean), theirs = [o.area, ...o.cases.map((c) => c.area), o.otherwise.area].filter(Boolean);
+    if (d.state !== "blocked" && mine.some((a) => theirs.some((b) => awOverlap(a, b)))) notes.push(["warn", `Can land on the same place as "${o.name}". When both show, "${o.name}" wins (it's higher in the list).`]);
+  }
+  if (d.state === "unplaced") notes.push(["warn", "Not placed yet: press Place it, then drag across the page."]);
+  if (d.state === "unsaved") notes.push(["warn", "Save to see what it shows."]);
+  if (d.state === "hidden") notes.push(["ok", "Hidden right now: your icons show. The dashed outline is where it goes."]);
+  const right = el("div", { class: "awright" }, el("div", { class: "subhead" }, "Preview · " + (awPage()?.name || "page")), awPageView(AW.page, w, { place: AW.placing === w }),
+    el("p", { class: "hint" }, "Orange: this one · blue: the others on this page"), ...notes.map(([k, t]) => el("p", { class: "awnote " + k }, t)));
+  card.append(el("div", { class: "awbody" }, left, right));
+  return card;
+}
+function awCreate(kind) {
+  const page = awPage();
+  if (!page) return;
+  const n = AW.widgets.filter((w) => w.kind === kind).length + 1;
+  const name = kind === "spot" ? `Spot ${n}` : `${AW_KINDS[kind]} ${n}`;
+  let id = "aw_" + slugPart(name), k = 2;
+  while (AW.widgets.some((w) => w.id === id)) id = "aw_" + slugPart(name) + "_" + k++;
+  const w = { id, name, kind, activity: AW.act, page: page.page_id, area: null, cases: [{ join: "all", conds: [newCond("device")], show: "", type: "", area: null }], otherwise: { show: "", type: "", area: null } };
+  AW.widgets.push(w); AW.open = w.id; AW.placing = w;
+  AW.msg = { text: `${name} created: drag across the page preview to place it.` };
+  renderAW();
+}
+function awSaveBar() {
+  const b = $("#aw-save"); if (!b) return;
+  const dirty = awDirty();
+  b.disabled = !dirty;
+  $("#aw-dirty").textContent = dirty ? "Changes not saved yet." : "";
+}
+async function awSave() {
+  const b = $("#aw-save"); if (b) b.disabled = true;
+  AW.msg = { text: "Saving… (adding Smart widgets to the remote and placing them can take a few seconds)" }; renderAW();
+  const r = await api("POST", "/api/autowidgets", { widgets: awOut() });
+  if (r.ok) {
+    AW.msg = { text: "Saved." + (r.data.notes?.length ? " " + r.data.notes.join(". ") + "." : "") };
+    AW.widgets = awIn(r.data.widgets || []); AW.saved = JSON.stringify(awOut());
+    AW.status = r.data.status || {}; AW.paused = r.data.paused || {}; if (r.data.activities) AW.acts = r.data.activities;
+  } else AW.msg = { err: true, text: "Not saved: " + (r.data.errors || [r.data.error || "error"]).join(" · ") };
+  renderAW();
+}
+function renderAW() {
+  const root = $("#aw-root");
+  if (!root) return;
+  if (!AW) { root.replaceChildren(el("p", { class: "hint" }, "Loading your activities…")); return; }
+  const act = awAct();
+  const actSel = select("aw-act", AW.acts.map((a) => [a.id, `${a.name} · ${a.pages.length} page${a.pages.length === 1 ? "" : "s"}`]), AW.act, (v) => { AW.act = v; AW.page = 0; AW.placing = null; AW.open = awOnPage()[0]?.id ?? null; renderAW(); }, "Activity");
+  const step1 = el("section", { class: "card awstep" }, el("h2", {}, el("span", { class: "awnum" }, "1"), " Pick the activity"),
+    el("div", { class: "fields" }, field("aw-act", "Activity", actSel), el("button", { type: "button", class: "small ghost", title: "Read your activities and pages again", on: { click: () => awLoad(true) } }, "Reload pages")));
+  if (act) {
+    step1.append(el("p", { class: "awnote " + (awOnePage() ? "ok" : "warn") }, awOnePage()
+      ? `${act.name} has one page, so the remote can redraw it in place. Add a widget spot: its rules place your devices' real widgets there, over your icons if you like, each at its own size, and your icons come back when nothing is placed.`
+      : `${act.name} has ${act.pages.length} pages. Changing a page would jump the remote back to page 1, so a widget here stays put on an empty spot: make a Smart widget, a display that shows whichever device the rules pick.`));
+    if (!awOnePage()) step1.append(el("p", { class: "hint" }, "Pick the page to work on:"), el("div", { class: "awthumbs" }, ...act.pages.map((p, pi) => {
+      const n = awOnPage(pi).length;
+      return el("button", { type: "button", class: "awthumb" + (pi === AW.page ? " on" : ""), "aria-pressed": String(pi === AW.page), on: { click: () => { AW.page = pi; AW.placing = null; AW.open = awOnPage(pi)[0]?.id ?? null; renderAW(); } } },
+        awPageView(pi, null, { small: true }), el("span", { class: "tname" }, `${pi + 1} · ${p.name || "(no name)"}`), el("span", { class: "tcount" + (n ? " has" : "") }, n ? `${n} widget${n > 1 ? "s" : ""}` : "none"));
+    })));
+  }
+  const list = awOnPage(), res = awResolve();
+  const step2 = el("section", { class: "card awstep" }, el("h2", {}, el("span", { class: "awnum" }, "2"), awOnePage() ? " Its widget spots" : " Its Smart widgets"));
+  if (act) {
+    step2.append(el("p", { class: "hint" }, awOnePage() ? "Each spot: its usual place, then If / Else if / Otherwise for which real widget goes there, and where. Higher in the list wins when two land on the same place." : `Smart widgets on ${awPage()?.name || "this page"}: where it goes, then If / Else if / Otherwise for what it shows.`),
+      el("div", { class: "row" }, ...(awOnePage() ? [el("button", { type: "button", class: "primary", on: { click: () => awCreate("spot") } }, "+ Add a widget spot")]
+        : ["media", "select", "sensor"].map((k, i) => el("button", { type: "button", class: i ? "" : "primary", on: { click: () => awCreate(k) } }, "+ Create " + AW_KINDS[k])))),
+      ...(list.length ? list.map((w, i) => awCard(w, i, list, res)) : [el("p", { class: "hint" }, "None here yet.")]));
+  } else step2.append(el("p", { class: "hint" }, "No activities found."));
+  const bar = el("div", { class: "row awsavebar" }, el("button", { type: "button", class: "primary", id: "aw-save", on: { click: awSave } }, "Save Auto Widgets"),
+    el("span", { class: "status", id: "aw-dirty" }), el("span", { class: "status" + (AW.msg?.err ? " err" : AW.msg ? " ok" : ""), role: "status" }, AW.msg?.text || ""));
+  root.replaceChildren(step1, step2, bar);
+  awSaveBar();
+}
+/** The open widget's conditions that check this value, with their result now (shown in the device states panel). */
+function awUses(ent, attr) {
+  if (!AW || CUR_TAB !== "icons" || secOf("icons") !== "auto") return [];
+  const w = AW.widgets.find((x) => x.id === AW.open); if (!w) return [];
+  const live = awLive(w);
+  return w.cases.flatMap((c, ci) => c.conds.map((cond, k) => ({ cond, ci, k })).filter(({ cond }) => cond.t === "device" && cond.ent === ent && (cond.attr || "state") === attr)
+    .map(({ cond, ci, k }) => ({ ok: live?.conds?.[ci]?.[k], text: `${ci ? "Else if " + ci : "If"}: ${OPS[cond.op] || cond.op} ${cond.val || "…"}` })));
+}
+
+const SECS = { stats: [["overview", "Overview"], ["acts", "Activities"], ["battery", "Battery"], ["data", "Data"]], smart: [["smart", "Smart controls"], ["menu", "Quick menus"]], icons: [["icon", "State icons"], ["slider", "Sliders"], ["display", "Displays"], ["auto", "Auto Widgets"]], ret: [["ret", "↩ buttons"], ["starts", "Start pages"]], ctl: [["ctl", "Controls"], ["set", "Settings"]], launch: [["launch", "Launchers"]] };
 const PIC_SECS = { smart: ["menu"], icons: ["icon", "slider"], ret: ["ret"], launch: ["launch"] };
 const SEC = {};
 try { Object.assign(SEC, JSON.parse(localStorage.getItem("scb_secs") || "{}")); } catch {}
@@ -4179,6 +4537,7 @@ function applySec(tab) {
   for (const b of $("#secbar").querySelectorAll(".sec")) b.setAttribute("aria-pressed", String(b.textContent === SECS[tab].find(([k]) => k === v)?.[1]));
   const st = $("#sec-status"); if (st) st.textContent = secStatus(tab);
   if (tab === "stats") renderStats();
+  if (tab === "icons" && v === "auto" && !AW) { AW_LOADING = AW_LOADING || awLoad().finally(() => { AW_LOADING = null; }); } // drawn once; the list observer calls this often
   const pics = !!PIC_SECS[tab]?.includes(v);
   const w = $("#picwin");
   for (const p of document.querySelectorAll(".pane.split")) p.classList.toggle("haspics", pics && p === pane);
