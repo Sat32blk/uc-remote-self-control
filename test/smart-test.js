@@ -27,7 +27,9 @@ const remoteOnly = JSON.parse(fs.readFileSync("examples/remote-only-rules.json",
 ok(validateRules(def, []).errors.length === 0, "default rules are valid");
 ok(validateRules(mine, []).errors.length === 0, "examples/shield-tv-receiver-rules.json is valid");
 ok(validateRules(remoteOnly, []).errors.length === 0, "examples/remote-only-rules.json is valid");
-ok(def.buttons.length === 1 && def.buttons[0].name === "Smart Test Button", "the default is one Smart Test Button");
+ok(Array.isArray(def.buttons) && def.buttons.length === 0, "the defaults have no smart controls (no demo button)");
+// the tests below use a Smart Test Button of their own (it used to be the default)
+const TEST_RULES = { buttons: [{ id: "smart_test_button", name: "Smart Test Button", if: true, do: [{ self: "backlight_color", option: "next" }] }] };
 ok(!JSON.stringify(def).includes("_driver."), "default rules name no specific devices");
 ok(validateRules("{nope", []).errors[0].startsWith("Not valid JSON"), "bad JSON reported");
 const bad = validateRules({ aliases: {}, buttons: [{ id: "X", name: "", cases: [{ if: { entity: "ghost", is: 1 }, do: [{ cmd: "volume_up", entity: "ghost" }] }, { else: [] }, { else: [] }] }] }, []);
@@ -39,6 +41,7 @@ ok(shortForm.errors.length === 0 && shortForm.rules.buttons[0].cases.length === 
 const srv = await start(CORE_PORT);
 const binDir = path.resolve("src/bin");
 fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
+fs.writeFileSync(path.join(cfgDir, "smart_rules.json"), JSON.stringify(TEST_RULES));
 const drv = spawn(process.execPath, ["driver.js"], {
   cwd: binDir,
   env: { ...process.env, UC_CONFIG_HOME: cfgDir, UC_INTEGRATION_HTTP_PORT: String(WS_PORT), UC_DISABLE_MDNS_PUBLISH: "true", UC_SELF_BUILDER_PORT: String(WEB_PORT) },
@@ -126,7 +129,7 @@ await req("entity_command", { entity_id: "backlight_color", entity_type: "select
 // load the remote-only examples (the former defaults) through the builder API
 await http("POST", "/api/login", { pin: "1234" });
 h = await http("GET", "/api/rules");
-ok(h.data.defaults === true && JSON.parse(h.data.text).buttons.length === 1, "builder: defaults in use (1 control)");
+ok(JSON.parse(h.data.text).buttons.length === 1, "builder: the test rules are in use (1 control)");
 h = await http("POST", "/api/rules", { rules: remoteOnly });
 ok(h.status === 200 && h.data.buttons.length === 7, "remote-only example rules saved (7 controls)");
 r = await req("get_available_entities");
@@ -275,9 +278,11 @@ await sleep(300);
 await req("set_driver_user_data", { input_values: { action: "reset_rules" } });
 await sleep(900);
 r = await req("get_available_entities");
-ok(r.msg_data.available_entities.some((e) => e.entity_id === "smart_test_button") && !r.msg_data.available_entities.some((e) => e.entity_id === "tv_toggle"), "reset brings back the Smart Test Button");
+ok(!r.msg_data.available_entities.some((e) => e.area === "Remote Smart Controls" && e.entity_type === "button"), "reset leaves no smart controls (the defaults are empty)");
 h = await http("GET", "/api/defaults");
-ok(JSON.parse(h.data.text).buttons[0].id === "smart_test_button", "defaults endpoint");
+ok(JSON.parse(h.data.text).buttons.length === 0, "defaults endpoint");
+h = await http("POST", "/api/rules", { rules: TEST_RULES });
+await sleep(300);
 
 // ---- setup: add the Last Result tile to an activity ------------------------
 const tileRun = async (inputs) => {

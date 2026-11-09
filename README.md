@@ -183,11 +183,12 @@ To update, first save a **Backup** in the builder (walkthrough 12), then use Ins
 
 ### 1. Your first Smart Control (2 minutes)
 
-The integration starts with one control, **Smart Test Button**, which moves the button backlight to the next color.
+The integration starts with no Smart Controls. Make a first one that moves the button backlight to the next color:
 
-1. Integrations → Remote Self-Control → add **Smart Test Button** and **Smart Controls: Last Result**.
-2. Integrations → Remote Self-Control → **Configure** → **Add the Last Result tile to an activity** → pick an activity, leave *Also add the Smart Control buttons* ticked.
-3. Open that activity on the remote and swipe to the new **Smart Controls** page. Press **Smart Test Button**: the backlight changes color and the Last Result tile says what happened.
+1. In the builder, **Smart Controls** → *or start from a template…* → **Backlight color cycle** → **Save**.
+2. Integrations → Remote Self-Control → add **Backlight Color Cycle** and **Smart Controls: Last Result**.
+3. Integrations → Remote Self-Control → **Configure** → **Add the Last Result tile to an activity** → pick an activity, leave *Also add the Smart Control buttons* ticked.
+4. Open that activity on the remote and swipe to the new **Smart Controls** page. Press **Backlight Color Cycle**: the backlight changes color and the Last Result tile says what happened.
 
 That tile is your debugging friend: every Smart Control writes what it did (or why it failed) there.
 
@@ -558,7 +559,7 @@ src/bin/states.js                       device states panel (live values, values
 src/bin/coreevents.js                   the remote's own events (which activity was opened)
 src/bin/backup.js                       backup and restore
 src/bin/pages.js                        page jumps and start pages
-src/bin/default-rules.json              default Smart Controls (Smart Test Button)
+src/bin/default-rules.json              default Smart Controls (none)
 examples/                               example rules
 test/                                   fake Core API + Integration-API test client
 ```

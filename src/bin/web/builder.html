@@ -489,7 +489,6 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
       <textarea id="import-text" class="mono" placeholder="Paste rules JSON to load"></textarea>
       <div class="row">
         <button class="small" id="import" type="button">Load pasted rules</button>
-        <button class="small" id="defaults" type="button">Load the defaults</button>
         <span id="import-status" class="status"></span>
       </div>
     </details>
@@ -1886,7 +1885,7 @@ function render() {
   }));
   rows.push(...menuBars());
   host.replaceChildren(...rows);
-  if (!rows.length) host.append(el("p", { class: "empty" }, "No smart controls or quick menus yet. Create one, start from a template, or load the defaults below."));
+  if (!rows.length) host.append(el("p", { class: "empty" }, "No smart controls or quick menus yet. Create one or start from a template."));
 }
 async function postRules() {
   const rules = toRules(buttons);
@@ -2011,12 +2010,6 @@ $("#import").addEventListener("click", async () => {
   catch (e) { st.className = "status err"; st.textContent = "Couldn't load: " + e.message; return; }
   if (!armed($("#import"), "Replace all your smart controls? Click again", "Load pasted rules")) return;
   await replaceAllRules(r, `Loaded and saved ${r.buttons.length} smart control${r.buttons.length === 1 ? "" : "s"}.`);
-});
-const defBtn = $("#defaults");
-defBtn.addEventListener("click", async () => {
-  if (!armed(defBtn, "Replace all your smart controls? Click again", "Load the defaults")) return;
-  const r = await api("GET", "/api/defaults");
-  await replaceAllRules(JSON.parse(r.data.text), "Defaults loaded and saved.");
 });
 $("#copy").addEventListener("click", () => {
   const st = $("#copy-status");

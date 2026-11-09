@@ -50,7 +50,7 @@ const send = (msg, msg_data) => ws.send(JSON.stringify({ kind: "event", msg, msg
 
 // --- before setup
 let r = await req("get_driver_version");
-ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.3.7-aw1", "driver_version 1.3.7-aw1");
+ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.3.7-aw2", "driver_version 1.3.7-aw1");
 send("connect");
 await sleep(300);
 r = await req("get_device_state");
@@ -130,12 +130,12 @@ r = await req("get_available_entities");
 const avail = r.msg_data.available_entities;
 const ids = avail.map((e) => e.entity_id).sort();
 console.log("     entities:", ids.join(", "));
-ok(avail.length === 22, "22 entities offered (14 settings + Smart Test Button + result sensor + Previous Activity + Control, Control Level, Control Active + 1 display + Auto Widget test)");
+ok(avail.length === 20, "20 entities offered on a fresh install (14 settings + result sensor + Previous Activity + Control, Control Level, Control Active + 1 display)");
 ok(avail.find((e) => e.entity_id === "disp_test")?.entity_type === "sensor", "the display is offered as a sensor");
 const ctl = avail.find((e) => e.entity_id === "control");
 ok(ctl?.entity_type === "media_player" && ctl.features.includes("volume") && ctl.features.includes("volume_up_down") && avail.filter((e) => e.area === "Remote Controls").length === 3 && avail.find((e) => e.entity_id === "control_level")?.entity_type === "light" && avail.find((e) => e.entity_id === "control_active")?.entity_type === "sensor", "Controls: Control media player, Control Level light, Control Active sensor");
 ok(avail.find((e) => e.entity_id === "previous_activity")?.area === "Remote Navigation" && avail.find((e) => e.entity_id === "previous_activity")?.entity_type === "sensor", "Previous Activity sensor in Remote Navigation");
-ok(avail.filter((e) => e.area === "Remote Smart Controls").length === 2, "2 entities in area Remote Smart Controls");
+ok(avail.filter((e) => e.area === "Remote Smart Controls").length === 1, "only the Last Result sensor in Remote Smart Controls (no demo button)");
 const order = avail.slice(0, 14).map((e) => e.entity_id).join(",");
 ok(order === "display_level,display_brightness,display_timeout,display_auto_brightness,backlight_level,backlight_color,backlight,backlight_auto,sound_volume,wake_sensitivity,sleep_timeout,wake_on_wlan,sound_effects,haptic", "entities in requested order");
 const areaOf = Object.fromEntries(avail.map((e) => [e.entity_id, e.area]));
