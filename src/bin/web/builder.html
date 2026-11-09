@@ -207,6 +207,24 @@ button.small { min-height: 30px; padding: 3px 10px; font-size: 13px; }
 .subhead { font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
 .empty { color: var(--muted); font-size: 13px; font-style: italic; }
 #icons-app[data-show="display"] .nodisp { display: none; }
+/* guided tours */
+.tour-block { position: fixed; inset: 0; z-index: 900; }
+.tour-spot { position: fixed; z-index: 901; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(8, 10, 14, .6); outline: 3px solid var(--accent); outline-offset: 3px; transition: all .25s ease; pointer-events: none; }
+.tour-tip { position: fixed; z-index: 902; width: min(340px, calc(100vw - 32px)); background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 36px rgba(0, 0, 0, .35); padding: 14px 16px 12px; transition: top .25s ease, left .25s ease; }
+.tour-tip h3 { margin: 2px 0 4px; font-size: 15px; }
+.tour-tip p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.45; }
+.tour-count { font-size: 12px; color: var(--muted); }
+.tour-nav { display: flex; align-items: center; gap: 8px; }
+.tour-dots { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+.tour-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.tour-dots i.on { background: var(--accent); }
+.tour-x { position: absolute; top: 6px; right: 6px; padding: 2px 8px; }
+.tour-arrow { position: absolute; width: 14px; height: 14px; background: var(--panel); border-left: 1px solid var(--line); border-top: 1px solid var(--line); transform: rotate(45deg); }
+.tour-done { position: fixed; z-index: 902; left: 50%; top: 40%; transform: translate(-50%, -50%); width: min(360px, calc(100vw - 32px)); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: 0 12px 36px rgba(0, 0, 0, .35); text-align: center; }
+.tour-done h3 { margin: 0 0 6px; }
+.tour-done p { margin: 0 0 12px; font-size: 13.5px; }
+#tour-btn { white-space: nowrap; }
+
 #icons-app[data-show="auto"] .nodisp { display: none; }
 #aw-root { display: flex; flex-direction: column; gap: 14px; }
 .awstep h2 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px; }
@@ -4498,6 +4516,105 @@ function awUses(ent, attr) {
     .map(({ cond, ci, k }) => ({ ok: live?.conds?.[ci]?.[k], text: `${ci ? "Else if " + ci : "If"}: ${OPS[cond.op] || cond.op} ${cond.val || "…"}` })));
 }
 
+// ---- Guided tours ("▶ Show me how" in the section bar) ------------------------
+// A tour is a list of steps; each points at an element (a selector or a function returning one), may
+// prepare the page first (before), and may tidy up when the tour ends (TOURS[tab].end).
+const ctlTourEl = (label) => document.querySelector(`#ctl-editor [aria-label="${label}"]`)?.closest(".fields");
+let CTL_TOUR_NEW = false;
+const TOURS = {
+  ctl: {
+    title: "Controls",
+    steps: [
+      { t: "#tour-btn", h: "Controls: a quick tour", p: "A control points the <b>volume rocker</b> and the <b>touch slider</b> at something else for a while: a light, another device's volume, the screen or button backlight, or one of your sliders. When it times out, they go back to what the activity normally does. This tour shows how to set one up." },
+      { t: "#ctl-add", h: "1 · Create a control", p: "Each control you make becomes a switch on the remote called <b>Control: &lt;name&gt;</b>. Turning that switch on is what takes over the rocker and slider.", before: () => tourSec("ctl", "ctl") },
+      { t: () => document.querySelector("#ctl-editor .card-head"), h: "Give it a name", p: "A short name, like <b>Light</b> or <b>Bass</b>. On the remote it shows as <b>Control: Light</b>.",
+        before: () => { tourSec("ctl", "ctl"); if (!ED.ctl) { CTL_TOUR_NEW = true; $("#ctl-add").click(); } } },
+      { t: () => ctlTourEl("What it changes"), h: "2 · What it changes", p: "Pick the device and setting: a light's brightness, a device's volume, the remote's screen or button backlight, or a slider you made in Icons &amp; Sliders (for IR things like bass up / down)." },
+      { t: () => ctlTourEl("Starting value"), h: "3 · Value", p: "<b>Change per rocker press</b> sets how big each step is. The <b>starting value</b> is only used for devices that don't report their level (IR devices, many volumes); devices that do report always start from the real value." },
+      { t: () => ctlTourEl("Start from"), h: "Where it starts", p: "For devices that don't report their level: start from the value it was left at last time, or from the starting value every time." },
+      { t: () => document.querySelector("#ctl-editor .editbox-foot") || document.querySelector("#ctl-editor button.primary"), h: "Save it", p: "Press <b>Save</b>. The control then shows in the list below, and its switch appears on the remote under the integration." },
+      { t: "#ctl-list", h: "Your controls", p: "Each row is one control: what it changes, the step, and whether it's <b>ON</b> right now (with its level). Click a row to edit it, try it with <b>Turn on now</b>, or reset its counted value.",
+        before: () => { if (CTL_TOUR_NEW && ED.ctl?.isNew) cancelEdit("ctl"); CTL_TOUR_NEW = false; } },
+      { t: () => document.querySelector('#ctl-app details.panel[data-sec="ctl"]'), h: "What to set up on the remote", p: "Open this for the one-time setup: add <b>Control</b>, <b>Control Level</b>, <b>Control Active</b> and your <b>Control:</b> switches to the integration and your activities, and set the touch slider to <b>Control</b> in the web configurator." },
+      { t: "#ctl-timeout-row", h: "4 · Settings: how long it stays on", p: "After the last press or slide, a control turns itself off after this time, and the rocker and slider go back to normal. Or keep it on until you change it.", before: () => tourSec("ctl", "set") },
+      { t: "#ctl-defs", h: "Defaults per activity", p: "What the rocker and slider do in each activity when <b>no</b> control is on. <b>Borrow</b> keeps the rocker on its own device and only points it at Control while a control is on, so there's nothing to remap on the remote." },
+      { t: "#ctl-def-add", h: "Add your activities", p: "Add each activity you want to use Controls in, then pick its defaults." },
+      { t: "#ctl-save-set", h: "Save the settings", p: "Settings have their own <b>Save settings</b> button. That's it: put a <b>Control:</b> switch on a page or a button, turn it on, and use the rocker." }
+    ],
+    end: () => { if (CTL_TOUR_NEW && ED.ctl?.isNew) cancelEdit("ctl"); CTL_TOUR_NEW = false; tourSec("ctl", TOUR?.startSec || "ctl"); }
+  }
+};
+let TOUR = null; // { key, at, els, startSec }
+function tourSec(tab, sec) { if (secOf(tab) === sec) return; SEC[tab] = sec; applySec(tab); }
+function tourStart(key) {
+  if (!TOURS[key]) return;
+  tourEnd(false);
+  TOUR = { key, at: 0, startSec: SECS[key] ? secOf(key) : null, els: {
+    block: el("div", { class: "tour-block", on: { click: () => tourEnd(false) } }),
+    spot: el("div", { class: "tour-spot", "aria-hidden": "true" }),
+    tip: el("div", { class: "tour-tip", role: "dialog", "aria-modal": "false", "aria-label": TOURS[key].title + " tour" }) } };
+  document.body.append(TOUR.els.block, TOUR.els.spot, TOUR.els.tip);
+  tourShow();
+}
+function tourEnd(done) {
+  if (!TOUR) return;
+  const t = TOUR; TOUR = null;
+  Object.values(t.els).forEach((e) => e.remove());
+  TOUR = t; TOURS[t.key].end?.(); TOUR = null;
+  if (done === true) {
+    const box = el("div", { class: "tour-done", role: "dialog", "aria-label": "Tour finished" }, el("h3", {}, "You're set ✓"),
+      el("p", {}, "Start this tour again any time with ▶ Show me how."), el("button", { type: "button", class: "primary", on: { click: () => box.remove() } }, "Close"));
+    document.body.append(box);
+    box.querySelector("button").focus();
+  }
+}
+const tourTarget = (st) => (typeof st.t === "function" ? st.t() : document.querySelector(st.t));
+function tourShow() {
+  const steps = TOURS[TOUR.key].steps, st = steps[TOUR.at];
+  try { st.before?.(); } catch {}
+  const t = tourTarget(st);
+  if (!t || t.offsetParent === null && getComputedStyle(t).position !== "fixed") { // nothing to show here: skip it
+    if (TOUR.dir < 0 && TOUR.at > 0) { TOUR.at--; return tourShow(); }
+    if (TOUR.at < steps.length - 1) { TOUR.at++; return tourShow(); }
+    return tourEnd(true);
+  }
+  t.scrollIntoView({ block: "center", behavior: "smooth" });
+  const last = TOUR.at === steps.length - 1;
+  const back = el("button", { type: "button", class: "small", disabled: TOUR.at === 0, on: { click: () => tourGo(-1) } }, "Back");
+  const next = el("button", { type: "button", class: "small primary", on: { click: () => (last ? tourEnd(true) : tourGo(1)) } }, last ? "Done" : TOUR.at ? "Next" : "Start");
+  const body = el("p", {}); body.innerHTML = st.p;
+  TOUR.els.tip.replaceChildren(
+    el("button", { type: "button", class: "tour-x ghost", title: "End the tour", "aria-label": "End the tour", on: { click: () => tourEnd(false) } }, "✕"),
+    el("span", { class: "tour-count" }, `${TOUR.at + 1} of ${steps.length}`), el("h3", {}, st.h), body,
+    el("div", { class: "tour-nav" }, el("div", { class: "tour-dots", "aria-hidden": "true" }, ...steps.map((_, i) => el("i", { class: i === TOUR.at ? "on" : "" }))), back, next),
+    el("div", { class: "tour-arrow", "aria-hidden": "true" }));
+  setTimeout(tourPlace, 30); setTimeout(tourPlace, 400);
+  next.focus({ preventScroll: true });
+}
+function tourGo(d) { if (!TOUR) return; const n = TOUR.at + d; if (n < 0 || n >= TOURS[TOUR.key].steps.length) return; TOUR.at = n; TOUR.dir = d; tourShow(); }
+function tourPlace() {
+  if (!TOUR) return;
+  const t = tourTarget(TOURS[TOUR.key].steps[TOUR.at]); if (!t) return;
+  const r = t.getBoundingClientRect(), pad = 6, { spot, tip } = TOUR.els;
+  Object.assign(spot.style, { left: r.left - pad + "px", top: r.top - pad + "px", width: r.width + pad * 2 + "px", height: r.height + pad * 2 + "px" });
+  const tw = tip.offsetWidth, th = tip.offsetHeight, W = innerWidth, H = innerHeight, a = tip.querySelector(".tour-arrow");
+  let side = r.bottom + th + 24 < H ? "below" : r.top - th - 24 > 0 ? "above" : r.left - tw - 24 > 0 ? "left" : "below";
+  let x = side === "left" ? r.left - tw - 18 : r.left, y = side === "below" ? r.bottom + 16 : side === "above" ? r.top - th - 16 : r.top;
+  x = Math.max(16, Math.min(x, W - tw - 16)); y = Math.max(16, Math.min(y, H - th - 16));
+  Object.assign(tip.style, { left: x + "px", top: y + "px" });
+  const ax = Math.max(14, Math.min(r.left + 20 - x, tw - 28)) + "px";
+  Object.assign(a.style, side === "left" ? { right: "-8px", left: "auto", top: "20px", bottom: "auto", transform: "rotate(135deg)" }
+    : side === "below" ? { top: "-8px", bottom: "auto", left: ax, right: "auto", transform: "rotate(45deg)" } : { bottom: "-8px", top: "auto", left: ax, right: "auto", transform: "rotate(225deg)" });
+}
+addEventListener("resize", tourPlace);
+addEventListener("scroll", tourPlace, { passive: true });
+addEventListener("keydown", (e) => {
+  if (!TOUR) return;
+  if (e.key === "Escape") tourEnd(false);
+  else if (e.key === "ArrowRight" && !e.target.closest?.("input, select, textarea")) tourGo(1);
+  else if (e.key === "ArrowLeft" && !e.target.closest?.("input, select, textarea")) tourGo(-1);
+});
+
 const SECS = { stats: [["overview", "Overview"], ["acts", "Activities"], ["battery", "Battery"], ["data", "Data"]], smart: [["smart", "Smart controls"], ["menu", "Quick menus"]], icons: [["icon", "State icons"], ["slider", "Sliders"], ["display", "Displays"], ["auto", "Auto Widgets"]], ret: [["ret", "↩ buttons"], ["starts", "Start pages"]], ctl: [["ctl", "Controls"], ["set", "Settings"]], launch: [["launch", "Launchers"]] };
 const PIC_SECS = { smart: ["menu"], icons: ["icon", "slider"], ret: ["ret"], launch: ["launch"] };
 const SEC = {};
@@ -4525,7 +4642,8 @@ function renderSecbar(tab) {
     ...SECS[tab].map(([k, name]) => el("button", { type: "button", class: "sec", "aria-pressed": String(k === v), on: { click: () => { SEC[tab] = k; try { localStorage.setItem("scb_secs", JSON.stringify(SEC)); } catch {} applySec(tab); } } }, name)),
     el("button", { type: "button", class: "small ghost", title: "What is this tab for?", "aria-label": "What is this tab for?", "aria-expanded": String(ABOUT), on: { click: () => { ABOUT = !ABOUT; renderSecbar(tab); } } }, "ⓘ"),
     el("span", { class: "grow" }),
-    el("span", { class: "status", id: "sec-status" }, secStatus(tab)));
+    el("span", { class: "status", id: "sec-status" }, secStatus(tab)),
+    TOURS[tab] ? el("button", { type: "button", class: "small primary", id: "tour-btn", title: "A step-by-step walk through this tab", on: { click: () => tourStart(tab) } }, "▶ Show me how") : null);
   $("#about").hidden = !ABOUT;
   $("#about").textContent = TABS[tab].intro;
 }
