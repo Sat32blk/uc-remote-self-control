@@ -137,7 +137,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities, own };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, statsApi = null, displaysApi = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
+export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, statsApi = null, displaysApi = null, autoTestApi = null, autoTestPage = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
   /** Everything set up here as one backup; withPictures = include the custom pictures (base64). */
   async function buildBackup(withPictures) {
     const core = getCore();
@@ -527,6 +527,12 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       const r = await doRestore(b, which);
       send(res, r.errors.length && !r.done.length ? 422 : 200, { ok: !r.errors.length, ...r });
     },
+    "GET /autotest": async (req, res) => { if (!autoTestPage) return send(res, 404, { error: "not in this build" }); servePage(req, res, autoTestPage, { "X-Frame-Options": "DENY" }); },
+    "GET /api/autotest": async (req, res) => { if (!autoTestApi) return send(res, 404, { error: "not in this build" }); send(res, 200, autoTestApi.get()); },
+    "GET /api/autotest/players": async (req, res) => { if (!autoTestApi) return send(res, 404, { error: "not in this build" }); send(res, 200, await autoTestApi.players()); },
+    "POST /api/autotest": async (req, res) => { if (!autoTestApi) return send(res, 404, { error: "not in this build" }); send(res, 200, autoTestApi.save(await readJson(req))); },
+    "POST /api/autotest/browse": async (req, res) => { if (!autoTestApi) return send(res, 404, { error: "not in this build" }); send(res, 200, await autoTestApi.browse(await readJson(req))); },
+    "POST /api/autotest/search": async (req, res) => { if (!autoTestApi) return send(res, 404, { error: "not in this build" }); send(res, 200, await autoTestApi.search(await readJson(req))); },
     "GET /api/displays": async (req, res) => {
       if (!displaysApi) return send(res, 404, { error: "Displays aren't available." });
       send(res, 200, displaysApi.get());
@@ -580,7 +586,7 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
     }
   };
   if (editorPath) Object.assign(routes, editorRoutes({ getCore, onScreen, dataDir, editorPath, send, readJson, log, warn }));
-  const PUBLIC = new Set(["GET /", "GET /api/session", "POST /api/login", "POST /api/logout"]);
+  const PUBLIC = new Set(["GET /", "GET /autotest", "GET /api/session", "POST /api/login", "POST /api/logout"]);
 
   const server = http.createServer(async (req, res) => {
     const url = (req.url || "/").split("?")[0];

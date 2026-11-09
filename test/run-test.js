@@ -50,7 +50,7 @@ const send = (msg, msg_data) => ws.send(JSON.stringify({ kind: "event", msg, msg
 
 // --- before setup
 let r = await req("get_driver_version");
-ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.3.6", "driver_version 1.3.6");
+ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.3.7-autotest", "driver_version 1.3.7-autotest");
 send("connect");
 await sleep(300);
 r = await req("get_device_state");
@@ -130,7 +130,7 @@ r = await req("get_available_entities");
 const avail = r.msg_data.available_entities;
 const ids = avail.map((e) => e.entity_id).sort();
 console.log("     entities:", ids.join(", "));
-ok(avail.length === 21, "21 entities offered (14 settings + Smart Test Button + result sensor + Previous Activity + Control, Control Level, Control Active + 1 display)");
+ok(avail.length === 22, "22 entities offered (14 settings + Smart Test Button + result sensor + Previous Activity + Control, Control Level, Control Active + 1 display + Auto Widget test)");
 ok(avail.find((e) => e.entity_id === "disp_test")?.entity_type === "sensor", "the display is offered as a sensor");
 const ctl = avail.find((e) => e.entity_id === "control");
 ok(ctl?.entity_type === "media_player" && ctl.features.includes("volume") && ctl.features.includes("volume_up_down") && avail.filter((e) => e.area === "Remote Controls").length === 3 && avail.find((e) => e.entity_id === "control_level")?.entity_type === "light" && avail.find((e) => e.entity_id === "control_active")?.entity_type === "sensor", "Controls: Control media player, Control Level light, Control Active sensor");

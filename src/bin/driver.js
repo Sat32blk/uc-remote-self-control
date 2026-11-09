@@ -25,6 +25,7 @@ import { Stats } from "./stats.js";
 import { isReturnItem } from "./returnbtn.js";
 import { spotsOf } from "./stateicons.js";
 import { Displays, validateDisplays } from "./displays.js";
+import { AutoTest, AUTOTEST_ID, AUTOTEST_FEATURES } from "./autotest.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -712,6 +713,28 @@ function displayEntityEvent(id, attrs) {
   entityValues.set(id, { ...entityValues.get(id), ...attrs });
 }
 
+// ---------------------------------------------------------------------------
+// Auto Widget test (test build): one media player showing device A, or B while A's attribute has a value.
+// ---------------------------------------------------------------------------
+let autoTest = null;
+let autoEntity = null;
+function buildAutoTestEntity() {
+  autoEntity = new uc.MediaPlayer(AUTOTEST_ID, { en: "Auto Widget test" }, {
+    features: AUTOTEST_FEATURES, area: "Remote Auto Widgets", deviceClass: "streaming_box",
+    attributes: { state: uc.MediaPlayerStates.Unknown },
+    cmdHandler: async (entity, cmdId, params) => {
+      const r = await autoTest.command(cmdId, params);
+      return r.ok ? uc.StatusCodes.Ok : (r.status === 404 ? uc.StatusCodes.NotFound : uc.StatusCodes.ServerError);
+    }
+  });
+  autoEntity.browse = (o) => autoTest.browse(o);
+  autoEntity.search = (o) => autoTest.search(o);
+}
+function publishAutoTest(attrs) {
+  if (!autoEntity) return;
+  if (!api.updateEntityAttributes(AUTOTEST_ID, attrs)) Object.assign(autoEntity.attributes, attrs);
+}
+
 function registerEntities() {
   api.clearAvailableEntities();
   for (const [, id] of LAYOUT) api.addAvailableEntity(entities[id]);
@@ -720,6 +743,7 @@ function registerEntities() {
   for (const e of Object.values(smartEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(extraEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(controlEntities)) api.addAvailableEntity(e);
+  if (autoEntity) api.addAvailableEntity(autoEntity);
   syncConfiguredEntities();
 }
 
@@ -1232,10 +1256,10 @@ let launchers = null;
 let screenActivity; // activity on screen per the events (undefined = not known yet, null = none)
 const onScreen = () => (screenActivity === undefined ? returnTracker?.current || null : screenActivity);
 function syncCoreEvents() {
-  const want = !!(core && connected && !standby && config?.apiKey && (returnTracker?.enabled || pageJumper?.enabled || launchers?.enabled || displays?.displays.length));
+  const want = !!(core && connected && !standby && config?.apiKey && (returnTracker?.enabled || pageJumper?.enabled || launchers?.enabled || displays?.displays.length || autoTest?.enabled));
   if (want) {
     if (!coreEvents) coreEvents = new CoreEvents({ address: config.address, apiKey: config.apiKey, log, warn,
-      onEntity: (id, attrs) => displayEntityEvent(id, attrs),
+      onEntity: (id, attrs) => { displayEntityEvent(id, attrs); autoTest?.event(id, attrs); },
       onActivity: (id) => {
         screenActivity = id;
         displays?.activityStarted(id);
@@ -1705,6 +1729,9 @@ displays = new Displays({
 });
 buildDisplayEntities();
 displays.start(250);
+autoTest = new AutoTest({ file: path.join(api.getConfigDirPath(), "autotest.json"), publish: publishAutoTest, getCore: () => core });
+buildAutoTestEntity();
+setInterval(() => { if (!standby) autoTest.tick(); }, 500);
 setInterval(() => { readDisplayDevices().catch((e) => warn("displays:", e.message)); }, 1000);
 deviceStates = new DeviceStates({ getCore: () => core, file: path.join(api.getConfigDirPath(), "states_seen.json"), remote: remoteState, log, warn });
 initSmart();
@@ -1754,8 +1781,26 @@ const webServer = startWebServer({
   port: BUILDER_PORT,
   pagePath: path.join(HERE, "web", "builder.html"),
   editorPath: path.join(HERE, "web", "editor.html"),
+  autoTestPage: path.join(HERE, "web", "autotest.html"),
   dataDir: api.getConfigDirPath(),
   onScreen: () => onScreen(),
+  autoTestApi: {
+    get: () => autoTest.status(),
+    save: (body) => { const r = autoTest.save(body); syncCoreEvents(); autoTest.read(true).catch(() => {}); return { ...r, ...autoTest.status() }; },
+    browse: async (body) => { const r = await autoTest.browse({ media_id: body.media_id, media_type: body.media_type, paging: { page: 1, limit: 20 } }); return typeof r === "number" ? { error: `HTTP ${r}` } : r; },
+    search: async (body) => { const r = await autoTest.search({ query: String(body.query || ""), paging: { page: 1, limit: 10 } }); return typeof r === "number" ? { error: `HTTP ${r}` } : r; },
+    players: async () => {
+      if (!core) return [];
+      const list = [];
+      for (let page = 1; page <= 10; page++) {
+        const part = await core.get(`/entities?limit=100&page=${page}`).catch(() => []);
+        if (!Array.isArray(part) || !part.length) break;
+        list.push(...part);
+        if (part.length < 100) break;
+      }
+      return list.filter((e) => e.entity_type === "media_player" && !String(e.entity_id).includes(AUTOTEST_ID)).map((e) => ({ id: e.entity_id, name: e.name?.en || Object.values(e.name || {})[0] || e.entity_id, features: e.features || [] }));
+    }
+  },
   displaysApi: {
     get: () => ({ ...displays.config, status: displays.status() }),
     save: (body) => {

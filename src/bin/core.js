@@ -95,6 +95,24 @@ export class CoreClient {
     return this.request("GET", path);
   }
 
+  /** GET with the paging headers (Pagination-Count / -Limit / -Page): { data, count, limit, page }. */
+  async getPaged(path) {
+    const headers = { Accept: "application/json" };
+    const auth = this.#authHeader();
+    if (auth) headers.Authorization = auth;
+    let res;
+    try { res = await fetch(this.base + path, { headers, signal: AbortSignal.timeout(Math.max(this.timeoutMs, 10000)) }); }
+    catch (e) { throw new CoreError(`GET ${path}: ${e.message}`, 0, "unreachable"); }
+    const text = await res.text();
+    let data; try { data = text ? JSON.parse(text) : undefined; } catch { data = text; }
+    if (!res.ok) {
+      const detail = data && typeof data === "object" ? data.message || JSON.stringify(data) : text;
+      throw new CoreError(`GET ${path}: HTTP ${res.status} ${detail || ""}`.trim(), res.status, "http");
+    }
+    const num = (h) => { const v = res.headers.get(h); return v === null ? undefined : Number(v); };
+    return { data, count: num("pagination-count"), limit: num("pagination-limit"), page: num("pagination-page") };
+  }
+
   patch(path, body) {
     return this.request("PATCH", path, body);
   }
