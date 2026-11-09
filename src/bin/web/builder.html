@@ -252,6 +252,8 @@ button.small { min-height: 30px; padding: 3px 10px; font-size: 13px; }
 .awpv .drag.bad { border-color: #ef4444; background: rgba(239,68,68,.3); }
 .awpv.place { cursor: crosshair; outline: 2px solid var(--accent); outline-offset: 2px; }
 .awpv.small { gap: 2px; padding: 4px; border-radius: 9px; } .awpv.small .c { border: 0; } .awpv.small .it { border-radius: 3px; } .awpv.small .w { border-radius: 4px; padding: 0; border-width: 1px; }
+.awmove { display: inline-flex; gap: 2px; }
+.awmove button[disabled] { opacity: .35; }
 .awmini { display: grid; gap: 2px; background: #0c0e11; border-radius: 7px; padding: 3px; width: 76px; user-select: none; touch-action: none; cursor: crosshair; }
 .awmini div { background: #2a2f37; border-radius: 2px; aspect-ratio: 1; } .awmini div.ic { background: #3a404a; } .awmini div.in { background: var(--accent); }
 .awsavebar { position: sticky; bottom: 0; background: var(--bg); padding: 8px 0; z-index: 3; }
@@ -4353,6 +4355,14 @@ function awThenRow(w, then, id) {
   }
   return row;
 }
+/** Moves a branch up or down: branches are checked top to bottom, the first true one is used. */
+function awMoveCase(w, ci, d) {
+  const j = ci + d;
+  if (j < 0 || j >= w.cases.length) return;
+  [w.cases[ci], w.cases[j]] = [w.cases[j], w.cases[ci]];
+  AW.msg = { text: `Branch moved ${d < 0 ? "up" : "down"}: it's now checked ${j === 0 ? "first" : "as else-if " + j}. Save to use the new order.` };
+  awChanged(true);
+}
 function awDescribe(w) {
   const verb = (t) => (w.kind !== "spot" ? `it shows ${awShowName(w, t.show)}` : !t.show ? "nothing, your icons show" : `place ${devName(t.show)} ${t.area ? "at " + awWhere(t.area) : "in its usual place"}`);
   return [...w.cases.map((c) => `If ${c.conds.map(describeCond).join(c.join === "any" ? " or " : " and ") || "always"}: ${verb(c)}`), `otherwise: ${verb(w.otherwise)}`].join(" · ");
@@ -4388,6 +4398,9 @@ function awCard(w, i, list, res) {
     br.append(el("div", { class: "branch-head" }, el("span", { class: "tag" }, ci ? "Else if" : "If"),
       c.conds.length > 1 ? select(id + "-j" + ci, [["all", "all of these are true"], ["any", "any of these is true"]], c.join, (v) => { c.join = v; awChanged(false); }, "Combine conditions") : el("span", { class: "sep" }, c.conds.length ? "" : "always"),
       inUse ? el("span", { class: "awok" }, "← in use now") : null, el("span", { class: "grow" }),
+      w.cases.length > 1 ? el("span", { class: "awmove" },
+        el("button", { class: "ghost small", type: "button", disabled: ci === 0, title: "Check this branch earlier", "aria-label": "Move branch up", on: { click: () => awMoveCase(w, ci, -1) } }, "↑"),
+        el("button", { class: "ghost small", type: "button", disabled: ci === w.cases.length - 1, title: "Check this branch later", "aria-label": "Move branch down", on: { click: () => awMoveCase(w, ci, 1) } }, "↓")) : null,
       el("button", { class: "ghost small", type: "button", on: { click: () => { w.cases.splice(ci, 1); awChanged(true); } } }, "Remove branch")));
     const cl = el("div", { class: "lines" });
     c.conds.forEach((cond, k) => { const row = condRow(cond, c.conds, k); const t = live?.conds?.[ci]?.[k]; if (t !== undefined) row.insertBefore(el("span", { class: t ? "awok" : "awno" }, t ? "✓ true now" : "✗ not now"), row.lastChild); cl.append(row); });
@@ -4466,7 +4479,7 @@ function renderAW() {
   const list = awOnPage(), res = awResolve();
   const step2 = el("section", { class: "card awstep" }, el("h2", {}, el("span", { class: "awnum" }, "2"), awOnePage() ? " Its widget spots" : " Its Smart widgets"));
   if (act) {
-    step2.append(el("p", { class: "hint" }, awOnePage() ? "Each spot: its usual place, then If / Else if / Otherwise for which real widget goes there, and where. Higher in the list wins when two land on the same place." : `Smart widgets on ${awPage()?.name || "this page"}: where it goes, then If / Else if / Otherwise for what it shows.`),
+    step2.append(el("p", { class: "hint" }, awOnePage() ? "Each spot: its usual place, then If / Else if / Otherwise for which real widget goes there, and where. Branches are checked top to bottom (↑ ↓ to reorder); the first true one is used. Higher in the list wins when two spots land on the same place." : `Smart widgets on ${awPage()?.name || "this page"}: where it goes, then If / Else if / Otherwise for what it shows. Branches are checked top to bottom (↑ ↓ to reorder); the first true one is used.`),
       el("div", { class: "row" }, ...(awOnePage() ? [el("button", { type: "button", class: "primary", on: { click: () => awCreate("spot") } }, "+ Add a widget spot")]
         : ["media", "select", "sensor"].map((k, i) => el("button", { type: "button", class: i ? "" : "primary", on: { click: () => awCreate(k) } }, "+ Create " + AW_KINDS[k])))),
       ...(list.length ? list.map((w, i) => awCard(w, i, list, res)) : [el("p", { class: "hint" }, "None here yet.")]));
