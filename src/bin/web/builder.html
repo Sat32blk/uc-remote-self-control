@@ -219,6 +219,14 @@ body.tour-paused .secbar { position: sticky; top: 8px; z-index: 60; box-shadow: 
 .tour-tip h3 { margin: 2px 0 4px; font-size: 15px; }
 .tour-tip p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.45; }
 .tour-count { font-size: 12px; color: var(--muted); }
+.tour-tip.tour-remote { border: 2px solid var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), 0 12px 36px rgba(0, 0, 0, .35); }
+.tour-body { font-size: 13.5px; line-height: 1.45; }
+.tour-body > p:last-child { margin-bottom: 10px; }
+.tour-badge { display: inline-block; margin: 4px 0 2px 8px; padding: 2px 9px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+.tour-tip ol { margin: 0 0 10px; padding-left: 20px; font-size: 13.5px; line-height: 1.45; }
+.tour-tip ol li { margin: 3px 0; }
+.tour-remind { text-align: left; background: var(--accent-soft); border-radius: 10px; padding: 8px 10px; margin: 0 0 12px; font-size: 13.5px; }
+
 .tour-nav { display: flex; align-items: center; gap: 8px; }
 .tour-dots { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
 .tour-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
@@ -4529,6 +4537,7 @@ let CTL_TOUR_NEW = false;
 const TOURS = {
   ctl: {
     title: "Controls",
+    remind: "add Control, Control Level, Control Active and your Control: switches under Integrations → Remote Self-Control, and put the switches on your activities.",
     steps: [
       { t: "#tour-btn", h: "Controls: a quick tour", p: "A control points the <b>volume rocker</b> and the <b>touch slider</b> at something else for a while: a light, another device's volume, the screen or button backlight, or one of your sliders. When it times out, they go back to what the activity normally does. This tour shows how to set one up." },
       { t: "#ctl-add", h: "1 · Create a control", p: "Each control you make becomes a switch on the remote called <b>Control: &lt;name&gt;</b>. Turning that switch on is what takes over the rocker and slider.", before: () => tourSec("ctl", "ctl") },
@@ -4540,7 +4549,7 @@ const TOURS = {
       { t: () => document.querySelector("#ctl-editor .editbox-foot") || document.querySelector("#ctl-editor button.primary"), h: "Save it", p: "Press <b>Save</b>. The control then shows in the list below, and its switch appears on the remote under the integration." },
       { t: "#ctl-list", h: "Your controls", p: "Each row is one control: what it changes, the step, and whether it's <b>ON</b> right now (with its level). Click a row to edit it, try it with <b>Turn on now</b>, or reset its counted value.",
         before: () => { if (CTL_TOUR_NEW && ED.ctl?.isNew) cancelEdit("ctl"); CTL_TOUR_NEW = false; } },
-      { t: () => document.querySelector('#ctl-app details.panel[data-sec="ctl"]'), h: "What to set up on the remote", p: "Open this for the one-time setup: add <b>Control</b>, <b>Control Level</b>, <b>Control Active</b> and your <b>Control:</b> switches to the integration and your activities, and set the touch slider to <b>Control</b> in the web configurator." },
+      { t: () => document.querySelector('#ctl-app details.panel[data-sec="ctl"]'), remote: true, h: "Set up the remote (once)", p: "Controls need a few entities on the remote:<ol><li>Remote web configurator → <b>Integrations</b> → <b>Remote Self-Control</b> → add <b>Control</b>, <b>Control Level</b>, <b>Control Active</b> and each <b>Control: &lt;name&gt;</b> switch.</li><li>Put the <b>Control:</b> switches on your activities' pages or buttons with the Page Editor (that adds them to the activity).</li><li>In the Page Editor, set an activity's <b>touch slider</b> to <b>Control</b>.</li></ol>Open this panel for the details.", try: false },
       { t: "#ctl-timeout-row", h: "4 · Settings: how long it stays on", p: "After the last press or slide, a control turns itself off after this time, and the rocker and slider go back to normal. Or keep it on until you change it.", before: () => tourSec("ctl", "set") },
       { t: "#ctl-defs", h: "Defaults per activity", p: "What the rocker and slider do in each activity when <b>no</b> control is on. <b>Borrow</b> keeps the rocker on its own device and only points it at Control while a control is on, so there's nothing to remap on the remote." },
       { t: "#ctl-def-add", h: "Add your activities", p: "Add each activity you want to use Controls in, then pick its defaults." },
@@ -4586,7 +4595,7 @@ function tourDropNew() {
   if (ED[k]?.isNew) cancelEdit(k);
 }
 
-TOURS["smart:smart"] = { title: "Smart controls", steps: [
+TOURS["smart:smart"] = { title: "Smart controls", remind: "add each new smart control under Integrations → Remote Self-Control, then put it on a page or a button.", steps: [
   { t: "#tour-btn", h: "Smart controls: a quick tour", p: "A smart control is a button on the remote that checks your devices first and then does the right thing: <i>if the receiver is on, volume up; otherwise turn it on</i>. It runs in the background, so it can't switch the remote's screen." },
   { t: "#add-button", h: "1 · Create one", p: "Start an empty smart control here…" },
   { t: "#template", h: "…or from a template", p: "Templates are ready-made controls: for this remote (Night Mode, backlight color cycle…) and for your devices (smart volume, play/pause or turn on…). Pick one and change it as you like." },
@@ -4596,10 +4605,11 @@ TOURS["smart:smart"] = { title: "Smart controls", steps: [
   { t: () => tbtn("Add else-if") || tbtn("Add otherwise"), h: "More cases", p: "<b>Else if</b> adds another case, checked when the ones above aren't true. <b>Otherwise</b> runs when none of them are. The first true case wins." },
   { t: "#states-smart", h: "What your devices report", p: "Device states shows every value a device reports, live. Click a condition's value box, then a value here to fill it in." },
   { t: tfoot, h: "3 · Save and test", p: "<b>Save</b> keeps it; <b>Test</b> saves and runs it once, and tells you what happened." },
-  { t: "#buttons", h: "Your smart controls", p: "Click one to change it. After saving a new one, add it to the integration (Integrations → Remote Self-Control) and put it on a page or a button." },
+  { t: "#buttons", h: "Your smart controls", p: "Click one to change it, or press <b>Test</b> to run it once." },
+  { t: () => tvis("#app > .pane-main > p.note"), remote: true, h: "Add it to the remote", p: "A new smart control is a new button of this integration. The remote doesn't show it until you add it:<ol><li>Remote web configurator → <b>Integrations</b> → <b>Remote Self-Control</b> → add <b>your smart control</b>.</li><li>Put it on an activity page or a button with the <b>Page Editor</b>; that also adds it to the activity. (In the Page Editor\'s <i>What it does</i> list, <b>Not added yet</b> shows the ones still missing from the remote and adds them for you.)</li></ol>" },
   { t: () => tvis('#app details.panel[data-sec="smart"]'), h: "Backup and import", p: "<b>Rules text</b> is all your smart controls as text: copy it to back them up or share them, or paste rules to load them." }
 ] };
-TOURS["smart:menu"] = { title: "Quick menus", steps: [
+TOURS["smart:menu"] = { title: "Quick menus", remind: "add each new quick menu under Integrations → Remote Self-Control, then put it on a home page or an activity page.", steps: [
   { t: "#tour-btn", h: "Quick menus: a quick tour", p: "A quick menu is a list on the remote, like inputs or sound modes, that opens as a pop-up from a home tile or an activity page. Each choice runs its own steps." },
   { t: "#menu-add", h: "1 · Create one", p: "Start an empty quick menu here…" },
   { t: "#menu-fill", h: "…or from a device's list", p: "Pick a device's list (inputs, sound modes, apps) and every entry becomes a choice that selects it." },
@@ -4608,8 +4618,9 @@ TOURS["smart:menu"] = { title: "Quick menus", steps: [
   { t: () => tsec("Shown as the current choice"), h: "Which one is ticked", p: "Optional: when a choice's condition is true (the receiver's input is <i>Game</i>, say), the menu shows it as the current choice." },
   { t: () => tsec("Stepping through"), h: "Stepping through", p: "How next / previous move through the choices, e.g. when the menu is on a physical button." },
   { t: () => tsec("Tile icon"), h: "Tile icon", p: "The picture on home pages and in lists." },
-  { t: tfoot, h: "3 · Save", p: "Save it, then add it to the integration and put it on a home page or an activity page." },
-  { t: "#buttons", h: "Your smart controls and quick menus", p: "Both kinds are listed here. Click one to change it." }
+  { t: tfoot, h: "3 · Save", p: "Save it. It's a new entity of this integration, so the next step matters." },
+  { t: "#buttons", h: "Your smart controls and quick menus", p: "Both kinds are listed here. Click one to change it." },
+  { t: () => tvis("#app > .pane-main > p.note"), remote: true, h: "Add it to the remote", p: "A quick menu is a new list (select) of this integration:<ol><li>Remote web configurator → <b>Integrations</b> → <b>Remote Self-Control</b> → add <b>your quick menu</b>.</li><li>Put it on a home page or an activity page with the <b>Page Editor</b>; that also adds it to the activity. (In the Page Editor\'s <i>What it does</i> list, <b>Not added yet</b> shows the ones still missing from the remote and adds them for you.)</li></ol>" }
 ] };
 TOURS["icons:icon"] = { title: "State icons", steps: [
   { t: "#tour-btn", h: "State icons: a quick tour", p: "A state icon is a button on an activity page that changes its look with a device: a different picture or label while the TV is on, or for each receiver input. What it does when pressed doesn't change." },
@@ -4621,7 +4632,7 @@ TOURS["icons:icon"] = { title: "State icons", steps: [
   { t: tfoot, h: "4 · Save", p: "The button switches look within about 2 seconds of a change, and goes back to its default when no state matches." },
   { t: "#icons-list", h: "Your state icons and sliders", p: "Click one to change it." }
 ] };
-TOURS["icons:slider"] = { title: "Sliders", steps: [
+TOURS["icons:slider"] = { title: "Sliders", remind: "add each new slider under Integrations → Remote Self-Control, then put it on a home page or pick it for a touch slider.", steps: [
   { t: "#tour-btn", h: "Sliders: a quick tour", p: "A slider is a number on one of your devices, like the receiver's volume, that you can set with the remote's slider pop-up from a home tile, or with the touch slider of a Remote 3." },
   { t: "#slider-add", h: "1 · Create one", p: "Start a new slider here." },
   { t: thead, h: "Name it", p: "The name shows on its tile.", before: () => tourNew("extras", "#slider-add") },
@@ -4630,9 +4641,10 @@ TOURS["icons:slider"] = { title: "Sliders", steps: [
   { t: () => tsec("3 · Range"), h: "Range", p: "The lowest and highest value, and the step." },
   { t: () => tsec("4 · Tile icon"), h: "Tile icon", p: "The picture on home pages and in lists." },
   { t: () => tsec("5 · Show the level"), h: "Show the level on a page", p: "Optional: a bar on an activity page that follows the value, in the design and colours you pick." },
-  { t: tfoot, h: "4 · Save", p: "Save it, then add it to the integration (group <b>Remote Sliders &amp; Menus</b>) and put it on a home page, or pick it for the touch slider." }
+  { t: tfoot, h: "4 · Save", p: "Save it. It's a new entity of this integration, so the next step matters." },
+  { t: "#icons-list", remote: true, h: "Add it to the remote", p: "A slider is a new light entity of this integration, in the group <b>Remote Sliders &amp; Menus</b>:<ol><li>Remote web configurator → <b>Integrations</b> → <b>Remote Self-Control</b> → add your slider.</li><li>Put it on a home page (tapping the tile opens the slider), or, on a Remote 3, pick it as an activity's <b>touch slider</b> in the Page Editor. The Page Editor adds it to the activity for you.</li></ol>" }
 ] };
-TOURS["icons:display"] = { title: "Displays", steps: [
+TOURS["icons:display"] = { title: "Displays", remind: "add each new display under Integrations → Remote Self-Control, then show it with a sensor widget in the Page Editor.", steps: [
   { t: "#tour-btn", h: "Displays: a quick tour", p: "A display is a sensor that shows text on a page: a value (volume, the time, a song) with words around it, that switches to something else for a while when something happens, then goes back." },
   { t: "#disp-add", h: "1 · Create one", p: "Start an empty display here…" },
   { t: "#disp-tmpl", h: "…or from a template", p: "Ready-made displays: volume with a Control taking over, a status line, a doorbell message, a message ticker." },
@@ -4640,8 +4652,9 @@ TOURS["icons:display"] = { title: "Displays", steps: [
   { t: () => tsec("Default"), h: "2 · Default", p: "What it shows when nothing special is going on: a value of a device or of this remote, the time, a memory, with text before and after it." },
   { t: () => tsec("Temporary changes"), h: "3 · Temporary changes", p: "What it shows for a while when something happens: a value changes or crosses a number, a Control turns on, an activity starts. Higher ones win; <b>High</b> priority isn't interrupted." },
   { t: () => tvis(".dsp-preview", tourBox() || tourPane()), h: "Preview", p: "How it will look on the remote, right now, with your devices' real values." },
-  { t: tfoot, h: "4 · Save", p: "Save it, add it to the integration, and put it on a page with the Page Editor's <b>sensor widget</b>. It updates at once." },
-  { t: "#disp-list", h: "Your displays", p: "Click one to change it. Smart controls can send messages to a display with the step <b>Show on a display</b>." }
+  { t: tfoot, h: "4 · Save", p: "Save it. It's a new sensor of this integration, so the next step matters." },
+  { t: "#disp-list", h: "Your displays", p: "Click one to change it. Smart controls can send messages to a display with the step <b>Show on a display</b>." },
+  { t: () => tvis('#icons-app p.note[data-sec="display"]'), remote: true, h: "Add it to the remote", p: "A display is a new sensor of this integration:<ol><li>Remote web configurator → <b>Integrations</b> → <b>Remote Self-Control</b> → add your display (or pick it under <b>Not added yet</b> in the Page Editor).</li><li>In the Page Editor, put a <b>sensor widget</b> on a page and pick your display; that also adds it to the activity. It updates at once, no page rewrite.</li></ol>" }
 ] };
 TOURS["icons:auto"] = { title: "Auto Widgets", steps: [
   { t: "#tour-btn", h: "Auto Widgets: a quick tour", p: "Auto Widgets put widgets on an activity's page that change by themselves: what they show, or whether they're there at all. This tour points at each part." },
@@ -4658,7 +4671,8 @@ TOURS["icons:auto"] = { title: "Auto Widgets", steps: [
   { t: "#states-icons", h: "Find the right values", p: "Device states shows what every device reports, live. Click a condition's value box, then a value here. ✓ / ✗ under a value show which of your conditions check it." },
   { t: () => tvis("#aw-root .awcard.open .awright"), h: "4 · The preview", p: "The page as it looks now: orange is this widget, blue the others. Notes tell you if it's hidden, blocked by a higher one, or not placed yet." },
   { t: () => tvis("#aw-root .awcard.open .awwords"), h: "Read it back", p: "<b>In words</b> says the whole rule as a sentence: a quick check that it does what you meant." },
-  { t: "#aw-save", h: "5 · Save", p: "One button saves all Auto Widgets. Smart widgets are then added to the remote and placed; spots start following their rules." }
+  { t: "#aw-save", h: "5 · Save", p: "One button saves all Auto Widgets." },
+  { t: "#aw-save", remote: true, h: "On the remote: done for you", p: "Unlike the other sections, Auto Widgets set up the remote themselves when you save:<ol><li><b>Smart widgets</b> are added to the remote, to the activity, and placed on their page.</li><li><b>Spots</b>: the devices whose widgets they place are added to the activity.</li></ol>If saving says a Smart widget couldn't be added, add it under <b>Integrations → Remote Self-Control</b> and save again.", try: false }
 ] };
 TOURS["ret:ret"] = { title: "↩ buttons", steps: [
   { t: "#tour-btn", h: "↩ buttons: a quick tour", p: "A ↩ button takes you back to the activity you used before, like a browser's back button. The integration keeps it pointed at the right activity." },
@@ -4744,11 +4758,13 @@ function tourEnd(done) {
   if (!TOUR) return;
   for (const e of tourParts()) e.remove();
   document.body.classList.remove("tour-on", "tour-paused");
+  const remind = TOURS[TOUR.key].remind;
   try { tourDropNew(); TOURS[TOUR.key].end?.(); } catch {}
   TOUR = null;
   tourBtn();
   if (done === true) {
     const box = el("div", { class: "tour-done", role: "dialog", "aria-label": "Tour finished" }, el("h3", {}, "You're set ✓"),
+      ...(remind ? [el("div", { class: "tour-remind" }, el("b", {}, "📱 Don't forget: "), remind)] : []),
       el("p", {}, "Start this tour again any time with ▶ Show me how."), el("button", { type: "button", class: "primary", on: { click: () => box.remove() } }, "Close"));
     document.body.append(box);
     box.querySelector("button").focus();
@@ -4777,11 +4793,14 @@ function tourShow() {
   const last = TOUR.at === steps.length - 1;
   const back = el("button", { type: "button", class: "small", disabled: TOUR.at === 0, on: { click: () => tourGo(-1) } }, "Back");
   const next = el("button", { type: "button", class: "small primary", on: { click: () => (last ? tourEnd(true) : tourGo(1)) } }, last ? "Done" : TOUR.at ? "Next" : "Start");
-  const body = el("p", {}); body.innerHTML = st.p;
+  const body = el("div", { class: "tour-body" }); body.innerHTML = st.p.includes("<ol") ? st.p : `<p>${st.p}</p>`;
   const tryIt = st.try !== false && tourCanTry(t) && TOUR.at > 0;
+  TOUR.els.tip.classList.toggle("tour-remote", !!st.remote);
   TOUR.els.tip.replaceChildren(
     el("button", { type: "button", class: "tour-x ghost", title: "End the tour", "aria-label": "End the tour", on: { click: () => tourEnd(false) } }, "✕"),
-    el("span", { class: "tour-count" }, `${TOUR.at + 1} of ${steps.length}`), el("h3", {}, st.h), body,
+    el("span", { class: "tour-count" }, `${TOUR.at + 1} of ${steps.length}`),
+    ...(st.remote ? [el("div", { class: "tour-badge" }, "📱 On your remote · needed")] : []),
+    el("h3", {}, st.h), body,
     ...(tryIt ? [el("p", { class: "tour-try" }, "👉 Try it: click in the highlighted part and change it. The tour waits; press ", el("b", {}, "▶ Continue"), " in the bar at the top to go on.")] : []),
     el("div", { class: "tour-nav" }, el("div", { class: "tour-dots", "aria-hidden": "true" }, ...steps.map((_, i) => el("i", { class: i === TOUR.at ? "on" : "" }))), back, next),
     el("div", { class: "tour-arrow", "aria-hidden": "true" }));
