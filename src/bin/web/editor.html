@@ -32,6 +32,13 @@ nav.tabs span{padding:9px 13px;font-weight:600;color:#9ca3af;cursor:not-allowed}
 nav.tabs span.on{color:var(--ink);border-bottom:3px solid var(--acc);cursor:default}
 .mode{display:flex;flex-wrap:wrap;gap:6px}
 /* guided tours */
+.tour-offer{position:fixed;z-index:880;width:min(330px,calc(100vw - 32px));background:var(--card);color:var(--ink);border:2px solid var(--acc);border-radius:14px;box-shadow:0 0 0 4px var(--accbg),0 12px 32px rgba(0,0,0,.3);padding:14px 16px 12px;animation:offerin .35s ease}
+.tour-offer h3{margin:0 0 4px;font-size:15px}.tour-offer p{margin:0 0 10px;font-size:13.5px;line-height:1.45}
+.tour-offer .row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.offer-never{margin-left:auto;font-size:12.5px;color:var(--mute);background:none;border:0;text-decoration:underline;cursor:pointer;padding:0}
+.offer-arrow{position:absolute;top:-9px;width:14px;height:14px;background:var(--card);border-left:2px solid var(--acc);border-top:2px solid var(--acc);transform:rotate(45deg)}
+@keyframes offerin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.tour-offer{animation:none}}
 .tour-shade{position:fixed;z-index:900;background:rgba(8,10,14,.6)}
 .tour-spot{position:fixed;z-index:901;border-radius:12px;outline:3px solid var(--acc);outline-offset:-1px;transition:all .25s ease;pointer-events:none}
 .tour-tip{position:fixed;z-index:902;width:min(340px,calc(100vw - 32px));background:var(--card);color:var(--ink);border:1px solid var(--line2);border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.35);padding:14px 16px 12px;transition:top .25s ease,left .25s ease}
@@ -3603,6 +3610,7 @@ function edTourBtn() {
   b.title = paused ? "Go on with the tour" : "A step-by-step walk through this part of the Page Editor";
 }
 function edTourStart() {
+  edOfferClose();
   const key = edTourKey();
   if (ED_TOUR?.paused && ED_TOUR.key === key) return edTourResume();
   if (!ED_TOURS[key]) return;
@@ -3706,12 +3714,55 @@ addEventListener("keydown", (e) => {
   else if (e.key === "ArrowRight" && !e.target.closest?.("input, select, textarea")) edTourGo(1);
   else if (e.key === "ArrowLeft" && !e.target.closest?.("input, select, textarea")) edTourGo(-1);
 });
+
+// a tour offers itself the first time a part is opened (once per part; "Don't offer tours" turns it off)
+const ED_OFFER_KEY = "scb_tour_offer";
+const edOfferState = () => { try { return JSON.parse(localStorage.getItem(ED_OFFER_KEY) || "{}"); } catch { return {}; } };
+const edOfferSave = (s) => { try { localStorage.setItem(ED_OFFER_KEY, JSON.stringify(s)); } catch {} };
+let ED_OFFER = null, edOfferTimer = null;
+function edOfferClose() { ED_OFFER?.card.remove(); ED_OFFER = null; }
+function edOfferPlace() {
+  const b = tq("#tour-btn"); if (!ED_OFFER || !b) return;
+  const r = b.getBoundingClientRect(), card = ED_OFFER.card, w = card.offsetWidth;
+  const left = Math.max(16, Math.min(r.right - w, innerWidth - w - 16));
+  Object.assign(card.style, { left: left + "px", top: Math.max(8, r.bottom + 14) + "px" });
+  card.querySelector(".offer-arrow").style.left = Math.max(14, Math.min(w - 28, r.left + r.width / 2 - left - 7)) + "px";
+}
+function edOffer() {
+  const key = edTourKey();
+  if (ED_OFFER && ED_OFFER.key !== key) edOfferClose();
+  if (!ED_TOURS[key] || ED_OFFER || ED_TOUR) return;
+  const st = edOfferState();
+  if (st.off || st.seen?.[key]) return;
+  if (edOfferTimer && edOfferTimer.key === key) return;
+  clearTimeout(edOfferTimer?.id);
+  edOfferTimer = { key, id: setTimeout(() => {
+    edOfferTimer = null;
+    if (ED_TOUR || ED_OFFER || edTourKey() !== key || tq("#loading")?.offsetParent) return;
+    const tour = ED_TOURS[key];
+    const mark = (extra = {}) => { const s2 = edOfferState(); edOfferSave({ ...s2, ...extra, seen: { ...(s2.seen || {}), [key]: true } }); edOfferClose(); };
+    const card = el("div", { class: "tour-offer", role: "dialog", "aria-label": "Tour offer" },
+      el("div", { class: "offer-arrow", "aria-hidden": "true" }),
+      el("button", { type: "button", class: "tour-x", title: "Not now", "aria-label": "Not now", on: { click: () => mark() } }, "✕"),
+      el("h3", {}, `👋 New to ${tour.title}?`),
+      el("p", {}, `A quick tour shows how this part works: ${tour.steps.length} steps, about a minute. You can try things as you go, and start it again any time with ▶ Show me how.`),
+      el("div", { class: "row2" },
+        el("button", { type: "button", class: "btn small primary", on: { click: () => { mark(); edTourStart(); } } }, "▶ Show me how"),
+        el("button", { type: "button", class: "btn small", on: { click: () => mark() } }, "Not now"),
+        el("button", { type: "button", class: "offer-never", on: { click: () => mark({ off: true }) } }, "Don't offer tours")));
+    ED_OFFER = { key, card };
+    document.body.append(card);
+    edOfferPlace();
+  }, 900) };
+}
+addEventListener("resize", edOfferPlace);
+addEventListener("scroll", edOfferPlace, { passive: true });
 // the button, at the right of the bar at the top; it follows the part you're editing
 {
   const bar = tq("#edtop .mode");
   if (bar) bar.append(el("span", { style: "flex:1" }), el("button", { type: "button", class: "btn small primary", id: "tour-btn", on: { click: edTourStart } }, "▶ Show me how"));
   const orig = setMode;
-  setMode = function (m) { orig(m); edTourBtn(); }; // eslint-disable-line no-func-assign
+  setMode = function (m) { orig(m); edTourBtn(); edOffer(); }; // eslint-disable-line no-func-assign
   edTourBtn();
 }
 
@@ -3723,6 +3774,7 @@ renderPalette();
     $("#modelrow").classList.toggle("hidden", modelKnown); // read from the remote: nothing to pick
     restoreNewActButton();
     renderAll();
+    edOffer();
   } catch (e) {
     $("#loading").replaceChildren(el("div", {}, el("p", { class: "err" }, e.message), el("p", {}, el("button", { class: "btn", type: "button", on: { click: () => location.reload() } }, "Try again"))));
   }

@@ -17,9 +17,8 @@ Everything runs on the remote and is set up in a browser page the integration se
 
 - [Features](#features)
   - [Page Editor](#page-editor): [activities and pages](#activities-and-pages) · [start and stop, with a guided setup](#start-and-stop-with-a-guided-setup) · [activity groups](#activity-groups) · [home screen](#home-screen) · [macros](#macros) · [devices, integrations and app links](#devices-integrations-and-app-links) · [themes](#themes) · [safe saving](#safe-saving)
-  - [Smart Controls](#smart-controls) · [State icons](#state-icons) · [Sliders, quick menus and level pictures](#sliders-quick-menus-and-level-pictures) · [Controls](#controls) · [Return ↩ and page jumps](#return--and-page-jumps) · [Smart Launchers](#smart-launchers) · [Displays](#displays) · [Statistics](#statistics) · [Image Fusionner tiles](#image-fusionner-tiles) · [The remote's own settings](#the-remotes-own-settings) · [Device states](#device-states) · [Backup, restore and Integration Manager](#backup-restore-and-integration-manager)
+  - [Smart Controls](#smart-controls) · [State icons](#state-icons) · [Sliders, quick menus and level pictures](#sliders-quick-menus-and-level-pictures) · [Controls](#controls) · [Return ↩ and page jumps](#return--and-page-jumps) · [Smart Launchers](#smart-launchers) · [Displays](#displays) · [Auto Widgets](#auto-widgets) · [Guided tours](#guided-tours) · [Statistics](#statistics) · [Image Fusionner tiles](#image-fusionner-tiles) · [The remote's own settings](#the-remotes-own-settings) · [Device states](#device-states) · [Backup, restore and Integration Manager](#backup-restore-and-integration-manager)
 - [Install](#install)
-- [Walkthroughs](#walkthroughs): 15 step-by-step examples, from your first Smart Control to the Page Editor
 - [The builder](#the-builder) · [Entities](#entities) · [Rules reference](#rules-reference)
 - [Security](#security) · [Configuration](#configuration) · [Logs and removal](#logs-and-removal) · [Development](#development) · [Changes](#changes) · [Support](#support)
 
@@ -98,13 +97,13 @@ A **Theme** picker for the whole builder: Automatic, Desktop, Dark mode, Remote 
 
 ### Smart Controls
 
-Buttons with **if / else if / otherwise** logic, built by picking from your own devices, activities and the remote's settings: "if the receiver is on, turn *it* up, otherwise the TV". Conditions on device states, the activity that's on, the time, the remote's settings and battery, and remembered values. Steps can run commands (IR too), wait, **wait until** a device is ready, remember and restore settings, and **jump to a page**. Templates for Night Mode, Quiet Mode, smart volume, input with wait and more; **Test** runs one on the remote and shows what it did. [Walkthroughs 1–5](#walkthroughs)
+Buttons with **if / else if / otherwise** logic, built by picking from your own devices, activities and the remote's settings: "if the receiver is on, turn *it* up, otherwise the TV". Conditions on device states, the activity that's on, the time, the remote's settings and battery, and remembered values. Steps can run commands (IR too), wait, **wait until** a device is ready, remember and restore settings, and **jump to a page**. Templates for Night Mode, Quiet Mode, smart volume, input with wait and more; **Test** runs one on the remote and shows what it did. A new install has no Smart Controls: start from a template.
 
 ![A Smart Control in the builder](docs/images/builder-overview.png)
 
 ### State icons
 
-A button on a page that changes its picture or label with a device's state, like a green power icon while the receiver is on. Pick the button on a drawing of the page, drop in a picture per state. [Walkthrough 8](#8-a-power-icon-that-turns-green-when-the-receiver-is-on)
+A button on a page that changes its picture or label with a device's state, like a green power icon while the receiver is on. Pick the button on a drawing of the page, drop in a picture per state.
 
 <p align="center"><img src="docs/images/state-icon-demo.gif" alt="State icon: the power button turns green when the receiver is on" width="300"></p>
 
@@ -114,32 +113,44 @@ A button on a page that changes its picture or label with a device's state, like
 - **Quick menus:** a pop-up list whose choices run steps: inputs, sound modes, scenes. Build one from a device's input list in one click.
 - **Level pictures:** a button that shows a level in 16 designs (bar, arc gauge, battery, needle, …), in any color, changing color with the value, always or only for a few seconds after it changes. 12 tile icons for sliders and menus.
 
-[Walkthroughs 9–10](#9-a-receiver-volume-slider)
 
 ![The 16 level pictures, colors by value and the 12 tile icons](docs/images/slider-graphics.png)
 
 ### Controls
 
-Press a switch and the volume rocker and touch slider change something else for a moment (a light, a tone control, the screen or backlight brightness, one of your sliders), with the remote's own volume pop-up. Per activity, what they do when no control is on; optionally **borrow** the rocker from your TV only while a control is on. [Walkthrough 11](#11-the-volume-keys-and-touch-slider-for-a-light-controls)
+Press a switch and the volume rocker and touch slider change something else for a moment (a light, a tone control, the screen or backlight brightness, one of your sliders), with the remote's own volume pop-up. Per activity, what they do when no control is on; optionally **borrow** the rocker from your TV only while a control is on.
 
 ![Controls with the remote's own pop-up, and a level picture on a button (illustration)](docs/images/remote-controls.png)
 
 ### Return ↩ and page jumps
 
-- **↩ Return to the previous activity:** an on-screen button (text, arrow or your own picture) and/or a physical button that always takes you back to the activity you came from, optionally turning off the one you leave. [Walkthrough 6](#6-return-to-the-previous-activity)
-- **Go to page:** a step that jumps to a page of the activity you're in, with logic ("if the Shield is playing → Apps, otherwise → Remote"). **Start pages:** per activity, the page it opens on depending on your devices. [Walkthrough 13](#13-jump-to-a-page-and-start-pages)
+- **↩ Return to the previous activity:** an on-screen button (text, arrow or your own picture) and/or a physical button that always takes you back to the activity you came from, optionally turning off the one you leave.
+- **Go to page:** a step that jumps to a page of the activity you're in, with logic ("if the Shield is playing → Apps, otherwise → Remote"). **Start pages:** per activity, the page it opens on depending on your devices.
 
 ![The ↩ button and a Smart Controls page on the remote (illustration)](docs/images/remote-screens.png)
 
 ### Smart Launchers
 
-One button (on a page, a physical button or the home screen) that opens the activity your conditions pick: *if the Shield is on → Watch ShieldTV, otherwise → Watch RokuTV*, optionally with extra steps once it has started. [Walkthrough 14](#14-one-button-for-whichever-activity-fits-smart-launchers)
+One button (on a page, a physical button or the home screen) that opens the activity your conditions pick: *if the Shield is on → Watch ShieldTV, otherwise → Watch RokuTV*, optionally with extra steps once it has started.
 
 ### Displays
 
 Text on a page that updates by itself: each display is its own sensor entity, shown with the Page Editor's sensor widget. It has a **default** (a device's value, one of your sliders, the remote's battery, the time, the activity on screen, or messages one after another) with text before and after it, symbols, emoji and the remote's own icons. **Temporary changes** take over for a few seconds or while something is true: when a value changes or goes above / below a number, while a Control is on, or when an activity starts. Values can show as a number or as a **bar** (◼◼◼◻◻ 60 %). A smart control step **Show on a display** puts up messages ("Ding dong | at the door"). The preview shows it on a remote screen at the widget's size and page grid.
 
 ![A display sensor in the builder with its preview](docs/images/builder-displays.png)
+
+### Auto Widgets
+
+Widgets on an activity's page that change by themselves, set up in **Icons & Sliders → Auto Widgets** with the same **If / Else if / Otherwise** conditions as Smart Controls (branches are checked top to bottom and can be moved up and down). How they work depends on the activity, because the remote jumps back to page 1 when a page of a multi-page activity changes:
+
+- **One-page activity: widget spots.** A spot places your devices' **real widgets** (a media widget, a select, a sensor, also your Displays) on the page, each at its own place and size, over your icons if you like: *while Plex plays, the Plex media widget over the bottom rows; while the Shield is on the Plex app, a bigger one at the top; otherwise your icons*. The page is redrawn in place when the rule in use changes, and your icons come back when nothing is placed. Buttons, browsing and search go straight to the device. When two spots would land on the same place, the one higher in the list wins. Changes you make to the page meanwhile (Page Editor or web configurator) are kept.
+- **Activity with several pages: Smart widgets.** A **Smart Media Widget**, **Smart Select** or **Smart Sensor** is one of this integration's own entities, placed once on an empty spot. It shows whichever device the rules pick: its title, artwork and state, and its buttons (and for a media widget, browsing and search) go to that device.
+
+Saving does the setup on the remote for you: Smart widgets are added to the remote and the activity and placed on their page, and the devices a spot shows are added to the activity. Each widget's card shows a preview of the page (with the widgets above it, so overlaps are visible), which branch is in use now, a ✓ / ✗ per condition, and the rule in words; the Device states panel marks the values your conditions check.
+
+### Guided tours
+
+Every tab and section of the builder and every part of the Page Editor has a **▶ Show me how** tour: the page dims except for one part at a time, and a bubble explains it. Click into the highlighted part to try it: the tour waits, and the button turns into **▶ Continue** to go on. Steps that need something done on the remote (adding a new smart control, menu, slider, display or Control switch to the integration and an activity) stand out with **📱 On your remote · needed** and a checklist, and the end of the tour reminds you. The first time you open a section, its tour **offers itself** once (Not now / Don't offer tours). A tour that opens an empty item to show it (a new smart control, say) removes it at the end unless you typed into it.
 
 ### Statistics
 
@@ -163,7 +174,6 @@ A live panel with every value your devices (and the remote itself, battery inclu
 - **Reconfigure → Back up settings / Restore settings from a backup:** the same settings as text. [Integration Manager](https://github.com/JackJPowell/uc-intg-manager)'s **Backup Config** uses this, so it can keep your settings with its other backups.
 - **Remove everything** puts back what the integration changed on your remote before you uninstall it.
 
-[Walkthrough 12](#12-back-up-everything)
 
 ## Install
 
@@ -177,232 +187,7 @@ A live panel with every value your devices (and the remote itself, battery inclu
 4. Open the builder at `http://<remote-name>.local:10123/` (the exact address is in Integrations → Remote Self-Control → Configure) and log in with the same PIN. The **Page Editor** opens first.
 5. For the remote settings, Smart Controls, sliders and so on: add the entities you want to the integration, then use them in activities, macros or pages.
 
-To update, first save a **Backup** in the builder (walkthrough 12), then use Install custom with **Update existing driver** checked (or update in Integration Manager). Your settings are kept. No restart of the remote is needed.
-
-## Walkthroughs
-
-### 1. Your first Smart Control (2 minutes)
-
-The integration starts with no Smart Controls. Make a first one that moves the button backlight to the next color:
-
-1. In the builder, **Smart Controls** → *or start from a template…* → **Backlight color cycle** → **Save**.
-2. Integrations → Remote Self-Control → add **Backlight Color Cycle** and **Smart Controls: Last Result**.
-3. Integrations → Remote Self-Control → **Configure** → **Add the Last Result tile to an activity** → pick an activity, leave *Also add the Smart Control buttons* ticked.
-4. Open that activity on the remote and swipe to the new **Smart Controls** page. Press **Backlight Color Cycle**: the backlight changes color and the Last Result tile says what happened.
-
-That tile is your debugging friend: every Smart Control writes what it did (or why it failed) there.
-
-### 2. Smart volume: receiver if it's on, otherwise the TV
-
-One pair of volume buttons that follows whatever is actually playing.
-
-1. Open the builder: `http://<remote-name>.local:10123/` (the exact address is in Integrations → Remote Self-Control → Configure). Log in with the web-configurator PIN.
-2. **Add from a template… → Smart volume (receiver, else TV)**. The builder fills in your first two media players; change them in the dropdowns if needed.
-3. It reads: **If** *Receiver* state *is* ON → *Receiver* volume up. **Otherwise** → *TV* volume up.
-
-   ![Smart volume in the builder](docs/images/builder-overview.png)
-
-4. Press **Test** to run it once on the remote. The **Last test** panel shows what it did:
-
-   <img src="docs/images/builder-test-result.png" alt="Test result" width="340">
-
-5. Add the template again, rename it *Smart Volume Down* and pick *volume down* in both branches, then **Save**.
-6. Integrations → Remote Self-Control → add both new controls.
-7. In your activity: add them to the activity's devices, then **Button mapping** → *Volume up* → **Smart Volume Up** (*push*), *Volume down* → **Smart Volume Down**.
-
-### 3. Switch input, turning the receiver on first
-
-Receivers often ignore an input change while they're still booting. A **Wait until** step fixes that.
-
-1. **Add from a template… → Switch input, turning the device on first**, pick your receiver and the input.
-2. It reads: **If** *Receiver* is not OFF → select input. **Otherwise** → turn on, **wait until** it's not OFF (up to 10 s), wait 1 s more, then select input.
-
-   ![Switch input with wait until](docs/images/builder-wait-until.png)
-
-3. **Save**, add the control to the integration, and put it on a page or a button. Great for "watch" buttons on a page of app shortcuts.
-
-### 4. Night Mode on a long press
-
-Dim everything for movie night with one press, and get your exact previous settings back with the next.
-
-1. **Add from a template… → Night Mode (toggle, restores your settings)**.
-2. It **remembers** the current backlight, display and sound settings, then sets a red backlight at 10 %, display 30 % and sound effects off. A second press **restores** what was there before.
-
-   ![Night Mode](docs/images/builder-night-mode.png)
-
-3. **Save**, add **Night Mode** to the integration, then in an activity's **Button mapping** give it a long press (for example *long press Menu*).
-
-**Quiet Mode** works the same way for sound effects and haptics.
-
-### 5. Backlight by time of day
-
-1. **Add from a template… → Backlight by time of day**.
-2. **If** the time is between 20:00 and 07:00 → backlight *Amber* at 30 %; **otherwise** *Cool white* at 100 %.
-
-   ![Backlight by time of day](docs/images/builder-time-of-day.png)
-
-3. Add it to your activities' **on sequence** so the remote's buttons match the time of day every time you start watching.
-
-### 6. Return to the previous activity
-
-Jump from *Watch TV* to a *Home Assistant* or *Music* activity and back with one press, whether or not the first activity was turned off.
-
-1. Open the builder's **Return & Pages ↩** tab → **+ Add an activity**, and pick the activity that gets a ↩ button. Each activity has its own settings and shows as one bar (with where its ↩ goes right now); **Edit** changes it, **Delete** inside the editor removes it.
-2. **On screen:** a text button "↩ <previous activity>", a back arrow, **your own picture** (drag and drop any PNG, JPG or SVG; it's resized to 90×90 and uploaded to the remote) or nothing. It's added to the first free spot of the activity's first page; move it wherever you like in the web configurator. Changing the look later updates the button where it is. A text button needs two free cells side by side; with only one, the icon is used. **The page's grid is never changed**: if there's no free spot, nothing is added (the bar then says so).
-3. **Physical button (optional):** button and short or long press, always or only if there's no room on screen. It replaces what that button does in that activity.
-4. **Turn this activity off when I switch to another one (optional):** when you leave a marked activity (with ↩ or any other way), the integration sends it a plain "turn off". Meant for a single device's control page (a receiver page, say), whose own on/off sequences don't matter. It works when ↩ goes back to an activity that is still running, too.
-
-The older setup screen (Integrations → Remote Self-Control → **Configure** → **Return to previous activity**) still works for the basic settings.
-
-From then on the integration keeps every ↩ button pointed at the activity you came from:
-
-```mermaid
-sequenceDiagram
-    participant You
-    participant Remote
-    participant Integration
-    You->>Remote: start "Watch TV"
-    Integration->>Remote: every other activity's ↩ → "Watch TV"
-    You->>Remote: start "Play Music"
-    Integration->>Remote: "Watch TV"'s ↩ → "Play Music"
-    Note over Remote: "Play Music" already shows ↩ Watch TV
-    You->>Remote: press ↩ Watch TV
-    Remote->>You: opens "Watch TV"
-```
-
-Why it works this way: the remote only switches screens when *you* press a button that starts an activity. An integration can't switch screens, so instead it rewrites the ↩ buttons ahead of time. While you're in one activity, the ↩ buttons in all the others already point to it.
-
-The integration follows the remote's own events, so it also sees you reopen an activity that is still on (for example with ↩), and the ↩ buttons keep pointing the right way.
-
-### 7. Display brightness on the touch slider
-
-1. Integrations → Remote Self-Control → add **Display Brightness** (and/or **Button Backlight**).
-2. In an activity's user-interface settings, set the **touch slider** to **Display Brightness**.
-3. Slide to set the screen brightness. It turns display auto brightness off; *off* means the dimmest level.
-
-### 8. A power icon that turns green when the receiver is on
-
-State icons make a button on a page follow a device's state. The button's own icon or text is the **default** look; you drop in an image (and/or type a label) for each state.
-
-1. Put a button on the page of a **single-page** activity, for example a gray power icon or a text button "Receiver". This is what it shows when the receiver is off.
-2. Open the builder and switch to the **Icons & Sliders** tab → **+ Create state icon**, and give it a name.
-3. **The button:** pick the activity, then click the button in the drawing of its page.
-4. **What it shows:** pick the device (your receiver) and what to check (*state*). The builder shows its value right now.
-5. **Looks:** for *ON*, drag in a green power image (any PNG, JPG or SVG; it's resized to 90×90 and uploaded to the remote) and optionally a label like "Receiver ON". Add more states if you like (*STANDBY*, an input name, …).
-6. **Save.** Within about 2 seconds of the receiver turning on, the button shows the green icon; when it turns off it goes back to its default. What the button does when pressed doesn't change.
-
-<p align="center"><img src="docs/images/state-icon-demo.gif" alt="On the remote: press the button, the receiver turns on, the icon turns green" width="320"></p>
-
-Setting it up in the builder:
-
-![Setting up a state icon in the builder](docs/images/state-icons-builder.gif)
-
-**Caveats**
-
-- **Single-page activities only.** On the remote, changing a page of the activity you're looking at sends you back to that activity's first page when it has more than one page. So the builder only lets you pick activities with exactly one page; activities with more pages are listed but greyed out.
-- **If you add a second page later**, the state icon stops updating (it's never forced on a multi-page activity) and the builder shows a warning on it. Remove the extra page, or remove the state icon.
-- **Only icon and text buttons** can change. Media player widgets, sensor tiles and lists can't be used.
-- **About 2 seconds' delay**: the integration checks the device every 2 seconds while the remote is awake. While the remote sleeps nothing is checked; the button catches up within a couple of seconds after it wakes.
-- **The default look is captured when you save.** If you later change that button's icon or text in the web configurator, delete the state icon and add it again so it learns the new look. Don't move the button to another spot; the integration finds it by its position.
-- **Uploaded images stay on the remote** as custom icons (named `si_…`) after you delete a state icon. Delete them in the web configurator if you don't need them.
-
-### 9. A receiver volume slider
-
-A slider is a light entity of this integration that stands for a number on another device. Its brightness (0–100 %) maps to the range you choose, so the remote's own slider pop-up and the Remote 3 touch slider work with it.
-
-1. In the builder, open the **Icons & Sliders** tab → **+ Create slider**, and give it a name.
-2. **Device:** pick your receiver. The builder fills in the rest for you: it reads the **volume**, sends it with the **volume** command, range 0–100. Lower **Highest** if you never want it louder (e.g. 60).
-   - For a device without a "set volume" command (IR, or only volume up/down), choose **Press up / down commands**: pick the up and down commands, how much one press changes it, and the pause between presses. Without anything to read it from, the slider remembers the last value it set.
-3. **Save**, then type a value under **Try a value** and press **Set** to check it.
-4. Integrations → Remote Self-Control → add the new slider (group **Remote Sliders & Menus**).
-5. Put it on a **home page**: tapping the tile opens the slider pop-up. On a Remote 3 you can also set an activity's **touch slider** to it.
-6. Optional: pick a **tile icon** (step 4), and in step 5 pick a single-page activity and click the button that should **show the level**, then pick a design and color (below).
-
-The slider follows changes made elsewhere (within about 2 seconds while the remote is awake). Switching the slider **off** sets the lowest value; **on** goes back to the last value. When you drag quickly, the newest position wins: values in between are skipped instead of queued.
-
-**Custom graphics.** The slider pop-up itself is drawn by the remote and can't be restyled, but two things can:
-
-- **Tile icon:** 12 icons (volume, speaker, subwoofer, light bulb, brightness, blinds, temperature, fan, knob, equalizer, microphone, list) for the slider's or menu's tile on home pages and in lists. Pick one on the card; it's uploaded to the remote and set once the entity has been added to the integration.
-- **Level picture:** a button on an activity page whose picture shows the current value. 16 designs: bar, column, arc gauge, ring, dots, signal, speaker, knob, tank, thermometer, equalizer, segments, battery, needle, pie and steps. Pick the color on a **color wheel**, and add **Change color from a value…** steps (for example orange from 60 %, red from 85 %). 11 pictures (0 %, 10 % … 100 %) are made in the builder and uploaded when you save, and the button shows the one closest to the value. **Size** (full, large, medium) leaves room around it. Same limits as state icons: **single-page activities only**, about 2 seconds' delay. What the button does when pressed doesn't change (map it to the slider's toggle or volume up, for example).
-- **Only when the value changes:** **Show the level** → *Only for a few seconds when the value changes* (1–60 s, default 4). The button shows its own look until the value changes (from anywhere, e.g. the remote's volume keys), then the level appears and hides again after the set time.
-
-![The 16 level pictures, colors by value and the 12 tile icons](docs/images/slider-graphics.png)
-
-### 10. A pop-up menu for the receiver's inputs
-
-A quick menu is a list entity whose choices each run steps, the same steps as a Smart Control.
-
-1. In the **Smart Controls** tab, open **or a quick menu from a device's list…** and pick *Receiver: Select source*. You get one choice per input, each switching the receiver to it and marked as current while the receiver is on that input.
-2. Rename the menu and the choices ("TV", "Shield", …), remove the ones you don't use, and add steps if you like (turn the receiver on first, set the volume, change the backlight color, …).
-3. **Save**, then press **Run** on a choice to try it.
-4. Add the menu to the integration, and put it on a home page or an activity page: it opens the remote's list pop-up; picking a choice runs it.
-
-**Step through on a button:** map a physical button to the menu's **Select next** (or **Select previous**) in the activity's button mapping. Each press runs the next choice; with *start over at the first* ticked (the default), it goes back to choice 1 after the last.
-
-Choices without a *current when* condition show as current after you pick them. **+ Create quick menu** starts an empty menu for anything else, for example scenes that set lights, inputs and volume together.
-
-![A slider with a level picture in the builder](docs/images/builder-sliders-menus.png)
-
-### 11. The volume keys and touch slider for a light (Controls)
-
-Point the remote's volume rocker and touch slider at something else for a moment (a light, a tone control, the screen), and get the remote's own volume pop-up with it.
-
-1. Builder → **Controls ⇅** tab → **+ Create control**, name it (*Ceiling Light*) and pick what it changes: a light, a volume, the remote's display or backlight brightness, or one of your sliders (for IR up/down devices).
-2. Set the **starting value** and the **change per rocker press**. For devices that don't report their level, choose whether it starts from the value it was left at or from the starting value every time; **Reset the value** fixes the count when it gets out of step.
-3. **Settings:** how long a control stays on after the last press (or until changed), and per activity what the rocker and touch slider do when no control is on (your TV's volume, the screen brightness, or nothing). **Borrow** keeps the rocker mapped straight to your TV and points it at *Control* only while a control is on.
-4. Integrations → Remote Self-Control → add **Control**, **Control Level**, **Control Active** and the new **Control: Ceiling Light** switch (group **Remote Controls**). Put the switch on a page, set the touch slider to *Control* (or *Control Level*).
-5. Press **Control: Ceiling Light**: the rocker now changes the light with the vertical pop-up, the slider too, and after the timeout everything goes back. Turning another control on switches to it.
-
-![A control in the builder](docs/images/builder-controls.png)
-
-### 12. Back up everything
-
-Builder → **Backup** (top right) → **Download backup** saves one `.json` file with your smart controls, sliders and quick menus, state icons and level pictures, ↩ buttons and Controls, **plus the custom pictures** they use. It doesn't contain the integration's login to the remote.
-
-**Without the builder** (or with [Integration Manager](https://github.com/JackJPowell/uc-intg-manager)'s **Backup Config**): web configurator → Integrations → Remote Self-Control → Reconfigure → **Back up settings** shows the same settings as text to copy (the pictures stay on the remote and aren't in the text). **Restore settings from a backup** takes that text, or the builder's backup file's contents, and puts everything back.
-
-To restore, choose the file, tick the parts you want and press **Restore**. Every part is checked first; if one has a problem nothing is changed. Missing pictures are uploaded again, so it also works after a factory reset or on another remote (↩ buttons for activities that don't exist there are skipped).
-
-<img src="docs/images/builder-backup.png" alt="Backup and restore" width="760">
-
-### 13. Jump to a page, and start pages
-
-The remote has no "go to page" command, but it always opens an activity on its first page and jumps to the first page when the page order of the activity on screen changes. The integration uses that: it turns the page order around (your swipe order stays the same, it just starts at another page), and puts your own order back when you leave the activity.
-
-- **Go to page** (a step in smart controls and quick menus): pick *The activity on screen* and a page (*Page 2*, or a page by name), or a specific activity and one of its pages. With branches you get page jumps with logic: "if the Shield is playing → the Apps page, otherwise → the Remote page". If the chosen activity isn't on screen, it opens on that page next time.
-- A smart control with a Go to page step can sit in several activities: in one that doesn't have that page, the jump is skipped (the Last Result says so) and the other steps still run. *Page 2* means the 2nd page of whichever activity is on screen.
-- **Start pages** (Return & Pages tab, with the Device states panel beside it): per activity, *if* conditions → *open on* a page, *otherwise* another page or its own first page. They're checked every few seconds while the activity isn't on screen, so it opens on the right page.
-
-A jump takes about a second. Like state icons, pages are only changed when you ask for a jump or after you've left the activity.
-
-### 14. One button for whichever activity fits (smart launchers)
-
-*Beta. It creates activities on your remote: back up in the web configurator first.*
-
-A launcher is one button that opens the activity your conditions pick: *if the Shield is on → Watch ShieldTV, otherwise → Watch RokuTV*. It can also run extra steps after that activity starts (optional).
-
-1. Builder → **Smart Launchers** → **+ Add a launcher**, give it a name (optionally drop a picture).
-2. Activity 1: *Watch RokuTV*. **Add another activity**: *Watch ShieldTV*. Optionally **Add extra steps after it starts** for either, with a wait before them.
-3. **Add a condition branch**: *SHIELD state is ON* → open *Watch ShieldTV*. *Otherwise open*: *Watch RokuTV*.
-4. **Save launchers**, then **Add a button**: on an activity page, a physical button or the home screen.
-
-Why it works this way: the remote only switches to an activity's screen when the button you press starts that activity directly (a macro or an integration can start it, but the screen stays where it is). So the launcher decides *before* the press. For each of its activities the integration keeps a **launcher copy** (same devices, pages and buttons, named after the launcher, with the extra steps at the end of its start sequence), and points the launcher's buttons at the copy your conditions pick. The press is then a plain "start activity".
-
-- **Already on or all off:** the remote handles that as for any activity: it skips the power-on steps of devices that are already on and runs the rest of the start sequence and the extra steps.
-- Edit the **original** activities, not the copies: the copies follow within about a minute. ↩, start pages, state icons and Controls treat a copy as its original; the copies are put in the same activity groups, so going from Watch RokuTV to its launcher copy doesn't turn devices off and on.
-- Buttons you make in the web configurator that start one of the copies are found and kept pointed right too (**Look for launcher buttons again**).
-- A button on a page of the activity on screen is re-pointed when you leave it (changing a page you're looking at would jump to page 1). Physical buttons and home tiles change at once.
-- **Remove everything** and removing a launcher point its buttons back at the original activity and delete the copies. Launchers are part of the backup.
-
-### 15. Edit your activities on a picture of your remote (Page Editor)
-
-1. Builder → **Page Editor** (the first tab) → **Activities ▾ → Interface**, and pick the activity and page at the top.
-2. In **Pictures**, choose where the pictures come from, then drag one onto the remote's screen (or click it, then a spot). Drag widgets from the right.
-3. Click the new button, then **What it does** → pick the device and its command. If that device isn't in the activity's start and off sequences yet, the **guided setup** opens: answer its few questions and its steps are added in the right order.
-4. Click a physical key or the touch slider on the drawing to set them too.
-5. **Save to remote**. If that activity is on the remote's screen right now, its pages are saved once you leave it.
-
-See [Page Editor](#page-editor) for everything else it does.
+To update, first save a **Backup** in the builder, then use Install custom with **Update existing driver** checked (or update in Integration Manager). Your settings are kept. No restart of the remote is needed.
 
 ## The builder
 
@@ -417,7 +202,8 @@ The integration serves its own builder page on your network, at `http://<remote-
 - **Create, then list:** each tab starts with its **+ Create** button. It opens an editor box for the new item; a **name is required**. After **Save**, the item shows below as one bar with its name, what it does and an **Edit** button that opens its settings again (with **Delete** inside).
 - **Save** writes to the remote (everything is checked first; errors are listed in the editor). **Save & test** runs a smart control once and shows the result.
 - **Device states (live)** (Smart Controls and Icons & Sliders tabs): pick a device and see every value its integration reports, updated every 2 seconds, with all values seen so far. Tick *Keep collecting in the background* to gather values that only show up now and then (an audio format, an app name). It sits to the right of the editor. Click a value field in the editor, then a value in the panel to fill it in (a condition also gets that device and attribute); in a state icon a clicked value is added as a state, and *use* points a slider at a number. Values seen are also offered in the value lists of state icons and conditions.
-- **Backup** (top right) saves and restores everything you set up, with its pictures (walkthrough 12). **Rules text** exports and imports the smart controls alone as JSON, for sharing.
+- **Backup** (top right) saves and restores everything you set up, with its pictures. **Rules text** exports and imports the smart controls alone as JSON, for sharing.
+- **▶ Show me how** (right of each section bar): a guided tour of that section, see [Guided tours](#guided-tours).
 - **⚙ Settings** (top right): the Image Fusionner folder, if you use it.
 - **Theme** (top right): Automatic (follows your system), Desktop, Dark mode, Remote style, Midnight blue or High contrast, for every tab including the Page Editor.
 - Works on phones and in dark mode, and needs no internet: everything is served by the remote.
@@ -464,6 +250,7 @@ Grouped by area in the web configurator.
 | **Remote Sliders & Menus** | (your sliders) | light | slider pop-up / touch slider for a number on a device |
 | | (your quick menus) | select | list pop-up; each choice runs steps |
 | **Remote Displays** | (your displays) | sensor | text for a sensor widget on a page: a value, a bar, the time or messages |
+| **Remote Auto Widgets** | (your Smart widgets) | media player, select or sensor | shows the device your Auto Widgets rules pick; added and placed when you save |
 | **Remote Smart Controls** | (your Smart Controls) | button | press to run |
 | | Smart Controls: Last Result | sensor | what the last Smart Control did, or its error |
 
@@ -582,6 +369,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.4.5:** **[Auto Widgets](#auto-widgets)** (Icons & Sliders → Auto Widgets): widget spots that place your devices' real widgets on one-page activities by rules, and Smart widgets (Smart Media Widget, Smart Select, Smart Sensor) that show the device the rules pick on activities with several pages; the Smart Controls conditions, branches you can move up and down, a live preview per widget, ✓ / ✗ per condition (also in the Device states panel), and saving adds and places everything on the remote. **[Guided tours](#guided-tours)** for every builder section and every part of the Page Editor (**▶ Show me how**; click to try, **▶ Continue** to go on), with the steps to do on the remote highlighted, offered once the first time you open a section. A **new install** offers 20 entities: the **Smart Test Button** demo is gone (start from a template, e.g. *Backlight Color Cycle*), the builder's *Load the defaults* button is gone, and the setup menu's reset is now **Remove all Smart Controls**. (Test builds 1.3.7-autotest and 1.3.7-aw1 to aw9.)
 - **1.3.6:** **Image Fusionner** tiles in the Pictures window (for [Image Fusionner](#image-fusionner-tiles) users). **⚙ Settings** (top right) takes the Image_Fusionner folder; **Browse…** reads the tiles it has rendered into this browser (the browser asks you to allow the folder), and **↻ Reload tiles** reads them again after a render: layouts deleted from `Grid_layout` drop out, new ones appear, and only that one folder is read. The Pictures window (Page Editor and every tab that takes pictures) then shows one folder per layout with its grid (e.g. 4 × 6 tiles), as many across as your page is wide, with search and **Close all**. Click or drag a tile to use it; on an empty page with the same grid, **＋ Add to page** puts every tile on its own spot. Tiles are uploaded under their name plus a short fingerprint (`…_v1vp99lo.png`), because the remote never replaces a picture of the same name, so a re-rendered tile is never shown as its old copy. (Test builds 1.3.2-image-fusionner to 1.3.6-fusionner; the remote refuses a driver version over 20 characters, which a test now checks.)
 - **1.3.2:** Displays: the **widget size** is any width × height in tiles, and the preview's menu picks the **page grid** (2 × 3, 4 × 6, 6 × 9 or 8 × 12 tiles); the character count follows both. The preview shows the default; **Preview** on a temporary change plays it for as long as it would show. Statistics: **battery per app**: the battery used while each app shows during an activity (off the dock) is recorded, under Battery ("Battery used per app", %/h with how reliable it is), in Apps per activity (off the dock, %/h) and in the CSV.
 - **1.3.1:** Displays: a **preview** beside the editor (the display on a remote screen at its widget size: on the remote now, the default, or any temporary change, with messages and scrolling playing); this integration's own entities (Remote Self-Control (made here)) can be shown too; the **Remote icons** in the ☺ picker show (they were white on white). **Statistics: apps** — the app a SHIELD, Roku or other player shows during an activity (its source, e.g. Netflix, YouTube) is recorded: "Apps used" on the overview, "Apps per activity" and the apps of each use under Activities, and in the CSV. TV inputs (HDMI…) and receivers aren't counted. The Statistics tab no longer stays on "Loading…" after a failed or slow read (it says so, with Try again).

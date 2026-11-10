@@ -219,6 +219,15 @@ body.tour-paused .secbar { position: sticky; top: 8px; z-index: 60; box-shadow: 
 .tour-tip h3 { margin: 2px 0 4px; font-size: 15px; }
 .tour-tip p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.45; }
 .tour-count { font-size: 12px; color: var(--muted); }
+.tour-offer { position: fixed; z-index: 880; width: min(330px, calc(100vw - 32px)); background: var(--panel); color: var(--fg); border: 2px solid var(--accent); border-radius: 14px; box-shadow: 0 0 0 4px var(--accent-soft), 0 12px 32px rgba(0, 0, 0, .3); padding: 14px 16px 12px; animation: offerin .35s ease; }
+.tour-offer h3 { margin: 0 0 4px; font-size: 15px; }
+.tour-offer p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.45; }
+.tour-offer .row { gap: 8px; align-items: center; flex-wrap: wrap; }
+.offer-never { margin-left: auto; font-size: 12.5px; color: var(--muted); background: none; border: 0; text-decoration: underline; cursor: pointer; padding: 0; }
+.offer-arrow { position: absolute; top: -9px; width: 14px; height: 14px; background: var(--panel); border-left: 2px solid var(--accent); border-top: 2px solid var(--accent); transform: rotate(45deg); }
+@keyframes offerin { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tour-offer { animation: none; } }
+
 .tour-tip.tour-remote { border: 2px solid var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), 0 12px 36px rgba(0, 0, 0, .35); }
 .tour-body { font-size: 13.5px; line-height: 1.45; }
 .tour-body > p:last-child { margin-bottom: 10px; }
@@ -4700,6 +4709,50 @@ TOURS["launch:launch"] = { title: "Smart Launchers", steps: [
   { t: "#launch-scan", h: "Buttons made elsewhere", p: "If you picked a launcher's copy as the activity of a button in the web configurator, this finds those buttons so they're kept pointed right." },
   { t: () => tvis("#launch-app details.panel"), h: "How launchers work", p: "Open this to see why launchers use copies of your activities, and why you should edit the original, not the copy." }
 ] };
+
+// ---- A tour offers itself the first time a section is opened (once per section) ----
+const TOUR_OFFER_KEY = "scb_tour_offer";
+const offerState = () => { try { return JSON.parse(localStorage.getItem(TOUR_OFFER_KEY) || "{}"); } catch { return {}; } };
+const offerSave = (s) => { try { localStorage.setItem(TOUR_OFFER_KEY, JSON.stringify(s)); } catch {} };
+let OFFER = null; // { key, card }
+let offerTimer = null;
+function offerClose() { OFFER?.card.remove(); OFFER = null; }
+function offerPlace() {
+  const b = $("#tour-btn"); if (!OFFER || !b || b.offsetParent === null) return;
+  const r = b.getBoundingClientRect(), card = OFFER.card, w = card.offsetWidth;
+  const left = Math.max(16, Math.min(r.right - w, innerWidth - w - 16));
+  Object.assign(card.style, { left: left + "px", top: Math.max(8, r.bottom + 14) + "px" });
+  card.querySelector(".offer-arrow").style.left = Math.max(14, Math.min(w - 28, r.left + r.width / 2 - left - 7)) + "px";
+}
+function tourOffer() {
+  const key = CUR_TAB ? tourKey(CUR_TAB) : null;
+  if (OFFER && OFFER.key !== key) offerClose();
+  if (!key || OFFER || TOUR) return;
+  const st = offerState();
+  if (st.off || st.seen?.[key]) return;
+  if (offerTimer && offerTimer.key === key) return; // already on its way
+  clearTimeout(offerTimer?.id);
+  offerTimer = { key, id: setTimeout(() => {
+    offerTimer = null;
+    if (TOUR || OFFER || !CUR_TAB || tourKey(CUR_TAB) !== key || $("#tour-btn")?.offsetParent == null) return;
+    const tour = TOURS[key];
+    const mark = (extra = {}) => { const s2 = offerState(); offerSave({ ...s2, ...extra, seen: { ...(s2.seen || {}), [key]: true } }); offerClose(); };
+    const card = el("div", { class: "tour-offer", role: "dialog", "aria-label": "Tour offer" },
+      el("div", { class: "offer-arrow", "aria-hidden": "true" }),
+      el("button", { type: "button", class: "tour-x ghost", title: "Not now", "aria-label": "Not now", on: { click: () => mark() } }, "✕"),
+      el("h3", {}, `👋 New to ${tour.title}?`),
+      el("p", {}, `A quick tour shows how this works: ${tour.steps.length} steps, about a minute. You can try things as you go, and start it again any time with ▶ Show me how.`),
+      el("div", { class: "row" },
+        el("button", { type: "button", class: "small primary", on: { click: () => { mark(); tourStart(key); } } }, "▶ Show me how"),
+        el("button", { type: "button", class: "small", on: { click: () => mark() } }, "Not now"),
+        el("button", { type: "button", class: "offer-never", on: { click: () => mark({ off: true }) } }, "Don't offer tours")));
+    OFFER = { key, card };
+    document.body.append(card);
+    offerPlace();
+  }, 900) };
+}
+addEventListener("resize", offerPlace);
+addEventListener("scroll", offerPlace, { passive: true });
 let TOUR = null; // { key, tab, at, dir, els, startSec, paused, made, adopted }
 function tourSec(tab, sec) { if (secOf(tab) === sec) return; SEC[tab] = sec; applySec(tab); }
 /** The section bar's button: "▶ Show me how", or "▶ Continue" while a tour is paused for the user to try something. */
@@ -4714,6 +4767,7 @@ function tourBtn() {
   b.textContent = paused ? `▶ Continue (${TOUR.at + 2 > TOURS[TOUR.key].steps.length ? "finish" : `step ${TOUR.at + 2} of ${TOURS[TOUR.key].steps.length}`})` : "▶ Show me how";
   b.classList.toggle("tour-pulse", !!paused);
   b.title = paused ? "Go on with the tour" : "A step-by-step walk through this tab";
+  tourOffer();
 }
 function tourBtnClick(tab) {
   const key = tourKey(tab);
@@ -4722,6 +4776,7 @@ function tourBtnClick(tab) {
 }
 function tourStart(key) {
   if (!TOURS[key]) return;
+  offerClose();
   tourEnd(false);
   const shade = () => el("div", { class: "tour-shade", on: { click: () => tourPause() } });
   const tab = key.split(":")[0];
