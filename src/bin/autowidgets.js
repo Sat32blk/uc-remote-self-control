@@ -15,7 +15,7 @@
 //                area: {x,y,w,h},
 //                cases: [ { if: COND, show: <entity id>|"", type: "media_player"|"select"|"sensor", area?: {x,y,w,h} } ],
 //                otherwise: { show, type, area? } } ],
-//   bases: { <activity>: { page_id, items, hidden, ours, hash } } }   (one-page activities with spots)
+//   bases: { <activity>: { page_id, items, ours, hash, wrote } } }   (one-page activities with spots)
 // The first true case wins; otherwise the "otherwise" branch. Spots higher in the list win a spot two would cover.
 import fs from "node:fs";
 import { vCond } from "./smart.js";
@@ -239,7 +239,8 @@ export class AutoWidgets {
       st.state = "showing"; delete st.by;
       placed.push({ w, area: d.area, item: itemFor(d.type, d.show, d.area) });
     }
-    const keep = (base?.items || []).filter((it) => !placed.some((p) => overlap(p.area, areaOf(it))));
+    const covered = (it) => placed.some((p) => overlap(p.area, areaOf(it)));
+    const keep = (base?.items || []).filter((it) => !covered(it));
     return { items: [...keep, ...placed.map((p) => p.item)], ours: placed.map((p) => JSON.stringify(p.item)) };
   }
 
@@ -248,16 +249,14 @@ export class AutoWidgets {
     const base = this.bases[act];
     if (!base) { for (const { w } of list) this.status[w.id].error = "save the Auto Widgets again to start"; return; }
     if (this.paused[act]) { for (const { w } of list) this.status[w.id].error = this.paused[act]; return; }
-    const { items, ours } = this.layout(act, list);
-    const want = hashOf(JSON.stringify(items));
-    if (!force && want === base.wrote) return;
+    if (!force && hashOf(JSON.stringify(this.layout(act, list).items)) === base.wrote) return;
     const now = this.now();
     if (!force && now - (this.lastWrite[act] || 0) < AW_MIN_WRITE_MS) {
       if (!this.retry[act]) this.retry[act] = setTimeout(() => { delete this.retry[act]; this.refresh(); }, AW_MIN_WRITE_MS - (now - (this.lastWrite[act] || 0)) + 20);
       return;
     }
     try {
-      await this.writePage(core, act, base, items, ours);
+      await this.writePage(core, act, base, list);
       for (const { w } of list) this.status[w.id].at = new Date(now).toISOString();
     } catch (e) {
       for (const { w } of list) this.status[w.id].error = e.message;
@@ -265,16 +264,20 @@ export class AutoWidgets {
     }
   }
 
-  /** Writes a one-page activity's page, unless someone else changed it since our last write (then pauses). */
-  async writePage(core, act, base, items, ours) {
+  /**
+   * Writes a one-page activity's page. If the page was changed since our last write (Page Editor, web
+   * configurator), those changes are taken into the base first, so icons added or moved meanwhile are kept.
+   */
+  async writePage(core, act, base, list) {
     const pages = (await core.get(`/activities/${encodeURI(act)}/ui/pages`)) || [];
     if (pages.length !== 1) throw new Error(`the activity now has ${pages.length} pages; widget spots only work on one-page activities`);
     const page = pages[0];
-    const h = hashOf(JSON.stringify(page.items || []));
-    if (!takeTouched(act, page.page_id) && base.hash && base.hash !== h) {
-      this.paused[act] = "the page was changed outside Auto Widgets (Page Editor or web configurator), so its spots are paused. Save the Auto Widgets again to take your changes in and resume.";
-      throw new Error(this.paused[act]);
+    takeTouched(act, page.page_id);
+    if (base.hash && base.hash !== hashOf(JSON.stringify(page.items || []))) {
+      base.items = this.baseFrom(base, page);
+      this.log(`auto widgets: ${act} page was changed since the last update; the changes are kept`);
     }
+    const { items, ours } = this.layout(act, list); // with the (maybe updated) base
     this.lastWrite[act] = this.now();
     await core.patch(`/activities/${encodeURI(act)}/ui/pages/${encodeURIComponent(page.page_id)}`, { items });
     let after = items;
@@ -288,15 +291,19 @@ export class AutoWidgets {
 
   /**
    * The page as the user made it: the current page without the widgets we placed, plus the icons we had
-   * covered that nothing took the place of since.
+   * covered (and so took off the page) that nothing took the place of since. Icons the user deleted stay deleted.
    */
   baseFrom(old, page) {
     const cur = page.items || [];
     if (old && old.hash === hashOf(JSON.stringify(cur))) return old.items; // untouched since our last write
-    const ours = new Set(old?.ours || []);
-    const mine = (it) => ours.has(JSON.stringify(it));
-    const kept = cur.filter((it) => !mine(it));
-    const back = (old?.items || []).filter((it) => !cur.some((c) => JSON.stringify(c) === JSON.stringify(it)) && !kept.some((k) => overlap(areaOf(k), areaOf(it))));
+    // our widgets, recognised by kind, device and place (an editor may save them with extra fields)
+    const sig = (it) => `${it.type}|${itemEntity(it)}|${JSON.stringify(areaOf(it))}`;
+    const oursItems = (old?.ours || []).map((j) => { try { return JSON.parse(j); } catch { return null; } }).filter(Boolean);
+    const ourSigs = new Set(oursItems.map(sig));
+    const kept = cur.filter((it) => !(itemEntity(it) && ourSigs.has(sig(it))));
+    // icons our widgets covered: in the base, under one of our widgets (so not on the page now)
+    const hidden = (old?.items || []).filter((it) => oursItems.some((o) => overlap(areaOf(o), areaOf(it))));
+    const back = hidden.filter((it) => !kept.some((k) => overlap(areaOf(k), areaOf(it))));
     return [...kept, ...back];
   }
 
@@ -362,7 +369,8 @@ export class AutoWidgets {
     for (const act of spotActs) {
       try {
         const page = (await getPages(act))[0];
-        this.bases[act] = { page_id: page.page_id, items: this.baseFrom(this.bases[act], page), ours: this.bases[act]?.ours || [], hash: hashOf(JSON.stringify(page.items || [])) };
+        const old = this.bases[act];
+        this.bases[act] = { page_id: page.page_id, items: this.baseFrom(old, page), ours: old?.ours || [], hash: hashOf(JSON.stringify(page.items || [])) };
         const shows = widgets.filter((w) => w.kind === "spot" && w.activity === act).flatMap((w) => [...w.cases, w.otherwise].map((c) => c.show)).filter(Boolean);
         const added = await this.include(core, act, shows);
         if (added.length) notes.push(`${added.length} device${added.length > 1 ? "s" : ""} added to the activity, so its page can show ${added.length > 1 ? "them" : "it"}`);

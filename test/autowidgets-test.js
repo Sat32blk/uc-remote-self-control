@@ -109,21 +109,37 @@ await aw.command("aw_shield", "play_pause");
 ok(cmds.at(-1)[0] === "/entities/x.roku/command" && cmds.at(-1)[1].cmd_id === "media_player.play_pause", "a button goes to the shown device");
 const br = await aw.browse("aw_shield", { paging: { page: 1, limit: 10 } });
 ok(gets.at(-1).startsWith("/entities/x.roku/media/browse?") && br.media.items.length === 1, "browsing asks the shown device");
-// someone edits the page: paused, then a save takes the edit in
+// someone edits the page (e.g. the Page Editor): the edit is kept, not overwritten
 acts.one.pages[0].items[0] = icon(0, 0, "EDITED");
 ent["x.rx"].attributes.state = "ON";
 await new Promise((ok2) => setTimeout(ok2, 1100));
 await aw.refresh();
-ok(aw.paused.one && aw.status.aw_rx.error, "an outside change pauses the spots");
-ok(acts.one.pages[0].items[0].text === "EDITED", "…and the edit isn't overwritten");
-r = await aw.replace(v.widgets);
-ok(!r.errors.length && !aw.paused.one, "saving again resumes");
 p1 = acts.one.pages[0].items;
-ok(p1.some((it) => it.text === "EDITED") && p1.some((it) => it.select?.select_id === "x.rx"), "the edit is kept in the base and the receiver shows");
+ok(!aw.paused.one && p1.some((it) => it.text === "EDITED") && p1.some((it) => it.select?.select_id === "x.rx"), "an edit made meanwhile is kept and the receiver shows");
+// the reported bug: a widget shows, icons are added and one is deleted elsewhere, then the widget goes away
+ent["x.plex"].attributes.state = "PLAYING"; ent["x.rx"].attributes.state = "OFF";
+await new Promise((ok2) => setTimeout(ok2, 1100));
+await aw.refresh();
+p1 = acts.one.pages[0].items;
+ok(p1.some((it) => it.media_player_id === "x.plex" && it.location.y === 4) && p1.filter((it) => it.type === "text").length === 16, "Plex widget shows over the bottom rows");
+const page = acts.one.pages[0];
+page.items = page.items.filter((it) => !(it.type === "text" && it.location.x === 3 && it.location.y === 3)); // deleted
+page.items.push(icon(3, 3, "NEW"));                                                                       // added in its place
+page.items = page.items.filter((it) => !(it.type === "text" && it.location.x === 2 && it.location.y === 3)); // deleted, nothing added
+page.items.push({ ...itemFor("media_player", "x.plex", { x: 0, y: 4, w: 4, h: 2 }), extra: true });          // the editor saved our widget with an extra field
+page.items = page.items.filter((it) => !(it.media_player_id === "x.plex" && !it.extra));
+ent["x.plex"].attributes.state = "OFF";
+await new Promise((ok2) => setTimeout(ok2, 1100));
+await aw.refresh();
+p1 = acts.one.pages[0].items;
+ok(p1.some((it) => it.text === "NEW" && it.location.x === 3 && it.location.y === 3), "an icon added while a widget showed is still there when it goes");
+ok(!p1.some((it) => it.location?.x === 2 && it.location?.y === 3), "an icon deleted while a widget showed stays deleted");
+ok(p1.filter((it) => it.location.y >= 4 && it.type === "text").length === 8 && !p1.some((it) => it.media_player_id), "the covered icons come back, the widget is gone");
+ok(p1.some((it) => it.text === "EDITED"), "the earlier edit is still there");
 // remove everything: the page gets its icons back, the Smart widget comes off its page
 r = await aw.replace([]);
 p1 = acts.one.pages[0].items;
-ok(p1.length === 24 && p1.some((it) => it.text === "EDITED") && !p1.some((it) => it.type === "select"), "removing the spots puts the icons back");
+ok(p1.length === 23 && p1.some((it) => it.text === "EDITED") && p1.some((it) => it.text === "NEW") && !p1.some((it) => it.type !== "text"), "removing the spots puts the icons back (with your edits)");
 ok(acts.multi.pages[1].items.length === 0, "removing the Smart widget takes it off its page");
 ok(JSON.stringify(itemFor("sensor", "s.x", { x: 1, y: 2, w: 2, h: 1 })) === JSON.stringify({ type: "sensor", location: { x: 1, y: 2 }, size: { width: 2, height: 1 }, sensor: { sensor_id: "s.x", show_label: false } }), "sensor item format");
 

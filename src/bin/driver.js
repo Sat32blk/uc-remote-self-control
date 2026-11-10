@@ -1811,7 +1811,7 @@ async function awActivities(fresh = false) {
     const base = autoWidgets.bases[a.entity_id];
     list.push({ id: a.entity_id, name: name(a.name) || a.entity_id, pages: pages.map((p) => ({
       page_id: p.page_id, name: p.name || "", grid: p.grid || { width: 4, height: 6 },
-      items: (base && pages.length === 1 ? base.items : p.items || []).filter((it) => !ownIds.has(it.media_player_id || it.select?.select_id || it.sensor?.sensor_id))
+      items: (base && pages.length === 1 ? autoWidgets.baseFrom(base, p) : p.items || []) // the page as you made it, with edits made meanwhile.filter((it) => !ownIds.has(it.media_player_id || it.select?.select_id || it.sensor?.sensor_id))
     })) });
   }
   list.sort((x, y) => x.name.localeCompare(y.name));
