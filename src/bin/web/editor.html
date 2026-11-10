@@ -31,6 +31,34 @@ nav.tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--line2
 nav.tabs span{padding:9px 13px;font-weight:600;color:#9ca3af;cursor:not-allowed}
 nav.tabs span.on{color:var(--ink);border-bottom:3px solid var(--acc);cursor:default}
 .mode{display:flex;flex-wrap:wrap;gap:6px}
+/* guided tours */
+.tour-shade{position:fixed;z-index:900;background:rgba(8,10,14,.6)}
+.tour-spot{position:fixed;z-index:901;border-radius:12px;outline:3px solid var(--acc);outline-offset:-1px;transition:all .25s ease;pointer-events:none}
+.tour-tip{position:fixed;z-index:902;width:min(340px,calc(100vw - 32px));background:var(--card);color:var(--ink);border:1px solid var(--line2);border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.35);padding:14px 16px 12px;transition:top .25s ease,left .25s ease}
+.tour-tip h3{margin:2px 0 4px;font-size:15px}
+.tour-body{font-size:13.5px;line-height:1.45}
+.tour-body p{margin:0 0 10px}
+.tour-tip ol{margin:0 0 10px;padding-left:20px}
+.tour-tip ol li{margin:3px 0}
+.tour-count{font-size:12px;color:var(--mute)}
+.tour-try{background:var(--accbg);border-radius:8px;padding:6px 8px;font-size:12.5px;margin:0 0 10px}
+.tour-nav{display:flex;align-items:center;gap:8px}
+.tour-dots{display:flex;gap:4px;flex:1;flex-wrap:wrap}
+.tour-dots i{width:7px;height:7px;border-radius:50%;background:var(--line2)}
+.tour-dots i.on{background:var(--acc)}
+.tour-x{position:absolute;top:6px;right:6px;border:0;background:none;cursor:pointer;color:var(--mute);font-size:15px;padding:2px 8px}
+.tour-arrow{position:absolute;width:14px;height:14px;background:var(--card);border-left:1px solid var(--line2);border-top:1px solid var(--line2);transform:rotate(45deg)}
+.tour-tip.tour-remote{border:2px solid var(--acc);box-shadow:0 0 0 4px var(--accbg),0 12px 36px rgba(0,0,0,.35)}
+.tour-badge{display:inline-block;margin:4px 0 2px 8px;padding:2px 9px;border-radius:999px;background:var(--acc);color:var(--accfg);font-size:12px;font-weight:700}
+.tour-done{position:fixed;z-index:902;left:50%;top:40%;transform:translate(-50%,-50%);width:min(360px,calc(100vw - 32px));background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:18px;box-shadow:0 12px 36px rgba(0,0,0,.35);text-align:center}
+.tour-done h3{margin:0 0 6px}
+.tour-done p{margin:0 0 12px;font-size:13.5px}
+.tour-remind{text-align:left;background:var(--accbg);border-radius:10px;padding:8px 10px;margin:0 0 12px;font-size:13.5px}
+#tour-btn{white-space:nowrap}
+#tour-btn.tour-pulse{animation:tourpulse 1.6s ease-in-out infinite}
+@keyframes tourpulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 55%,transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--acc) 0%,transparent)}}
+@media (prefers-reduced-motion:reduce){#tour-btn.tour-pulse{animation:none;outline:2px solid var(--acc)}.tour-spot,.tour-tip{transition:none}}
+
 .edtop{position:sticky;top:0;z-index:30;background:var(--bg);margin:0 -4px 14px;padding:8px 4px 10px;border-bottom:1px solid var(--line);box-shadow:0 6px 12px -10px rgba(0,0,0,.35)}
 .edtop .edhead{margin-bottom:8px}
 .btn{padding:7px 12px;border:1px solid var(--line2);border-radius:8px;background:var(--field);cursor:pointer;color:var(--ink)}
@@ -3495,6 +3523,198 @@ const readTheme = () => { try { return localStorage.getItem("scb_theme") || ""; 
 setTheme(readTheme());
 window.addEventListener("storage", (e) => { if (e.key === "scb_theme") setTheme(e.newValue || ""); });
 window.addEventListener("message", (e) => { if (e.origin === location.origin && e.data && e.data.type === "theme") setTheme(e.data.theme || ""); });
+// ---------------------------------------------------------------------------------------------
+// Guided tours ("▶ Show me how" in the bar at the top), the same as the builder's: a click or change in
+// the highlighted part pauses the tour and the button becomes "▶ Continue".
+// ---------------------------------------------------------------------------------------------
+const tvis = (sel, root = document) => [...root.querySelectorAll(sel)].find((e) => e.offsetParent !== null) || null;
+const tq = (sel) => document.querySelector(sel);
+const ADD_HINT = "Things you use here (devices in sequences, buttons, widgets, the touch slider) are added to the activity's devices for you when you save.";
+const ED_TOURS = {
+  "pages:pages": { title: "Interface", remind: "new entities of this integration (smart controls, quick menus, sliders, displays) must be on the remote before they work: pick them under Not added yet, or add them in Devices & integrations.", steps: [
+    { t: "#tour-btn", h: "Page Editor: Interface", p: "Here you design an activity's screen pages, its physical keys and the touch slider, the way the remote shows them. Nothing changes on the remote until you press <b>Save to remote</b>." },
+    { t: () => tq("#act")?.closest(".tb"), h: "1 · The activity", p: "Pick the activity to edit. Next to it: <b>Group</b>, <b>Prevent sleep</b> and <b>Voice assistant</b>, plus rename, duplicate, new and delete. 🔒 activities are made by an integration (or are launcher copies) and can't be edited here." },
+    { t: () => tq("#pagetabs")?.closest(".tb"), h: "2 · Its pages", p: "Switch between pages, add one, rename it, change its grid, move or delete it. <b>On screen now</b> shows the page the remote is showing." },
+    { t: "#libcard", h: "3 · Pictures", p: "Pictures to drag onto the screen: from a <b>folder on your computer</b> (uploaded when you save), the remote's <b>icons</b>, <b>channel logos</b>, the remote's own white icons, or Image Fusionner tiles. Search and filter at the top." },
+    { t: () => tq("#grid")?.parentElement, h: "4 · The remote", p: "The page as the remote shows it. <b>Drag</b> a picture or widget onto a spot, drag a button to move it, drag its corner to resize. <b>Click</b> a button, a physical key or the touch slider to set it up on the right." },
+    { t: () => tq("#palette")?.closest(".card"), h: "5 · Widgets", p: "Drag a text button, a picture button, a <b>media widget</b>, a <b>select</b>, a <b>sensor</b> (for Displays) or a number pad onto the screen." },
+    { t: "#insp", h: "6 · What it does", p: "Settings of what you clicked: its label or picture, size, and <b>What it does</b>: search everything (\"roku netflix\"), or filter by Devices, Activities, Macros or Smart. Physical keys get a short and a long press.",
+      before: () => { if (!selId && !selHw) tvis("#grid .item")?.click(); } },
+    { t: "#insp", remote: true, h: "Not on the remote yet?", p: "Smart controls, quick menus, sliders and displays you make in the builder are new entities: the remote only knows them once they're added.<ol><li>In <b>What it does</b>, the chip <b>Not added yet</b> lists them: pick one and it's added to the remote when you save.</li><li>" + ADD_HINT + "</li><li>Or add several at once under <b>Devices &amp; integrations</b> → Remote Self-Control → <b>Available to add</b>.</li></ol>", try: false },
+    { t: "#logcard", h: "7 · Changes not saved yet", p: "Everything you changed, in plain words. <b>Undo all</b> drops them." },
+    { t: "#save", h: "8 · Save to remote", p: "Only what changed is saved. Pages are read again first and merged, so a button you didn't touch keeps the remote's version. Pages of the activity <b>on screen</b> wait until you leave it (a page change there jumps the remote to page 1), unless you choose to save them now.", try: false },
+    { t: "#bk", h: "Your safety net", p: "Before the first change of a visit, a copy of your activities, macros and home screen is saved on the remote. Download it here.", try: false }
+  ] },
+  "pages:seq": { title: "Start/Stop", steps: [
+    { t: "#tour-btn", h: "Page Editor: Start/Stop", p: "What an activity does when it starts and when it's turned off: power, inputs, waits, commands, macros." },
+    { t: "#seq-on", h: "1 · Start sequence", p: "Steps run top to bottom when the activity starts: power on, a command (input, app), a wait, a macro. Drag to reorder. Devices already on skip their power-on." },
+    { t: "#seq-off", h: "2 · Off sequence", p: "Steps run when you turn the activity off." },
+    { t: "#seq-set", h: "3 · Sequence settings", p: "<b>Readiness check</b> and <b>when a command fails</b>: carry on, stop, or ignore every error." },
+    { t: "#seq-devs", h: "4 · Devices in this activity", p: "Devices marked <b>· set up</b> have no start or off steps yet: click one for the <b>guided setup</b> (what kind of device, input, waits), which adds the right steps in the right order. <b>+ Add a device…</b> does the same for a new one." },
+    { t: "#save", h: "5 · Save to remote", p: "Sequences save at once, with the rest of your changes. " + ADD_HINT, try: false }
+  ], before: () => { if (subView !== "seq") { setSub("seq"); setMode("pages"); } } },
+  groups: { title: "Activity groups", steps: [
+    { t: "#tour-btn", h: "Page Editor: Activity groups", p: "Activities in the same group share devices: switching between them doesn't turn shared devices off and on." },
+    { t: () => tq("#g-group")?.closest(".row") || tq("#g-group"), h: "1 · The group", p: "Pick a group, make a new one or delete it." },
+    { t: "#g-members", h: "2 · Its activities", p: "Click an activity to add it or take it out. An activity can be in one group at most." },
+    { t: () => tq("#g-from")?.closest(".row") || tq("#g-from"), h: "3 · Try a switch", p: "Pick two activities: the sentence below says what happens to your devices when you switch from one to the other." },
+    { t: "#g-sentence", h: "What happens", p: "In plain words, compared with what's saved. <b>Show the steps</b> lists them one by one." },
+    { t: () => [tq("#g-q1")?.closest(".q"), tq("#g-q2")?.closest(".q")].filter(Boolean), h: "4 · Two questions", p: "What happens to devices the next activity doesn't use, and whether to skip the wait for devices already on." },
+    { t: "#g-save", h: "5 · Save group", p: "Groups have their own Save button.", try: false }
+  ] },
+  home: { title: "Home screen", steps: [
+    { t: "#tour-btn", h: "Page Editor: Home screen", p: "The remote's home pages of the active profile, called <b>groups</b> here." },
+    { t: "#rooms", h: "1 · Your groups", p: "Each column is a home page: drag tiles (activities, devices, smart controls, quick menus, sliders) in, out and around. Pick a <b>background</b> for each." },
+    { t: "#addroom", h: "2 · Add a group", p: "A new home page." },
+    { t: "#homepics", h: "Pictures", p: "The same pictures as on the Interface page, for tiles and backgrounds." },
+    { t: "#hsave", h: "3 · Save home screen", p: "The home screen has its own Save button. New smart controls, menus and sliders must be added to the remote first (Devices &amp; integrations → Available to add).", try: false }
+  ] },
+  macros: { title: "Macros", steps: [
+    { t: "#tour-btn", h: "Page Editor: Macros", p: "A macro is a list of commands and waits you can put on a button." },
+    { t: "#m-new", h: "1 · New macro", p: "Start a new one." },
+    { t: "#m-list", h: "2 · Your macros", p: "Click one to edit it. Macros made by an integration are locked." },
+    { t: "#m-editor", h: "3 · Steps", p: "Name, steps (a device command or a wait), reorder, duplicate. A warning shows when a step's device can't be reached. <b>Try it now</b> runs the saved version; <b>Used by</b> lists the buttons that run it. Macros have their own Save button." }
+  ] },
+  dev: { title: "Devices & integrations", steps: [
+    { t: "#tour-btn", h: "Page Editor: Devices & integrations", p: "Your integrations and their devices: what's on the remote, what's available to add, and where each device is used." },
+    { t: () => tq("#dv-q")?.closest(".tb, .row, .grp") || tq("#dv-q"), h: "1 · Find a device", p: "Search across every integration." },
+    { t: () => tq("#dv-intgs")?.closest(".card"), h: "2 · Integrations", p: "Each with its status: <b>Reconnect</b>, enable / disable, look for new devices, or set it up again in the web configurator." },
+    { t: () => [...document.querySelectorAll("#dv-intgs > *")].find((e) => /Remote Self-Control/.test(e.textContent)) || tq("#dv-main"), remote: true, h: "Add your new entities here", try: false, p: "This is the quickest way to put this integration's new entities on the remote:<ol><li>Open <b>Remote Self-Control</b> → <b>Available to add</b>.</li><li>Tick your new smart controls, quick menus, sliders, displays or Control switches, and add them.</li><li>Then use them on a page (Interface) or the home screen; that adds them to the activity.</li></ol>Click it to open it." },
+    { t: "#dv-detail", h: "3 · A device", p: "Click a device to rename it and see where it's used. You can remove devices from the remote here (with a warning when they're in use)." }
+  ] }
+};
+let ED_TOUR = null; // { key, at, dir, els, paused, quietUntil }
+const edTourKey = () => (mode === "pages" ? `pages:${subView}` : mode);
+function edTourTarget(st) {
+  const t = typeof st.t === "function" ? st.t() : tq(st.t);
+  if (!t) return null;
+  const list = (Array.isArray(t) ? t : [t]).filter((e) => e && (e.offsetParent !== null || getComputedStyle(e).position === "fixed"));
+  return list.length ? list : null;
+}
+const edTourParts = () => (ED_TOUR ? [...ED_TOUR.els.shades, ED_TOUR.els.spot, ED_TOUR.els.tip] : []);
+function edTourBtn() {
+  const b = tq("#tour-btn"); if (!b) return;
+  const key = edTourKey();
+  b.hidden = !ED_TOURS[key];
+  const paused = ED_TOUR?.paused && ED_TOUR.key === key;
+  const n = ED_TOUR ? ED_TOURS[ED_TOUR.key].steps.length : 0;
+  b.textContent = paused ? `▶ Continue (${ED_TOUR.at + 2 > n ? "finish" : `step ${ED_TOUR.at + 2} of ${n}`})` : "▶ Show me how";
+  b.classList.toggle("tour-pulse", !!paused);
+  b.title = paused ? "Go on with the tour" : "A step-by-step walk through this part of the Page Editor";
+}
+function edTourStart() {
+  const key = edTourKey();
+  if (ED_TOUR?.paused && ED_TOUR.key === key) return edTourResume();
+  if (!ED_TOURS[key]) return;
+  edTourEnd(false);
+  const shade = () => el("div", { class: "tour-shade", on: { click: () => edTourPause() } });
+  ED_TOUR = { key, at: 0, dir: 1, paused: false, els: { shades: [shade(), shade(), shade(), shade()], spot: el("div", { class: "tour-spot", "aria-hidden": "true" }), tip: el("div", { class: "tour-tip", role: "dialog", "aria-label": ED_TOURS[key].title + " tour" }) } };
+  document.body.append(...ED_TOUR.els.shades, ED_TOUR.els.spot, ED_TOUR.els.tip);
+  try { ED_TOURS[key].before?.(); } catch {}
+  edTourShow();
+}
+function edTourPause() {
+  if (!ED_TOUR || ED_TOUR.paused) return;
+  ED_TOUR.paused = true;
+  for (const e of edTourParts()) e.hidden = true;
+  edTourBtn();
+}
+function edTourResume() {
+  if (!ED_TOUR) return;
+  ED_TOUR.paused = false;
+  for (const e of edTourParts()) e.hidden = false;
+  edTourBtn();
+  if (ED_TOUR.at >= ED_TOURS[ED_TOUR.key].steps.length - 1) return edTourEnd(true);
+  edTourGo(1);
+}
+function edTourEnd(done) {
+  if (!ED_TOUR) return;
+  for (const e of edTourParts()) e.remove();
+  const remind = ED_TOURS[ED_TOUR.key].remind;
+  ED_TOUR = null;
+  edTourBtn();
+  if (done === true) {
+    const box = el("div", { class: "tour-done", role: "dialog", "aria-label": "Tour finished" }, el("h3", {}, "You're set ✓"),
+      remind ? el("div", { class: "tour-remind" }, el("b", {}, "📱 Don't forget: "), remind) : null,
+      el("p", {}, "Start this tour again any time with ▶ Show me how."), el("button", { type: "button", class: "btn primary", on: { click: () => box.remove() } }, "Close"));
+    document.body.append(box);
+    box.querySelector("button").focus();
+  }
+}
+function edTourShow() {
+  const steps = ED_TOURS[ED_TOUR.key].steps, st = steps[ED_TOUR.at];
+  ED_TOUR.quietUntil = Date.now() + 350;
+  try { st.before?.(); } catch {}
+  const t = edTourTarget(st);
+  if (!t) {
+    if (ED_TOUR.dir < 0 && ED_TOUR.at > 0) { ED_TOUR.at--; return edTourShow(); }
+    if (ED_TOUR.at < steps.length - 1) { ED_TOUR.at++; return edTourShow(); }
+    return edTourEnd(true);
+  }
+  t[0].scrollIntoView({ block: "center", behavior: "smooth" });
+  const last = ED_TOUR.at === steps.length - 1;
+  const back = el("button", { type: "button", class: "btn small", disabled: ED_TOUR.at === 0, on: { click: () => edTourGo(-1) } }, "Back");
+  const next = el("button", { type: "button", class: "btn small primary", on: { click: () => (last ? edTourEnd(true) : edTourGo(1)) } }, last ? "Done" : ED_TOUR.at ? "Next" : "Start");
+  const body = el("div", { class: "tour-body" }); body.innerHTML = st.p.includes("<ol") ? st.p : `<p>${st.p}</p>`;
+  const canTry = st.try !== false && ED_TOUR.at > 0 && t.some((e) => e.matches?.("input, select, textarea, button") || e.querySelector?.("input, select, textarea, button, .item, .cell"));
+  ED_TOUR.els.tip.classList.toggle("tour-remote", !!st.remote);
+  ED_TOUR.els.tip.replaceChildren(...[
+    el("button", { type: "button", class: "tour-x", title: "End the tour", "aria-label": "End the tour", on: { click: () => edTourEnd(false) } }, "✕"),
+    el("span", { class: "tour-count" }, `${ED_TOUR.at + 1} of ${steps.length}`),
+    st.remote ? el("span", { class: "tour-badge" }, "📱 On your remote · needed") : null,
+    el("h3", {}, st.h), body,
+    canTry ? el("p", { class: "tour-try" }, "👉 Try it: click in the highlighted part and change it. The tour waits; press ", el("b", {}, "▶ Continue"), " at the top to go on.") : null,
+    el("div", { class: "tour-nav" }, el("div", { class: "tour-dots", "aria-hidden": "true" }, ...steps.map((_, i) => el("i", { class: i === ED_TOUR.at ? "on" : "" }))), back, next),
+    el("div", { class: "tour-arrow", "aria-hidden": "true" })].filter(Boolean));
+  setTimeout(edTourPlace, 30); setTimeout(edTourPlace, 400);
+  next.focus({ preventScroll: true });
+}
+function edTourGo(d) { if (!ED_TOUR) return; const n = ED_TOUR.at + d; if (n < 0 || n >= ED_TOURS[ED_TOUR.key].steps.length) return; ED_TOUR.at = n; ED_TOUR.dir = d; edTourShow(); }
+function edTourPlace() {
+  if (!ED_TOUR || ED_TOUR.paused) return;
+  const t = edTourTarget(ED_TOURS[ED_TOUR.key].steps[ED_TOUR.at]); if (!t) return;
+  const rs = t.map((e) => e.getBoundingClientRect());
+  const r = { left: Math.min(...rs.map((x) => x.left)), top: Math.min(...rs.map((x) => x.top)), right: Math.max(...rs.map((x) => x.right)), bottom: Math.max(...rs.map((x) => x.bottom)) };
+  const pad = 6, { spot, tip, shades } = ED_TOUR.els, W = innerWidth, H = innerHeight;
+  const L = Math.max(0, r.left - pad), T = Math.max(0, r.top - pad), R = Math.min(W, r.right + pad), B = Math.min(H, r.bottom + pad);
+  Object.assign(spot.style, { left: L + "px", top: T + "px", width: Math.max(0, R - L) + "px", height: Math.max(0, B - T) + "px" });
+  const box = (e, x, y, w, h) => Object.assign(e.style, { left: x + "px", top: y + "px", width: Math.max(0, w) + "px", height: Math.max(0, h) + "px" });
+  box(shades[0], 0, 0, W, T); box(shades[1], 0, B, W, H - B); box(shades[2], 0, T, L, B - T); box(shades[3], R, T, W - R, B - T);
+  const tw = tip.offsetWidth, th = tip.offsetHeight, a = tip.querySelector(".tour-arrow");
+  // big parts (the remote, a column): the bubble goes beside them
+  let side = r.bottom + th + 24 < H ? "below" : r.top - th - 24 > 0 ? "above" : r.left - tw - 24 > 0 ? "left" : r.right + tw + 24 < W ? "right" : "inside";
+  let x = side === "left" ? r.left - tw - 18 : side === "right" ? r.right + 18 : r.left, y = side === "below" ? r.bottom + 16 : side === "above" ? r.top - th - 16 : side === "inside" ? H - th - 16 : r.top;
+  x = Math.max(16, Math.min(x, W - tw - 16)); y = Math.max(16, Math.min(y, H - th - 16));
+  Object.assign(tip.style, { left: x + "px", top: y + "px" });
+  const ax = Math.max(14, Math.min(r.left + 20 - x, tw - 28)) + "px";
+  a.hidden = side === "inside";
+  Object.assign(a.style, side === "left" ? { right: "-8px", left: "auto", top: "20px", bottom: "auto", transform: "rotate(135deg)" }
+    : side === "right" ? { left: "-8px", right: "auto", top: "20px", bottom: "auto", transform: "rotate(-45deg)" }
+    : side === "below" ? { top: "-8px", bottom: "auto", left: ax, right: "auto", transform: "rotate(45deg)" } : { bottom: "-8px", top: "auto", left: ax, right: "auto", transform: "rotate(225deg)" });
+}
+addEventListener("resize", edTourPlace);
+addEventListener("scroll", edTourPlace, { passive: true });
+const edTourTry = (e) => {
+  if (!ED_TOUR || ED_TOUR.paused || Date.now() < (ED_TOUR.quietUntil || 0) || edTourParts().some((p) => p.contains(e.target))) return;
+  const t = edTourTarget(ED_TOURS[ED_TOUR.key].steps[ED_TOUR.at]);
+  if (t && t.some((x) => x.contains(e.target))) edTourPause();
+};
+for (const ev of ["pointerdown", "focusin", "change"]) document.addEventListener(ev, edTourTry, true);
+addEventListener("keydown", (e) => {
+  if (!ED_TOUR || ED_TOUR.paused) return;
+  if (e.key === "Escape") edTourEnd(false);
+  else if (e.key === "ArrowRight" && !e.target.closest?.("input, select, textarea")) edTourGo(1);
+  else if (e.key === "ArrowLeft" && !e.target.closest?.("input, select, textarea")) edTourGo(-1);
+});
+// the button, at the right of the bar at the top; it follows the part you're editing
+{
+  const bar = tq("#edtop .mode");
+  if (bar) bar.append(el("span", { style: "flex:1" }), el("button", { type: "button", class: "btn small primary", id: "tour-btn", on: { click: edTourStart } }, "▶ Show me how"));
+  const orig = setMode;
+  setMode = function (m) { orig(m); edTourBtn(); }; // eslint-disable-line no-func-assign
+  edTourBtn();
+}
+
 renderPalette();
 (async () => {
   try {
