@@ -208,8 +208,13 @@ button.small { min-height: 30px; padding: 3px 10px; font-size: 13px; }
 .empty { color: var(--muted); font-size: 13px; font-style: italic; }
 #icons-app[data-show="display"] .nodisp { display: none; }
 /* guided tours */
-.tour-block { position: fixed; inset: 0; z-index: 900; }
-.tour-spot { position: fixed; z-index: 901; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(8, 10, 14, .6); outline: 3px solid var(--accent); outline-offset: 3px; transition: all .25s ease; pointer-events: none; }
+.tour-shade { position: fixed; z-index: 900; background: rgba(8, 10, 14, .6); }
+.tour-spot { position: fixed; z-index: 901; border-radius: 12px; outline: 3px solid var(--accent); outline-offset: -1px; transition: all .25s ease; pointer-events: none; }
+.tour-try { background: var(--accent-soft); border-radius: 8px; padding: 6px 8px; font-size: 12.5px !important; }
+body.tour-paused .secbar { position: sticky; top: 8px; z-index: 60; box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+#tour-btn.tour-pulse { animation: tourpulse 1.6s ease-in-out infinite; }
+@keyframes tourpulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); } }
+@media (prefers-reduced-motion: reduce) { #tour-btn.tour-pulse { animation: none; outline: 2px solid var(--accent); } .tour-spot, .tour-tip { transition: none; } }
 .tour-tip { position: fixed; z-index: 902; width: min(340px, calc(100vw - 32px)); background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 36px rgba(0, 0, 0, .35); padding: 14px 16px 12px; transition: top .25s ease, left .25s ease; }
 .tour-tip h3 { margin: 2px 0 4px; font-size: 15px; }
 .tour-tip p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.45; }
@@ -4541,26 +4546,62 @@ const TOURS = {
       { t: "#ctl-def-add", h: "Add your activities", p: "Add each activity you want to use Controls in, then pick its defaults." },
       { t: "#ctl-save-set", h: "Save the settings", p: "Settings have their own <b>Save settings</b> button. That's it: put a <b>Control:</b> switch on a page or a button, turn it on, and use the rocker." }
     ],
-    end: () => { if (CTL_TOUR_NEW && ED.ctl?.isNew) cancelEdit("ctl"); CTL_TOUR_NEW = false; tourSec("ctl", TOUR?.startSec || "ctl"); }
+    pause: (t) => { if (t?.closest?.("#ctl-editor")) CTL_TOUR_NEW = false; }, // they're filling it in: keep it
+    end: () => { if (CTL_TOUR_NEW && ED.ctl?.isNew) cancelEdit("ctl"); CTL_TOUR_NEW = false; if (!ED.ctl) tourSec("ctl", TOUR?.startSec || "ctl"); }
   }
 };
-let TOUR = null; // { key, at, els, startSec }
+let TOUR = null; // { key, at, dir, els, startSec, paused }
 function tourSec(tab, sec) { if (secOf(tab) === sec) return; SEC[tab] = sec; applySec(tab); }
+/** The section bar's button: "▶ Show me how", or "▶ Continue" while a tour is paused for the user to try something. */
+function tourBtn() {
+  const b = $("#tour-btn"); if (!b) return;
+  const paused = TOUR?.paused && TOUR.key === CUR_TAB;
+  b.textContent = paused ? `▶ Continue (${TOUR.at + 2 > TOURS[TOUR.key].steps.length ? "finish" : `step ${TOUR.at + 2} of ${TOURS[TOUR.key].steps.length}`})` : "▶ Show me how";
+  b.classList.toggle("tour-pulse", !!paused);
+  b.title = paused ? "Go on with the tour" : "A step-by-step walk through this tab";
+}
+function tourBtnClick(tab) {
+  if (TOUR?.paused && TOUR.key === tab) { tourResume(); return; }
+  tourStart(tab);
+}
 function tourStart(key) {
   if (!TOURS[key]) return;
   tourEnd(false);
-  TOUR = { key, at: 0, startSec: SECS[key] ? secOf(key) : null, els: {
-    block: el("div", { class: "tour-block", on: { click: () => tourEnd(false) } }),
+  const shade = () => el("div", { class: "tour-shade", on: { click: () => tourPause() } });
+  TOUR = { key, at: 0, dir: 1, paused: false, startSec: SECS[key] ? secOf(key) : null, els: {
+    shades: [shade(), shade(), shade(), shade()], // the dimmed area around the highlighted part (which stays usable)
     spot: el("div", { class: "tour-spot", "aria-hidden": "true" }),
     tip: el("div", { class: "tour-tip", role: "dialog", "aria-modal": "false", "aria-label": TOURS[key].title + " tour" }) } };
-  document.body.append(TOUR.els.block, TOUR.els.spot, TOUR.els.tip);
+  document.body.append(...TOUR.els.shades, TOUR.els.spot, TOUR.els.tip);
+  document.body.classList.add("tour-on");
   tourShow();
+}
+const tourParts = () => (TOUR ? [...TOUR.els.shades, TOUR.els.spot, TOUR.els.tip] : []);
+/** The user clicked into the highlighted part (or the dimmed area): step aside so they can try it. */
+function tourPause() {
+  if (!TOUR || TOUR.paused) return;
+  TOUR.paused = true;
+  for (const e of tourParts()) e.hidden = true;
+  document.body.classList.remove("tour-on"); document.body.classList.add("tour-paused");
+  TOURS[TOUR.key].pause?.(tourTarget(TOURS[TOUR.key].steps[TOUR.at]));
+  tourBtn();
+}
+function tourResume() {
+  if (!TOUR) return;
+  TOUR.paused = false;
+  for (const e of tourParts()) e.hidden = false;
+  document.body.classList.remove("tour-paused"); document.body.classList.add("tour-on");
+  tourBtn();
+  if (TOUR.at >= TOURS[TOUR.key].steps.length - 1) return tourEnd(true);
+  tourGo(1);
 }
 function tourEnd(done) {
   if (!TOUR) return;
-  const t = TOUR; TOUR = null;
-  Object.values(t.els).forEach((e) => e.remove());
-  TOUR = t; TOURS[t.key].end?.(); TOUR = null;
+  for (const e of tourParts()) e.remove();
+  document.body.classList.remove("tour-on", "tour-paused");
+  try { TOURS[TOUR.key].end?.(); } catch {}
+  TOUR = null;
+  tourBtn();
   if (done === true) {
     const box = el("div", { class: "tour-done", role: "dialog", "aria-label": "Tour finished" }, el("h3", {}, "You're set ✓"),
       el("p", {}, "Start this tour again any time with ▶ Show me how."), el("button", { type: "button", class: "primary", on: { click: () => box.remove() } }, "Close"));
@@ -4569,6 +4610,7 @@ function tourEnd(done) {
   }
 }
 const tourTarget = (st) => (typeof st.t === "function" ? st.t() : document.querySelector(st.t));
+const tourCanTry = (t) => !!t?.matches?.("input, select, textarea, button") || !!t?.querySelector?.("input, select, textarea, button:not(.ghost)");
 function tourShow() {
   const steps = TOURS[TOUR.key].steps, st = steps[TOUR.at];
   try { st.before?.(); } catch {}
@@ -4583,9 +4625,11 @@ function tourShow() {
   const back = el("button", { type: "button", class: "small", disabled: TOUR.at === 0, on: { click: () => tourGo(-1) } }, "Back");
   const next = el("button", { type: "button", class: "small primary", on: { click: () => (last ? tourEnd(true) : tourGo(1)) } }, last ? "Done" : TOUR.at ? "Next" : "Start");
   const body = el("p", {}); body.innerHTML = st.p;
+  const tryIt = st.try !== false && tourCanTry(t) && TOUR.at > 0;
   TOUR.els.tip.replaceChildren(
     el("button", { type: "button", class: "tour-x ghost", title: "End the tour", "aria-label": "End the tour", on: { click: () => tourEnd(false) } }, "✕"),
     el("span", { class: "tour-count" }, `${TOUR.at + 1} of ${steps.length}`), el("h3", {}, st.h), body,
+    tryIt ? el("p", { class: "tour-try" }, "👉 Try it: click in the highlighted part and change it. The tour waits; press ", el("b", {}, "▶ Continue"), " in the bar at the top to go on.") : null,
     el("div", { class: "tour-nav" }, el("div", { class: "tour-dots", "aria-hidden": "true" }, ...steps.map((_, i) => el("i", { class: i === TOUR.at ? "on" : "" }))), back, next),
     el("div", { class: "tour-arrow", "aria-hidden": "true" }));
   setTimeout(tourPlace, 30); setTimeout(tourPlace, 400);
@@ -4593,11 +4637,15 @@ function tourShow() {
 }
 function tourGo(d) { if (!TOUR) return; const n = TOUR.at + d; if (n < 0 || n >= TOURS[TOUR.key].steps.length) return; TOUR.at = n; TOUR.dir = d; tourShow(); }
 function tourPlace() {
-  if (!TOUR) return;
+  if (!TOUR || TOUR.paused) return;
   const t = tourTarget(TOURS[TOUR.key].steps[TOUR.at]); if (!t) return;
-  const r = t.getBoundingClientRect(), pad = 6, { spot, tip } = TOUR.els;
-  Object.assign(spot.style, { left: r.left - pad + "px", top: r.top - pad + "px", width: r.width + pad * 2 + "px", height: r.height + pad * 2 + "px" });
-  const tw = tip.offsetWidth, th = tip.offsetHeight, W = innerWidth, H = innerHeight, a = tip.querySelector(".tour-arrow");
+  const r = t.getBoundingClientRect(), pad = 6, { spot, tip, shades } = TOUR.els, W = innerWidth, H = innerHeight;
+  const L = Math.max(0, r.left - pad), T = Math.max(0, r.top - pad), R = Math.min(W, r.right + pad), B = Math.min(H, r.bottom + pad);
+  Object.assign(spot.style, { left: L + "px", top: T + "px", width: Math.max(0, R - L) + "px", height: Math.max(0, B - T) + "px" });
+  // four dimmed panels around the hole, so the highlighted part can be clicked
+  const box = (e, x, y, w, h) => Object.assign(e.style, { left: x + "px", top: y + "px", width: Math.max(0, w) + "px", height: Math.max(0, h) + "px" });
+  box(shades[0], 0, 0, W, T); box(shades[1], 0, B, W, H - B); box(shades[2], 0, T, L, B - T); box(shades[3], R, T, W - R, B - T);
+  const tw = tip.offsetWidth, th = tip.offsetHeight, a = tip.querySelector(".tour-arrow");
   let side = r.bottom + th + 24 < H ? "below" : r.top - th - 24 > 0 ? "above" : r.left - tw - 24 > 0 ? "left" : "below";
   let x = side === "left" ? r.left - tw - 18 : r.left, y = side === "below" ? r.bottom + 16 : side === "above" ? r.top - th - 16 : r.top;
   x = Math.max(16, Math.min(x, W - tw - 16)); y = Math.max(16, Math.min(y, H - th - 16));
@@ -4608,8 +4656,16 @@ function tourPlace() {
 }
 addEventListener("resize", tourPlace);
 addEventListener("scroll", tourPlace, { passive: true });
+// a click into the highlighted part pauses the tour, so the user can try it
+// (a click, a keyboard focus or a change, e.g. a choice in a drop-down)
+const tourTry = (e) => {
+  if (!TOUR || TOUR.paused || tourParts().some((p) => p.contains(e.target))) return;
+  const t = tourTarget(TOURS[TOUR.key].steps[TOUR.at]);
+  if (t && t.contains(e.target)) tourPause();
+};
+for (const ev of ["pointerdown", "focusin", "change"]) document.addEventListener(ev, tourTry, true);
 addEventListener("keydown", (e) => {
-  if (!TOUR) return;
+  if (!TOUR || TOUR.paused) return;
   if (e.key === "Escape") tourEnd(false);
   else if (e.key === "ArrowRight" && !e.target.closest?.("input, select, textarea")) tourGo(1);
   else if (e.key === "ArrowLeft" && !e.target.closest?.("input, select, textarea")) tourGo(-1);
@@ -4643,7 +4699,8 @@ function renderSecbar(tab) {
     el("button", { type: "button", class: "small ghost", title: "What is this tab for?", "aria-label": "What is this tab for?", "aria-expanded": String(ABOUT), on: { click: () => { ABOUT = !ABOUT; renderSecbar(tab); } } }, "ⓘ"),
     el("span", { class: "grow" }),
     el("span", { class: "status", id: "sec-status" }, secStatus(tab)),
-    TOURS[tab] ? el("button", { type: "button", class: "small primary", id: "tour-btn", title: "A step-by-step walk through this tab", on: { click: () => tourStart(tab) } }, "▶ Show me how") : null);
+    TOURS[tab] ? el("button", { type: "button", class: "small primary", id: "tour-btn", title: "A step-by-step walk through this tab", on: { click: () => tourBtnClick(tab) } }, "▶ Show me how") : null);
+  tourBtn();
   $("#about").hidden = !ABOUT;
   $("#about").textContent = TABS[tab].intro;
 }
