@@ -4550,25 +4550,168 @@ const TOURS = {
     end: () => { if (CTL_TOUR_NEW && ED.ctl?.isNew) cancelEdit("ctl"); CTL_TOUR_NEW = false; if (!ED.ctl) tourSec("ctl", TOUR?.startSec || "ctl"); }
   }
 };
-let TOUR = null; // { key, at, dir, els, startSec, paused }
+// helpers for writing tours
+const tvis = (sel, root = document) => [...root.querySelectorAll(sel)].find((e) => e.offsetParent !== null) || null;
+const tourPane = () => (CUR_TAB ? $(TABS[CUR_TAB].pane) : document);
+const tourBox = () => tvis(".editbox", tourPane());
+/** A heading in the open editor (or root) and what follows it, up to the next heading of the same kind. */
+function tsec(text, root = tourBox()) {
+  if (!root) return null;
+  const h = [...root.querySelectorAll(".subhead, h3, h4")].find((e) => e.offsetParent !== null && e.textContent.trim().toLowerCase().startsWith(text.toLowerCase()));
+  if (!h) return null;
+  const out = [h];
+  for (let n = h.nextElementSibling; n && !(n.matches(".subhead, h3, h4") || n.querySelector(":scope > .subhead")); n = n.nextElementSibling) out.push(n);
+  return out;
+}
+/** The field (label + control) holding the control with this aria-label (or a label with this text). */
+function tfield(label, root = tourBox() || tourPane()) {
+  if (!root) return null;
+  const c = root.querySelector(`[aria-label="${label}"]`) || [...root.querySelectorAll("label")].find((l) => l.textContent.trim().startsWith(label));
+  return c ? c.closest(".fields, .field, .line, .row, label") || c : null;
+}
+const tbtn = (text, root = tourBox() || tourPane()) => (root ? [...root.querySelectorAll("button")].find((b) => b.offsetParent !== null && b.textContent.trim().startsWith(text)) || null : null);
+const tfoot = () => tourBox()?.querySelector(".editbox-foot") || null;
+const thead = () => tourBox()?.querySelector(".card-head") || null;
+/** Opens a new item for the tour to show (unless an editor is open already); dropped at the end unless used. */
+function tourNew(kind, btn) {
+  if (!TOUR || tourBox()) return;
+  TOUR.made = kind;
+  $(btn)?.click();
+}
+function tourDropNew() {
+  if (!TOUR?.made || TOUR.adopted) return;
+  const k = TOUR.made; TOUR.made = null;
+  if (k === "aw") { const i = AW?.widgets.findIndex((w) => w.id === TOUR.awId) ?? -1; if (i >= 0) { AW.widgets.splice(i, 1); AW.open = null; AW.placing = null; renderAW(); } return; }
+  if (k === "disp") { if (DED?.isNew) dspCancel(); return; }
+  if (ED[k]?.isNew) cancelEdit(k);
+}
+
+TOURS["smart:smart"] = { title: "Smart controls", steps: [
+  { t: "#tour-btn", h: "Smart controls: a quick tour", p: "A smart control is a button on the remote that checks your devices first and then does the right thing: <i>if the receiver is on, volume up; otherwise turn it on</i>. It runs in the background, so it can't switch the remote's screen." },
+  { t: "#add-button", h: "1 · Create one", p: "Start an empty smart control here…" },
+  { t: "#template", h: "…or from a template", p: "Templates are ready-made controls: for this remote (Night Mode, backlight color cycle…) and for your devices (smart volume, play/pause or turn on…). Pick one and change it as you like." },
+  { t: thead, h: "Give it a name", p: "The name is what the button shows on the remote. The id is made from it the first time you save.", before: () => tourNew("smart", "#add-button") },
+  { t: () => tvis(".branch", tourBox()), h: "2 · If…", p: "Conditions: a <b>device</b> value, an <b>activity</b> that's on, the <b>time of day</b>, this remote's controls and settings, or a <b>memory</b>. With several conditions, choose <b>all</b> or <b>any</b> of them." },
+  { t: () => tsec("Then", tvis(".branch", tourBox())), h: "…then do this", p: "The steps to run, top to bottom: a device command, a wait, <b>wait until</b> something is true, set a memory, show a message on a display, go to a page, and more." },
+  { t: () => tbtn("Add else-if") || tbtn("Add otherwise"), h: "More cases", p: "<b>Else if</b> adds another case, checked when the ones above aren't true. <b>Otherwise</b> runs when none of them are. The first true case wins." },
+  { t: "#states-smart", h: "What your devices report", p: "Device states shows every value a device reports, live. Click a condition's value box, then a value here to fill it in." },
+  { t: tfoot, h: "3 · Save and test", p: "<b>Save</b> keeps it; <b>Test</b> saves and runs it once, and tells you what happened." },
+  { t: "#buttons", h: "Your smart controls", p: "Click one to change it. After saving a new one, add it to the integration (Integrations → Remote Self-Control) and put it on a page or a button." },
+  { t: () => tvis('#app details.panel[data-sec="smart"]'), h: "Backup and import", p: "<b>Rules text</b> is all your smart controls as text: copy it to back them up or share them, or paste rules to load them." }
+] };
+TOURS["smart:menu"] = { title: "Quick menus", steps: [
+  { t: "#tour-btn", h: "Quick menus: a quick tour", p: "A quick menu is a list on the remote, like inputs or sound modes, that opens as a pop-up from a home tile or an activity page. Each choice runs its own steps." },
+  { t: "#menu-add", h: "1 · Create one", p: "Start an empty quick menu here…" },
+  { t: "#menu-fill", h: "…or from a device's list", p: "Pick a device's list (inputs, sound modes, apps) and every entry becomes a choice that selects it." },
+  { t: thead, h: "Name it", p: "The name shows on the tile and at the top of the pop-up.", before: () => tourNew("extras", "#menu-add") },
+  { t: () => tsec("Runs"), h: "2 · Each choice", p: "A label and the steps it runs when picked: device commands, waits, memories, the same steps as smart controls." },
+  { t: () => tsec("Shown as the current choice"), h: "Which one is ticked", p: "Optional: when a choice's condition is true (the receiver's input is <i>Game</i>, say), the menu shows it as the current choice." },
+  { t: () => tsec("Stepping through"), h: "Stepping through", p: "How next / previous move through the choices, e.g. when the menu is on a physical button." },
+  { t: () => tsec("Tile icon"), h: "Tile icon", p: "The picture on home pages and in lists." },
+  { t: tfoot, h: "3 · Save", p: "Save it, then add it to the integration and put it on a home page or an activity page." },
+  { t: "#buttons", h: "Your smart controls and quick menus", p: "Both kinds are listed here. Click one to change it." }
+] };
+TOURS["icons:icon"] = { title: "State icons", steps: [
+  { t: "#tour-btn", h: "State icons: a quick tour", p: "A state icon is a button on an activity page that changes its look with a device: a different picture or label while the TV is on, or for each receiver input. What it does when pressed doesn't change." },
+  { t: "#icon-add", h: "1 · Create one", p: "Start a new state icon here." },
+  { t: thead, h: "Name it", p: "Just for you, to find it in the list.", before: () => tourNew("icons", "#icon-add") },
+  { t: () => tsec("1 · The button"), h: "2 · Pick the button", p: "Choose the activity, then click the button on its page drawing. Its current picture or text becomes the <b>default</b> look. Only one-page activities are offered (changing a page of a multi-page activity would jump to page 1)." },
+  { t: () => tsec("2 · What it shows"), h: "3 · One look per state", p: "Pick the device and what to follow (its state, input…). For each value, drop a picture or type a label." },
+  { t: () => tsec("3 · Looks"), h: "Looks", p: "Fine-tune how the pictures and labels are shown." },
+  { t: tfoot, h: "4 · Save", p: "The button switches look within about 2 seconds of a change, and goes back to its default when no state matches." },
+  { t: "#icons-list", h: "Your state icons and sliders", p: "Click one to change it." }
+] };
+TOURS["icons:slider"] = { title: "Sliders", steps: [
+  { t: "#tour-btn", h: "Sliders: a quick tour", p: "A slider is a number on one of your devices, like the receiver's volume, that you can set with the remote's slider pop-up from a home tile, or with the touch slider of a Remote 3." },
+  { t: "#slider-add", h: "1 · Create one", p: "Start a new slider here." },
+  { t: thead, h: "Name it", p: "The name shows on its tile.", before: () => tourNew("extras", "#slider-add") },
+  { t: () => tsec("1 · Device"), h: "2 · The device", p: "Which device and value it controls." },
+  { t: () => tsec("2 · How to change it"), h: "3 · How to change it", p: "Set the value directly when the device allows it, or step there with up / down commands (IR devices, for example)." },
+  { t: () => tsec("3 · Range"), h: "Range", p: "The lowest and highest value, and the step." },
+  { t: () => tsec("4 · Tile icon"), h: "Tile icon", p: "The picture on home pages and in lists." },
+  { t: () => tsec("5 · Show the level"), h: "Show the level on a page", p: "Optional: a bar on an activity page that follows the value, in the design and colours you pick." },
+  { t: tfoot, h: "4 · Save", p: "Save it, then add it to the integration (group <b>Remote Sliders &amp; Menus</b>) and put it on a home page, or pick it for the touch slider." }
+] };
+TOURS["icons:display"] = { title: "Displays", steps: [
+  { t: "#tour-btn", h: "Displays: a quick tour", p: "A display is a sensor that shows text on a page: a value (volume, the time, a song) with words around it, that switches to something else for a while when something happens, then goes back." },
+  { t: "#disp-add", h: "1 · Create one", p: "Start an empty display here…" },
+  { t: "#disp-tmpl", h: "…or from a template", p: "Ready-made displays: volume with a Control taking over, a status line, a doorbell message, a message ticker." },
+  { t: () => tfield("Name (shown on the remote)"), h: "Name and size", p: "The name, and how many tiles wide and high the widget will be on the page.", before: () => tourNew("disp", "#disp-add") },
+  { t: () => tsec("Default"), h: "2 · Default", p: "What it shows when nothing special is going on: a value of a device or of this remote, the time, a memory, with text before and after it." },
+  { t: () => tsec("Temporary changes"), h: "3 · Temporary changes", p: "What it shows for a while when something happens: a value changes or crosses a number, a Control turns on, an activity starts. Higher ones win; <b>High</b> priority isn't interrupted." },
+  { t: () => tvis(".dsp-preview", tourBox() || tourPane()), h: "Preview", p: "How it will look on the remote, right now, with your devices' real values." },
+  { t: tfoot, h: "4 · Save", p: "Save it, add it to the integration, and put it on a page with the Page Editor's <b>sensor widget</b>. It updates at once." },
+  { t: "#disp-list", h: "Your displays", p: "Click one to change it. Smart controls can send messages to a display with the step <b>Show on a display</b>." }
+] };
+TOURS["icons:auto"] = { title: "Auto Widgets", steps: [
+  { t: "#tour-btn", h: "Auto Widgets: a quick tour", p: "Auto Widgets put widgets on an activity's page that change by themselves: what they show, or whether they're there at all. This tour points at each part." },
+  { t: () => tfield("Activity", $("#aw-root")), h: "1 · Pick the activity", p: "Everything starts with the activity. How many pages it has decides what you can do." },
+  { t: () => tvis("#aw-root .awnote"), h: "One page or several?", p: "<b>One page</b>: widget spots place your devices' real widgets on the page, over your icons if you like. <b>Several pages</b>: Smart widgets stay put on an empty spot and show whichever device the rules pick." },
+  { t: () => tvis("#aw-root .awthumbs"), h: "Pick the page", p: "On activities with several pages, click a page to work on it. Each shows how many widgets it has." },
+  { t: () => tvis("#aw-root .awstep:nth-of-type(2) .row"), h: "2 · Add a widget", p: "Add a spot (one page) or create a Smart widget (several pages). You place it right after, by dragging across the page preview." },
+  { t: () => tvis("#aw-root .awcard.open .awhead"), before: () => {
+      if (!AW || !awAct()) return;
+      if (!awOnPage().length && TOUR) { awCreate(awOnePage() ? "spot" : "media"); AW.placing = null; AW.msg = null; TOUR.made = "aw"; TOUR.awId = AW.open; renderAW(); }
+      else if (!AW.open) { AW.open = awOnPage()[0].id; renderAW(); } }, h: "One card per widget", p: "The header shows what it's doing now (green: showing) and a summary of its rules. Click a header to open or close it. The number is its priority: higher wins when two land on the same place." },
+  { t: () => tvis("#aw-root .awcard.open .branch"), h: "3 · The rules", p: "The same conditions as Smart Controls. Branches are checked top to bottom (↑ ↓ to reorder) and the first true one is used: the green outline is the one in use now." },
+  { t: () => tvis("#aw-root .awcard.open .awthen"), h: "…then place / show", p: "A spot: which widget to place and where, or <b>nothing</b> so your icons show. A Smart widget: which device it shows." },
+  { t: "#states-icons", h: "Find the right values", p: "Device states shows what every device reports, live. Click a condition's value box, then a value here. ✓ / ✗ under a value show which of your conditions check it." },
+  { t: () => tvis("#aw-root .awcard.open .awright"), h: "4 · The preview", p: "The page as it looks now: orange is this widget, blue the others. Notes tell you if it's hidden, blocked by a higher one, or not placed yet." },
+  { t: () => tvis("#aw-root .awcard.open .awwords"), h: "Read it back", p: "<b>In words</b> says the whole rule as a sentence: a quick check that it does what you meant." },
+  { t: "#aw-save", h: "5 · Save", p: "One button saves all Auto Widgets. Smart widgets are then added to the remote and placed; spots start following their rules." }
+] };
+TOURS["ret:ret"] = { title: "↩ buttons", steps: [
+  { t: "#tour-btn", h: "↩ buttons: a quick tour", p: "A ↩ button takes you back to the activity you used before, like a browser's back button. The integration keeps it pointed at the right activity." },
+  { t: "#ret-add", h: "1 · Add an activity", p: "Pick each activity that should have a ↩ button." },
+  { t: () => tsec("1 · Activity"), h: "The activity", p: "Which activity gets the ↩ button.", before: () => tourNew("ret", "#ret-add") },
+  { t: () => tsec("2 · On screen"), h: "2 · On screen", p: "Where it sits on the activity's page and how it looks: text, a back arrow or your own picture. Or no button on screen." },
+  { t: () => tsec("3 · Physical button"), h: "3 · Physical button", p: "Optional: put ↩ on one of the remote's keys too, short or long press." },
+  { t: () => tsec("4 · Leaving"), h: "4 · Leaving this activity", p: "<b>Turn off when leaving</b>: when you switch to another activity, this one gets a plain \"turn off\". Meant for a single device's control page." },
+  { t: tfoot, h: "Save", p: "Save it. The button follows within about 2 seconds of every activity change." },
+  { t: "#ret-list", h: "Activities with a ↩ button", p: "Click one to change it." },
+  { t: () => tvis('#ret-app details.panel[data-sec="ret"]'), h: "How it works", p: "Open this for the details." }
+] };
+TOURS["ret:starts"] = { title: "Start pages", steps: [
+  { t: "#tour-btn", h: "Start pages: a quick tour", p: "Pick the page an activity opens on, depending on your devices: <i>Watch TV</i> opens on <i>Apps</i> if the Shield is on, otherwise on <i>Live TV</i>." },
+  { t: "#starts-add", h: "1 · Add a start page", p: "Each start page is one line: the activity, the condition and the page." },
+  { t: "#starts-list", h: "2 · Your start pages", p: "Lines are checked top to bottom; the first one whose condition is true picks the page." },
+  { t: () => $("#starts-save")?.closest(".row"), h: "3 · Save", p: "<b>Save start pages</b> appears here once you've changed something.", try: false },
+  { t: () => tvis('#ret-app details.panel[data-sec="starts"]'), h: "How page jumps work", p: "The remote has no \"go to page\" command; open this to see how the integration does it. To jump to a page while you're in an activity, use the <b>Go to page</b> step in a smart control or quick menu." }
+] };
+TOURS["launch:launch"] = { title: "Smart Launchers", steps: [
+  { t: "#tour-btn", h: "Smart Launchers: a quick tour", p: "A launcher is one button that opens the activity your conditions pick: <i>if the Shield is on → Watch ShieldTV, otherwise → Watch RokuTV</i>. <b>Beta:</b> it creates activities on your remote, so make a backup in the web configurator first." },
+  { t: "#launch-add", h: "1 · Add a launcher", p: "Each launcher lists activities with a condition each, checked top to bottom, and optional extra steps to run after the activity starts." },
+  { t: "#launch-list", h: "2 · Your launchers", p: "Name, activities and conditions, and where its buttons are: a page button, a physical button or a home tile." },
+  { t: () => $("#launch-save")?.closest(".row"), h: "3 · Save", p: "<b>Save launchers</b> appears here once you've changed something. Saving makes the launcher copies of your activities.", try: false },
+  { t: "#launch-scan", h: "Buttons made elsewhere", p: "If you picked a launcher's copy as the activity of a button in the web configurator, this finds those buttons so they're kept pointed right." },
+  { t: () => tvis("#launch-app details.panel"), h: "How launchers work", p: "Open this to see why launchers use copies of your activities, and why you should edit the original, not the copy." }
+] };
+let TOUR = null; // { key, tab, at, dir, els, startSec, paused, made, adopted }
 function tourSec(tab, sec) { if (secOf(tab) === sec) return; SEC[tab] = sec; applySec(tab); }
 /** The section bar's button: "▶ Show me how", or "▶ Continue" while a tour is paused for the user to try something. */
+/** The tour for a tab's current section ("icons:slider"), or for the whole tab ("ctl"). */
+const tourKey = (tab) => (TOURS[`${tab}:${secOf(tab)}`] ? `${tab}:${secOf(tab)}` : TOURS[tab] ? tab : null);
+const tabHasTour = (tab) => !!TOURS[tab] || (SECS[tab] || []).some(([v]) => TOURS[`${tab}:${v}`]);
 function tourBtn() {
   const b = $("#tour-btn"); if (!b) return;
-  const paused = TOUR?.paused && TOUR.key === CUR_TAB;
+  const key = CUR_TAB ? tourKey(CUR_TAB) : null;
+  b.hidden = !key;
+  const paused = TOUR?.paused && TOUR.key === key;
   b.textContent = paused ? `▶ Continue (${TOUR.at + 2 > TOURS[TOUR.key].steps.length ? "finish" : `step ${TOUR.at + 2} of ${TOURS[TOUR.key].steps.length}`})` : "▶ Show me how";
   b.classList.toggle("tour-pulse", !!paused);
   b.title = paused ? "Go on with the tour" : "A step-by-step walk through this tab";
 }
 function tourBtnClick(tab) {
-  if (TOUR?.paused && TOUR.key === tab) { tourResume(); return; }
-  tourStart(tab);
+  const key = tourKey(tab);
+  if (TOUR?.paused && TOUR.key === key) { tourResume(); return; }
+  if (key) tourStart(key);
 }
 function tourStart(key) {
   if (!TOURS[key]) return;
   tourEnd(false);
   const shade = () => el("div", { class: "tour-shade", on: { click: () => tourPause() } });
-  TOUR = { key, at: 0, dir: 1, paused: false, startSec: SECS[key] ? secOf(key) : null, els: {
+  const tab = key.split(":")[0];
+  TOUR = { key, tab, at: 0, dir: 1, paused: false, made: null, adopted: false, startSec: SECS[tab] ? secOf(tab) : null, els: {
     shades: [shade(), shade(), shade(), shade()], // the dimmed area around the highlighted part (which stays usable)
     spot: el("div", { class: "tour-spot", "aria-hidden": "true" }),
     tip: el("div", { class: "tour-tip", role: "dialog", "aria-modal": "false", "aria-label": TOURS[key].title + " tour" }) } };
@@ -4583,7 +4726,9 @@ function tourPause() {
   TOUR.paused = true;
   for (const e of tourParts()) e.hidden = true;
   document.body.classList.remove("tour-on"); document.body.classList.add("tour-paused");
-  TOURS[TOUR.key].pause?.(tourTarget(TOURS[TOUR.key].steps[TOUR.at]));
+  const tg = tourTarget(TOURS[TOUR.key].steps[TOUR.at]);
+  if (tg?.some((e) => e.closest(".editbox, #aw-root .awcard"))) TOUR.adopted = true; // they're filling in the item the tour opened: keep it
+  TOURS[TOUR.key].pause?.(tg?.[0]);
   tourBtn();
 }
 function tourResume() {
@@ -4599,7 +4744,7 @@ function tourEnd(done) {
   if (!TOUR) return;
   for (const e of tourParts()) e.remove();
   document.body.classList.remove("tour-on", "tour-paused");
-  try { TOURS[TOUR.key].end?.(); } catch {}
+  try { tourDropNew(); TOURS[TOUR.key].end?.(); } catch {}
   TOUR = null;
   tourBtn();
   if (done === true) {
@@ -4609,18 +4754,26 @@ function tourEnd(done) {
     box.querySelector("button").focus();
   }
 }
-const tourTarget = (st) => (typeof st.t === "function" ? st.t() : document.querySelector(st.t));
-const tourCanTry = (t) => !!t?.matches?.("input, select, textarea, button") || !!t?.querySelector?.("input, select, textarea, button:not(.ghost)");
+/** The highlighted part of a step: one element, or several next to each other (e.g. a heading and what follows). */
+function tourTarget(st) {
+  let t = typeof st.t === "function" ? st.t() : document.querySelector(st.t);
+  if (!t) return null;
+  const list = (Array.isArray(t) ? t : [t]).filter((e) => e && (e.offsetParent !== null || getComputedStyle(e).position === "fixed"));
+  return list.length ? list : null;
+}
+const tourHas = (t, x) => !!t && t.some((e) => e.contains(x));
+const tourCanTry = (t) => !!t && t.some((e) => e.matches?.("input, select, textarea, button") || e.querySelector?.("input, select, textarea, button:not(.ghost)"));
 function tourShow() {
   const steps = TOURS[TOUR.key].steps, st = steps[TOUR.at];
+  TOUR.quietUntil = Date.now() + 500; // focus moved by the step's own preparation isn't the user trying it
   try { st.before?.(); } catch {}
   const t = tourTarget(st);
-  if (!t || t.offsetParent === null && getComputedStyle(t).position !== "fixed") { // nothing to show here: skip it
+  if (!t) { // nothing to show here: skip it
     if (TOUR.dir < 0 && TOUR.at > 0) { TOUR.at--; return tourShow(); }
     if (TOUR.at < steps.length - 1) { TOUR.at++; return tourShow(); }
     return tourEnd(true);
   }
-  t.scrollIntoView({ block: "center", behavior: "smooth" });
+  t[0].scrollIntoView({ block: "center", behavior: "smooth" });
   const last = TOUR.at === steps.length - 1;
   const back = el("button", { type: "button", class: "small", disabled: TOUR.at === 0, on: { click: () => tourGo(-1) } }, "Back");
   const next = el("button", { type: "button", class: "small primary", on: { click: () => (last ? tourEnd(true) : tourGo(1)) } }, last ? "Done" : TOUR.at ? "Next" : "Start");
@@ -4629,7 +4782,7 @@ function tourShow() {
   TOUR.els.tip.replaceChildren(
     el("button", { type: "button", class: "tour-x ghost", title: "End the tour", "aria-label": "End the tour", on: { click: () => tourEnd(false) } }, "✕"),
     el("span", { class: "tour-count" }, `${TOUR.at + 1} of ${steps.length}`), el("h3", {}, st.h), body,
-    tryIt ? el("p", { class: "tour-try" }, "👉 Try it: click in the highlighted part and change it. The tour waits; press ", el("b", {}, "▶ Continue"), " in the bar at the top to go on.") : null,
+    ...(tryIt ? [el("p", { class: "tour-try" }, "👉 Try it: click in the highlighted part and change it. The tour waits; press ", el("b", {}, "▶ Continue"), " in the bar at the top to go on.")] : []),
     el("div", { class: "tour-nav" }, el("div", { class: "tour-dots", "aria-hidden": "true" }, ...steps.map((_, i) => el("i", { class: i === TOUR.at ? "on" : "" }))), back, next),
     el("div", { class: "tour-arrow", "aria-hidden": "true" }));
   setTimeout(tourPlace, 30); setTimeout(tourPlace, 400);
@@ -4639,7 +4792,10 @@ function tourGo(d) { if (!TOUR) return; const n = TOUR.at + d; if (n < 0 || n >=
 function tourPlace() {
   if (!TOUR || TOUR.paused) return;
   const t = tourTarget(TOURS[TOUR.key].steps[TOUR.at]); if (!t) return;
-  const r = t.getBoundingClientRect(), pad = 6, { spot, tip, shades } = TOUR.els, W = innerWidth, H = innerHeight;
+  const rs = t.map((e) => e.getBoundingClientRect());
+  const r = { left: Math.min(...rs.map((x) => x.left)), top: Math.min(...rs.map((x) => x.top)), right: Math.max(...rs.map((x) => x.right)), bottom: Math.max(...rs.map((x) => x.bottom)) };
+  r.width = r.right - r.left; r.height = r.bottom - r.top;
+  const pad = 6, { spot, tip, shades } = TOUR.els, W = innerWidth, H = innerHeight;
   const L = Math.max(0, r.left - pad), T = Math.max(0, r.top - pad), R = Math.min(W, r.right + pad), B = Math.min(H, r.bottom + pad);
   Object.assign(spot.style, { left: L + "px", top: T + "px", width: Math.max(0, R - L) + "px", height: Math.max(0, B - T) + "px" });
   // four dimmed panels around the hole, so the highlighted part can be clicked
@@ -4659,9 +4815,8 @@ addEventListener("scroll", tourPlace, { passive: true });
 // a click into the highlighted part pauses the tour, so the user can try it
 // (a click, a keyboard focus or a change, e.g. a choice in a drop-down)
 const tourTry = (e) => {
-  if (!TOUR || TOUR.paused || tourParts().some((p) => p.contains(e.target))) return;
-  const t = tourTarget(TOURS[TOUR.key].steps[TOUR.at]);
-  if (t && t.contains(e.target)) tourPause();
+  if (!TOUR || TOUR.paused || Date.now() < (TOUR.quietUntil || 0) || tourParts().some((p) => p.contains(e.target))) return;
+  if (tourHas(tourTarget(TOURS[TOUR.key].steps[TOUR.at]), e.target)) tourPause();
 };
 for (const ev of ["pointerdown", "focusin", "change"]) document.addEventListener(ev, tourTry, true);
 addEventListener("keydown", (e) => {
@@ -4699,7 +4854,7 @@ function renderSecbar(tab) {
     el("button", { type: "button", class: "small ghost", title: "What is this tab for?", "aria-label": "What is this tab for?", "aria-expanded": String(ABOUT), on: { click: () => { ABOUT = !ABOUT; renderSecbar(tab); } } }, "ⓘ"),
     el("span", { class: "grow" }),
     el("span", { class: "status", id: "sec-status" }, secStatus(tab)),
-    TOURS[tab] ? el("button", { type: "button", class: "small primary", id: "tour-btn", title: "A step-by-step walk through this tab", on: { click: () => tourBtnClick(tab) } }, "▶ Show me how") : null);
+    tabHasTour(tab) ? el("button", { type: "button", class: "small primary", id: "tour-btn", title: "A step-by-step walk through this tab", on: { click: () => tourBtnClick(tab) } }, "▶ Show me how") : null);
   tourBtn();
   $("#about").hidden = !ABOUT;
   $("#about").textContent = TABS[tab].intro;
@@ -4707,6 +4862,7 @@ function renderSecbar(tab) {
 /** Shows the open section's blocks and list rows, and the Pictures window where that section takes pictures. */
 function applySec(tab) {
   if (!SECS[tab]) return;
+  setTimeout(tourBtn, 0); // the tour button follows the section
   const v = secOf(tab), pane = $(TABS[tab].pane);
   pane.dataset.show = v;
   for (const e of pane.querySelectorAll("[data-sec]")) e.classList.toggle("secoff", e.dataset.sec !== v);
