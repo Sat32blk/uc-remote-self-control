@@ -18,6 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
+import { readJson as readJsonFile, writeText } from "./safefile.js";
 
 // ---- sending less over the remote's Wi-Fi: gzip for pages and larger answers ----
 const accepts = (req) => /\bgzip\b/.test(req?.headers?.["accept-encoding"] || "");
@@ -236,7 +237,7 @@ export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPa
     // app links per integration (kept by this integration, on the remote)
     "GET /api/editor/applinks": async (req, res) => {
       let all = {};
-      try { all = JSON.parse(fs.readFileSync(path.join(dataDir, "app_links.json"), "utf8")); } catch {}
+      try { all = readJsonFile(path.join(dataDir, "app_links.json")); } catch {}
       send(res, 200, { links: all });
     },
     "POST /api/editor/applinks": async (req, res) => {
@@ -245,7 +246,7 @@ export function editorRoutes({ getCore, onScreen = () => null, dataDir, editorPa
       if (why) return send(res, 422, { ok: false, error: why });
       const clean = Object.fromEntries(Object.entries(body.links).filter(([, l]) => l.length).map(([id, l]) => [id, l.map((x) => ({ cmd: x.cmd.trim(), name: x.name.trim() }))]));
       fs.mkdirSync(dataDir, { recursive: true });
-      fs.writeFileSync(path.join(dataDir, "app_links.json"), JSON.stringify(clean, null, 1));
+      writeText(path.join(dataDir, "app_links.json"), JSON.stringify(clean, null, 1));
       log(`page editor: app links saved (${Object.values(clean).reduce((n, l) => n + l.length, 0)})`);
       send(res, 200, { ok: true, links: clean });
     },

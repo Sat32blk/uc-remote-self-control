@@ -11,6 +11,7 @@
 //
 // A page is named by its page_id, its name (case-insensitive) or "#n" (its position in the user's order).
 import fs from "node:fs";
+import { readJson, writeText } from "./safefile.js";
 
 export const MAX_START_RULES = 30;
 const MAX_BRANCHES = 8;
@@ -64,14 +65,14 @@ export class PageJumper {
   }
   load() {
     try {
-      const d = JSON.parse(fs.readFileSync(this.file, "utf8"));
+      const d = readJson(this.file);
       if (d.saved && typeof d.saved === "object") this.saved = d.saved;
       if (Array.isArray(d.starts)) this.starts = d.starts;
     } catch {}
   }
   save() {
     try {
-      fs.writeFileSync(this.file, JSON.stringify({ saved: this.saved, starts: this.starts }, null, 2));
+      writeText(this.file, JSON.stringify({ saved: this.saved, starts: this.starts }, null, 2));
     } catch (e) {
       this.warn("pages: couldn't save:", e.message);
     }

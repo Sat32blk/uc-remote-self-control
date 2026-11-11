@@ -22,6 +22,7 @@
 import fs from "node:fs";
 import { vCond } from "./smart.js";
 import { takeTouched } from "./core.js";
+import { readJson, writeText } from "./safefile.js";
 
 export const AW_LIMITS = { widgets: 40, cases: 12, grid: 12 };
 export const AW_KINDS = ["spot", "media", "select", "sensor"];
@@ -149,13 +150,13 @@ export class AutoWidgets {
 
   load() {
     try {
-      const d = JSON.parse(fs.readFileSync(this.file, "utf8"));
+      const d = readJson(this.file);
       this.widgets = Array.isArray(d.widgets) ? d.widgets : [];
       this.bases = d.bases && typeof d.bases === "object" ? d.bases : {};
     } catch { this.widgets = []; this.bases = {}; }
   }
   save() {
-    try { fs.writeFileSync(this.file, JSON.stringify({ widgets: this.widgets, bases: this.bases }, null, 2)); } catch (e) { this.warn("auto widgets: couldn't save:", e.message); }
+    try { writeText(this.file, JSON.stringify({ widgets: this.widgets, bases: this.bases }, null, 2)); } catch (e) { this.warn("auto widgets: couldn't save:", e.message); }
   }
   get enabled() { return this.widgets.length > 0; }
   smart() { return this.widgets.filter((w) => w.kind !== "spot"); }

@@ -28,7 +28,8 @@ ok(isReturnItem({ type: "text", text: "↩ Watch TV" }) && isReturnItem({ type: 
 // ---- driver -------------------------------------------------------------------
 const srv = await start(CORE_PORT);
 const binDir = path.resolve("src/bin");
-fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
+const ownDriverJson = !fs.existsSync(path.join(binDir, "driver.json")); // run-all.js puts one there for all tests running at once
+if (ownDriverJson) fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
 const env = { ...process.env, UC_CONFIG_HOME: cfgDir, UC_INTEGRATION_HTTP_PORT: String(WS_PORT), UC_DISABLE_MDNS_PUBLISH: "true", UC_SELF_BUILDER_PORT: "10933", UC_SELF_RETURN_POLL_MS: "250" };
 let drv = spawn(process.execPath, ["driver.js"], { cwd: binDir, env, stdio: ["ignore", "pipe", "pipe"] });
 let drvLog = "";
@@ -144,6 +145,7 @@ ok(r.after?.msg_data.state === "OK" && icon?.type === "icon" && icon.icon === "u
 drv.kill();
 ws.terminate();
 await sleep(400);
+await sleep(2300); // saved within 2 s (batched)
 const saved = JSON.parse(fs.readFileSync(path.join(cfgDir, "return.json"), "utf8"));
 ok(saved.history[0] === MUSIC && saved.cfg.hosts.join() === TV_ACT && saved.cfg.screen === "icon", "history and settings saved to return.json");
 drv = spawn(process.execPath, ["driver.js"], { cwd: binDir, env, stdio: ["ignore", "pipe", "pipe"] });
@@ -173,6 +175,7 @@ ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.command?.entity_id === 
   await http("POST", "/api/login", { pin: "1234" });
   h = await http("GET", "/api/return");
   ok(h.status === 200 && h.data.cfg.hosts.join() === TV_ACT && h.data.activities.length === 2 && h.data.current, "builder: reads the ↩ settings, activities and current activity");
+  ok(h.data.coreEvents?.state === "connected" && h.data.deviceReads && typeof h.data.deviceReads.memory === "number", "the remote's live events are connected and device reads are counted");
   ok(h.data.activities.some((a) => a.name === h.data.current) && !/^uc\./.test(h.data.current) && (!h.data.previous || !/^uc\./.test(h.data.previous)), `builder: now / previous shown by name (${h.data.current} / ${h.data.previous})`);
   h = await http("POST", "/api/return", { hosts: [TV_ACT], screen: "none", button: "NONE" });
   ok(h.status === 422 && /on-screen button, a physical button/.test(h.data.errors[0]), "builder: nothing to show is refused");
@@ -251,12 +254,13 @@ ok(activities[TV_ACT].pages[0].items.find(isReturnItem)?.command?.entity_id === 
 
 // ---- turn off ---------------------------------------------------------------------------
 r = await returnSetup({ host_0: "false", host_1: "false", screen: "text", button: "NONE", press: "short_press" });
+await sleep(2300);
 ok(r.after?.msg_data.state === "OK" && JSON.parse(fs.readFileSync(path.join(cfgDir, "return.json"), "utf8")).cfg.hosts.length === 0, "unticking every activity turns it off");
 
 drv.kill();
 ws.terminate();
 srv.close();
-fs.rmSync(path.join(binDir, "driver.json"));
+if (ownDriverJson) fs.rmSync(path.join(binDir, "driver.json"), { force: true });
 console.log("\n--- driver log (return lines) ---\n" + drvLog.split("\n").filter((l) => /return/i.test(l)).slice(0, 25).join("\n"));
 console.log(failures ? `\n${failures} FAILED` : "\nALL PASSED");
 process.exit(failures ? 1 : 0);

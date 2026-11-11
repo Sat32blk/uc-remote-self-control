@@ -38,7 +38,7 @@ const mock = await startMockEditorCore(0);
 const addr = "127.0.0.1:" + mock.address().port;
 const core = new CoreClient(addr, { apiKey: "k" });
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "sc-editor-"));
-const port = 18000 + Math.floor(Math.random() * 1000);
+const port = 20000 + Math.floor(Math.random() * 1000); // clear of the fixed ports the other tests use (they run in parallel)
 const srv = startWebServer({ port, pagePath: new URL("../src/bin/web/builder.html", import.meta.url).pathname, editorPath: new URL("../src/bin/web/editor.html", import.meta.url).pathname, dataDir,
   getCore: () => core, makePinClient: (pin) => new CoreClient(addr, { pin }), smart: () => null, controls: () => ({}), settings: {}, loadRulesText: () => ({ text: "{}" }), defaultRulesText: () => "{}",
   saveRules: () => {}, validate: () => [], stateIcons: () => ({}), validateIcons: () => ({ errors: [] }), extras: () => ({}), controlsApi: {}, deviceStates: () => ({}), validateExtras: () => ({ errors: [] }),

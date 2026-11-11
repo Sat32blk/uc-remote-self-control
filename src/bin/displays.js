@@ -21,6 +21,7 @@
 //   WHEN: { type: "changes", src } | { type: "above" | "below", src, val: number } | { type: "equals", src, val }
 //       | { type: "control", control: "" (any) | control id } | { type: "activity", activity: id }
 import fs from "node:fs";
+import { readJson, writeText } from "./safefile.js";
 
 export const DISPLAY_LIMITS = { displays: 20, rules: 16, steps: 20, text: 120, stepMinS: 0.5, stepMaxS: 60, durMaxS: 300 };
 // bar characters that showed on the remote (display test round 3)
@@ -200,10 +201,10 @@ export class Displays {
     this.load();
   }
   load() {
-    try { const d = JSON.parse(fs.readFileSync(this.file, "utf8")); this.displays = validateDisplays(d).displays; } catch { this.displays = []; }
+    try { const d = readJson(this.file); this.displays = validateDisplays(d).displays; } catch { this.displays = []; }
   }
   save() {
-    try { fs.writeFileSync(this.file, JSON.stringify({ displays: this.displays }, null, 1)); } catch (e) { this.warn("displays: couldn't save:", e.message); }
+    try { writeText(this.file, JSON.stringify({ displays: this.displays }, null, 1)); } catch (e) { this.warn("displays: couldn't save:", e.message); }
   }
   get config() { return { displays: this.displays }; }
   /** Replaces all displays (already validated). */

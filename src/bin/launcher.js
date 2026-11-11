@@ -19,6 +19,7 @@
 //   delay? }], rules: [{ if: COND, target: activity }], otherwise: activity }] }
 import fs from "node:fs";
 import { freeSpot } from "./returnbtn.js";
+import { readJson, writeText } from "./safefile.js";
 
 export const LIMITS = { launchers: 20, targets: 6, branches: 8, steps: 4, delayMs: 30000, places: 40 };
 const START = ["activity.start", "activity.on"];
@@ -108,7 +109,7 @@ export class Launchers {
   }
   load() {
     try {
-      const d = JSON.parse(fs.readFileSync(this.file, "utf8"));
+      const d = readJson(this.file);
       if (Array.isArray(d.launchers)) this.launchers = d.launchers;
       if (d.copies && typeof d.copies === "object") this.copies = d.copies;
       if (d.places && typeof d.places === "object") this.places = d.places;
@@ -117,7 +118,7 @@ export class Launchers {
   }
   save() {
     try {
-      fs.writeFileSync(this.file, JSON.stringify({ launchers: this.launchers, copies: this.copies, places: this.places, chosen: this.chosen }, null, 2));
+      writeText(this.file, JSON.stringify({ launchers: this.launchers, copies: this.copies, places: this.places, chosen: this.chosen }, null, 2));
     } catch (e) {
       this.warn("launcher: couldn't save:", e.message);
     }

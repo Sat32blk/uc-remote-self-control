@@ -323,6 +323,8 @@ For lists, `option` can also be `next` / `previous` (wraps around) or `up` / `do
 
 Files in the integration's config folder: `self_control.json` (address + API key), `smart_rules.json` (your rules; absent = defaults), `smart_vars.json` (remembered values), `return.json` (↩ settings and activity history), `state_icons.json` (state icons and each button's default look), `sliders_menus.json` (sliders, quick menus and their last values), `controls.json` (Controls), `states_seen.json` (values seen in the device states panel). The Page Editor adds `app_links.json` (Android TV app links) and keeps its remote backups on the remote (the newest two). The builder's **Backup** saves all of these except the login and the caches.
 
+Each file is saved safely: the integration writes a new copy and then swaps it in, so a file is never half-written if the hub or remote loses power. The version before the last save is kept as `<name>.bak`, and a file that can't be read is loaded from its `.bak` instead (the log says so). If neither works, the damaged file is kept as `<name>.damaged-<time>` before anything new is saved.
+
 ## Logs and removal
 
 - Logs: web configurator → Settings → Development → Logs (lines start with `[self-control]`).
@@ -333,7 +335,10 @@ Files in the integration's config folder: `self_control.json` (address + API key
 ```
 src/driver.json                         metadata and first setup screen
 src/bin/driver.js                       entities, commands, setup flow, polling
-src/bin/core.js                         REST client for the remote's Core API
+src/bin/core.js                         REST client for the remote's Core API; keeps device values, kept current by the events
+src/bin/settings.js                     the remote's settings as selects and switches, color presets
+src/bin/setup-pages.js                  setup flow pages (PIN, Smart Controls as JSON)
+src/bin/safefile.js                     safe saving: write and swap, .bak copies, batched saves
 src/bin/smart.js                        Smart Controls: validation and engine
 src/bin/web.js                          builder web server and device catalog
 src/bin/web/builder.html                builder page (no external files; works offline)
@@ -345,7 +350,7 @@ src/bin/stateicons.js                   state icons (watch devices, switch butto
 src/bin/extras.js                       virtual sliders and quick menus
 src/bin/controls.js                     Controls (volume rocker / touch slider for other things)
 src/bin/states.js                       device states panel (live values, values seen)
-src/bin/coreevents.js                   the remote's own events (which activity was opened)
+src/bin/coreevents.js                   the remote's own events (which activity was opened, every device change)
 src/bin/backup.js                       backup and restore
 src/bin/pages.js                        page jumps and start pages
 src/bin/default-rules.json              default Smart Controls (none)
@@ -358,7 +363,8 @@ Tests (Node 22):
 ```
 npm install                 # dev dependency: ws
 (cd src/bin && npm install)
-npm test                    # builder page, settings, Smart Controls, return, state icons, sliders & menus, Controls, device states, events, launchers, Page Editor
+npm test                    # every test, 4 at a time (TEST_JOBS=n to change; npm run test:serial for one at a time)
+node test/run-all.js smart  # only the tests whose file name contains "smart"
 ```
 
 Build the install archive:
@@ -371,6 +377,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.4.7:** Faster and lighter on the remote. The integration now keeps the device values it reads in memory, and the remote's live events keep them current. So Auto Widgets, Displays, state icons, sliders and Smart Controls conditions no longer ask the remote for every device every second or two; they react as soon as the remote reports a change, with a check every 20 s. Settings files are saved safely, with a `.bak` copy that is used if a file is damaged ([details](#configuration)). Remembered values, ↩ history and values seen are saved once every 2 s at most instead of on every change. Developers: `driver.js` is split up a little, and the tests run 4 at a time (about 50 s instead of over 2 min).
 - **1.4.6:** The full 1.4.5 release below, with Auto Widgets pop-ups. The 1.4.5 download on GitHub was an earlier build without pop-ups, so install 1.4.6 instead.
 - **1.4.5:** **[Auto Widgets](#auto-widgets)** (Icons & Sliders → Auto Widgets): widget spots that place your devices' real widgets on one-page activities by rules, and Smart widgets (Smart Media Widget, Smart Select, Smart Sensor) that show the device the rules pick on activities with several pages; the Smart Controls conditions, branches you can move up and down, **pop-ups** (a branch shown only for a few seconds when it becomes true or each time a value changes), a live preview per widget, ✓ / ✗ per condition (also in the Device states panel), and saving adds and places everything on the remote. **[Guided tours](#guided-tours)** for every builder section and every part of the Page Editor (**▶ Show me how**; click to try, **▶ Continue** to go on), with the steps to do on the remote highlighted, offered once the first time you open a section. A **new install** offers 20 entities: the **Smart Test Button** demo is gone (start from a template, e.g. *Backlight Color Cycle*), the builder's *Load the defaults* button is gone, and the setup menu's reset is now **Remove all Smart Controls**. (Test builds 1.3.7-autotest and 1.3.7-aw1 to aw9.)
 - **1.3.6:** **Image Fusionner** tiles in the Pictures window (for [Image Fusionner](#image-fusionner-tiles) users). **⚙ Settings** (top right) takes the Image_Fusionner folder; **Browse…** reads the tiles it has rendered into this browser (the browser asks you to allow the folder), and **↻ Reload tiles** reads them again after a render: layouts deleted from `Grid_layout` drop out, new ones appear, and only that one folder is read. The Pictures window (Page Editor and every tab that takes pictures) then shows one folder per layout with its grid (e.g. 4 × 6 tiles), as many across as your page is wide, with search and **Close all**. Click or drag a tile to use it; on an empty page with the same grid, **＋ Add to page** puts every tile on its own spot. Tiles are uploaded under their name plus a short fingerprint (`…_v1vp99lo.png`), because the remote never replaces a picture of the same name, so a re-rendered tile is never shown as its old copy. (Test builds 1.3.2-image-fusionner to 1.3.6-fusionner; the remote refuses a driver version over 20 characters, which a test now checks.)

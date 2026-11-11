@@ -8,6 +8,7 @@
 // Ticks come from the driver's settings poll (about every 20 s) while the remote is awake; a longer gap
 // (the remote slept) is counted as idle, never as activity use.
 import fs from "node:fs";
+import { readJson, writeText } from "./safefile.js";
 
 const DAY = 864e5;
 const GAP_MS = 90 * 1000; // ticks further apart than this: the remote slept in between
@@ -36,13 +37,13 @@ export class Stats {
     this.savedAt = 0;
   }
   read() {
-    try { return JSON.parse(fs.readFileSync(this.file, "utf8")); } catch { return {}; }
+    try { return readJson(this.file); } catch { return {}; }
   }
   save(force = false) {
     if (!this.dirty && !force) return;
     if (!force && Date.now() - this.savedAt < 5 * 60e3) return;
     try {
-      fs.writeFileSync(this.file, JSON.stringify({ v: 1, cfg: this.cfg, since: this.since, uses: this.uses, open: this.open, battery: this.battery, idle: this.idle }));
+      writeText(this.file, JSON.stringify({ v: 1, cfg: this.cfg, since: this.since, uses: this.uses, open: this.open, battery: this.battery, idle: this.idle }));
       this.dirty = false;
       this.savedAt = Date.now();
     } catch (e) { this.warn("statistics: saving failed:", e.message); }

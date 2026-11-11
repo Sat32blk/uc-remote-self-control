@@ -18,7 +18,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const srv = await start(CORE_PORT);
 const binDir = path.resolve("src/bin");
-fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
+const ownDriverJson = !fs.existsSync(path.join(binDir, "driver.json")); // run-all.js puts one there for all tests running at once
+if (ownDriverJson) fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
 // one display sensor, to check it's offered as an entity
 fs.writeFileSync(path.join(cfgDir, "displays.json"), JSON.stringify({ displays: [{ id: "disp_test", name: "Test display", size: "4x1", def: { type: "value", src: { ent: "clock", attr: "time" }, fmt: "text" }, rules: [] }] }));
 const drv = spawn(process.execPath, ["driver.js"], {
@@ -50,7 +51,7 @@ const send = (msg, msg_data) => ws.send(JSON.stringify({ kind: "event", msg, msg
 
 // --- before setup
 let r = await req("get_driver_version");
-ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.4.6", "driver_version 1.4.6");
+ok(r.msg === "driver_version" && r.msg_data.version.driver === "1.4.7", "driver_version 1.4.7");
 send("connect");
 await sleep(300);
 r = await req("get_device_state");
@@ -258,7 +259,7 @@ ok(/loaded configuration/.test(log2), "after restart the saved API key is loaded
 drv2.kill();
 
 srv.close();
-fs.rmSync(path.join(binDir, "driver.json"));
+if (ownDriverJson) fs.rmSync(path.join(binDir, "driver.json"), { force: true });
 console.log("\n--- driver log (first run) ---\n" + drvLog.split("\n").slice(0, 40).join("\n"));
 console.log(failures ? `\n${failures} FAILED` : "\nALL PASSED");
 process.exit(failures ? 1 : 0);

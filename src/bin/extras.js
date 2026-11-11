@@ -24,6 +24,7 @@
 
 import fs from "node:fs";
 import { vActions, vCond } from "./smart.js";
+import { readJson, writeText } from "./safefile.js";
 
 export const LIMITS = { sliders: 30, menus: 30, options: 30, presses: 60, sweep: 150, delayMs: 2000 };
 const SLIDER_ID = /^slider_[a-z0-9_]{1,36}$/;
@@ -166,7 +167,7 @@ export class Extras {
 
   load() {
     try {
-      const d = JSON.parse(fs.readFileSync(this.file, "utf8"));
+      const d = readJson(this.file);
       this.sliders = Array.isArray(d.sliders) ? d.sliders : [];
       this.menus = Array.isArray(d.menus) ? d.menus : [];
       this.values = d.values && typeof d.values === "object" ? d.values : {};
@@ -179,7 +180,7 @@ export class Extras {
   save() {
     const values = Object.fromEntries(this.sliders.filter((s) => isNum(this.values[s.id])).map((s) => [s.id, this.values[s.id]]));
     const picked = Object.fromEntries(this.menus.filter((m) => this.picked[m.id]).map((m) => [m.id, this.picked[m.id]]));
-    fs.writeFileSync(this.file, JSON.stringify({ sliders: this.sliders, menus: this.menus, values, picked }, null, 2));
+    writeText(this.file, JSON.stringify({ sliders: this.sliders, menus: this.menus, values, picked }, null, 2));
   }
   /** Replaces the definitions (already validated). */
   replace({ sliders, menus }) {

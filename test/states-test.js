@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { flushSaves } from "../src/bin/safefile.js";
 import { DeviceStates } from "../src/bin/states.js";
 let fails = 0;
 const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fails++; };
@@ -16,6 +17,7 @@ ent.attributes.source = "ROKU"; ent.attributes.volume = 40; ent.attributes.sound
 s.watch("rx", true);
 await s.poll();
 ok(s.seen.rx.source.join() === "SHIELD,ROKU" && s.seen.rx.volume.max === 40 && s.seen.rx.sound_mode.includes("DOLBY ATMOS"), "background poll of a watched device adds new values");
+flushSaves(); // values seen are saved within 2 s, and when the integration stops
 const s2 = new DeviceStates({ getCore: () => core, file });
 ok(s2.watched.includes("rx") && s2.seen.rx.sound_mode.includes("DOLBY ATMOS"), "values seen and the watch list survive a restart");
 s2.forget("rx");

@@ -26,6 +26,9 @@ import { isReturnItem } from "./returnbtn.js";
 import { spotsOf } from "./stateicons.js";
 import { Displays, validateDisplays } from "./displays.js";
 import { AutoWidgets, validateAutoWidgets, MEDIA_FEATURES } from "./autowidgets.js";
+import { readJson, writeText, readText, exists as fileExists, remove as removeFile } from "./safefile.js";
+import { pctTo255, toPct, hsToRgb, rgbToHs, settingsTables } from "./settings.js";
+import { PIN_PAGE, rulesPage, prettyRules } from "./setup-pages.js";
 
 const BUILDER_PORT = Number(process.env.UC_SELF_BUILDER_PORT || 10123);
 
@@ -45,7 +48,7 @@ let cfgFile; // set after init()
 
 function loadConfig() {
   try {
-    return JSON.parse(fs.readFileSync(cfgFile, "utf8"));
+    return readJson(cfgFile);
   } catch {
     return null;
   }
@@ -53,7 +56,7 @@ function loadConfig() {
 
 function saveConfig(c) {
   fs.mkdirSync(path.dirname(cfgFile), { recursive: true });
-  fs.writeFileSync(cfgFile, JSON.stringify(c, null, 2));
+  writeText(cfgFile, JSON.stringify(c, null, 2));
 }
 
 let config = null; // { address, apiKey }
@@ -75,173 +78,8 @@ const MIN_SCREEN = 1;
 // Helpers
 // ---------------------------------------------------------------------------
 
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const pctTo255 = (p) => Math.round((clamp(Number(p) || 0, 0, 100) * 255) / 100);
-const toPct = (b) => Math.round((clamp(Number(b) || 0, 0, 255) * 100) / 255);
-
-// hue 0..360, sat 0..255 (UC light model) -> [r,g,b] at full value
-function hsToRgb(hue, sat) {
-  const h = ((Number(hue) % 360) + 360) % 360;
-  const s = clamp(Number(sat), 0, 255) / 255;
-  const f = (n) => {
-    const k = (n + h / 60) % 6;
-    return 1 - s * Math.max(0, Math.min(k, 4 - k, 1));
-  };
-  return [f(5), f(3), f(1)].map((x) => Math.round(x * 255));
-}
-
-// [r,g,b] -> { hue 0..360, saturation 0..255 }
-function rgbToHs(rgb) {
-  const [r, g, b] = (rgb || [255, 255, 255]).map((x) => clamp(Number(x) || 0, 0, 255) / 255);
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const d = max - min;
-  let h = 0;
-  if (d > 0) {
-    if (max === r) h = 60 * (((g - b) / d) % 6);
-    else if (max === g) h = 60 * ((b - r) / d + 2);
-    else h = 60 * ((r - g) / d + 4);
-  }
-  if (h < 0) h += 360;
-  const s = max === 0 ? 0 : d / max;
-  return { hue: Math.round(h), saturation: Math.round(s * 255) };
-}
-
-// ---------------------------------------------------------------------------
-// Select option tables: label <-> value
-// ---------------------------------------------------------------------------
-
-const COLOR_PRESETS = {
-  warm_white: { name: "Warm white", rgb: [255, 190, 120] },
-  amber: { name: "Amber", rgb: [255, 140, 0] },
-  orange: { name: "Orange", rgb: [255, 90, 10] },
-  red: { name: "Movie red", rgb: [255, 30, 20] },
-  rose: { name: "Rose", rgb: [255, 70, 140] },
-  purple: { name: "Purple", rgb: [150, 60, 255] },
-  indigo: { name: "Indigo", rgb: [70, 70, 255] },
-  ice_blue: { name: "Ice blue", rgb: [127, 172, 255] },
-  cyan: { name: "Cyan", rgb: [0, 230, 230] },
-  teal: { name: "Teal", rgb: [0, 200, 160] },
-  green: { name: "Green", rgb: [40, 220, 70] },
-  cool_white: { name: "Cool white", rgb: [235, 240, 255] }
-};
-
-// preset key for an rgb, or "#RRGGBB" when it matches none
-function colorKeyOf(rgb) {
-  if (!Array.isArray(rgb)) return undefined;
-  const hit = Object.entries(COLOR_PRESETS).find(([, p]) => p.rgb.join() === rgb.join());
-  if (hit) return hit[0];
-  return "#" + rgb.map((x) => Number(x).toString(16).padStart(2, "0")).join("").toUpperCase();
-}
-
-const fmtSec = (s) => (s === 0 ? "Never" : s < 60 ? `${s} s` : s < 3600 ? `${s / 60} min` : `${s / 3600} h`);
-
-const SELECTS = {
-  display_timeout: {
-    name: "Display timeout",
-    section: "power_saving",
-    field: "display_off_sec",
-    values: [5, 10, 15, 20, 30, 45, 60],
-    label: (v) => `${v} s`
-  },
-  sleep_timeout: {
-    name: "Sleep timeout",
-    section: "power_saving",
-    field: "standby_sec",
-    values: [60, 120, 300, 600, 900, 1800, 3600, 10800, 0],
-    label: fmtSec
-  },
-  wake_sensitivity: {
-    name: "Wake sensitivity",
-    section: "power_saving",
-    field: "wakeup_sensitivity",
-    values: [0, 1, 2, 3],
-    label: (v) => ["Off", "Low", "Medium", "High"][v] ?? String(v)
-  },
-  sound_volume: {
-    name: "Sound effects volume",
-    section: "sound",
-    field: "volume",
-    values: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-    label: (v) => `${v} %`
-  },
-  // Macro-friendly versions of the lights: the remote passes percent values of
-  // light.brightness_percent / light.color unconverted, so lights are ambiguous in macros.
-  backlight_color: {
-    name: "Button backlight color",
-    read: (c) => colorKeyOf(c.button?.static_color?.rgb),
-    values: Object.keys(COLOR_PRESETS),
-    label: (k) => COLOR_PRESETS[k]?.name ?? `Custom ${k}`,
-    write: async (k) => {
-      if (!COLOR_PRESETS[k]) return; // "Custom #RRGGBB" = current colour, nothing to change
-      await patchSection("button", { static_color: { rgb: COLOR_PRESETS[k].rgb } });
-    },
-    sorted: false
-  },
-  backlight_level: {
-    name: "Button backlight level",
-    section: "button",
-    field: "brightness",
-    values: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-    label: (v) => (v === 0 ? "Off" : `${v} %`)
-  },
-  display_level: {
-    name: "Display brightness level",
-    section: "display",
-    field: "brightness",
-    values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-    label: (v) => `${v} %`,
-    extra: { auto_brightness: false } // a manual level only sticks with auto off
-  }
-};
-
-const readSel = (def, c) => (def.read ? def.read(c) : c?.[def.section]?.[def.field]);
-const writeSel = (def, v) =>
-  def.write ? def.write(v) : patchSection(def.section, { [def.field]: v, ...(def.extra || {}) });
-
-function selectOptions(def, current) {
-  const vals = [...def.values];
-  if (current !== undefined && !vals.includes(current)) {
-    vals.push(current);
-    if (def.sorted !== false) {
-      // keep "Never" (0) last for the sleep timeout, otherwise numeric order
-      vals.sort((a, b) => (a === 0 && def.field === "standby_sec" ? 1 : b === 0 && def.field === "standby_sec" ? -1 : a - b));
-    }
-  }
-  return vals.map((v) => ({ v, label: def.label(v) }));
-}
-
-// ---------------------------------------------------------------------------
-// Switch table
-// ---------------------------------------------------------------------------
-
-const SWITCHES = {
-  backlight_auto: {
-    name: "Button backlight auto",
-    get: (c) => c.button?.auto_brightness,
-    set: (on) => patchSection("button", { auto_brightness: on })
-  },
-  display_auto_brightness: {
-    name: "Display auto brightness",
-    get: (c) => c.display?.auto_brightness,
-    set: (on) => patchSection("display", { auto_brightness: on })
-  },
-  haptic: {
-    name: "Haptic feedback",
-    get: (c) => c.haptic?.enabled,
-    set: (on) => patchSection("haptic", { enabled: on })
-  },
-  sound_effects: {
-    name: "Sound effects",
-    get: (c) => c.sound?.enabled,
-    set: (on) => patchSection("sound", { enabled: on })
-  },
-  wake_on_wlan: {
-    name: "Wake on WLAN",
-    get: (c) => c.network?.wifi?.wake_on_wlan?.enabled ?? c.network?.wake_on_wlan?.enabled,
-    set: (on) => patchNetworkWol(on)
-  }
-};
+// Settings tables and conversions: see settings.js
+const { SELECTS, SWITCHES, readSel, writeSel, selectOptions } = settingsTables({ patchSection: (...a) => patchSection(...a), patchNetworkWol: (...a) => patchNetworkWol(...a) });
 
 // ---------------------------------------------------------------------------
 // Writing settings
@@ -974,13 +812,14 @@ const reservedIds = () => [...LAYOUT.map(([, id]) => id), "previous_activity", "
 
 function loadRulesText() {
   try {
-    return fs.readFileSync(rulesFile, "utf8");
+    return readText(rulesFile);
   } catch {
     return fs.readFileSync(path.join(HERE, "default-rules.json"), "utf8");
   }
 }
 
 function initSmart() {
+  smart?.varsLater?.flush(); // the old engine's remembered values are on disk before the new one reads them
   rulesFile = path.join(api.getConfigDirPath(), "smart_rules.json");
   smart = new SmartEngine({
     core: () => core,
@@ -1263,14 +1102,19 @@ async function cleanupAll({ pictures = false, revoke = false } = {}) {
 
 // The remote's own events: which activity was opened (also one already on), for ↩ and page jumps.
 let coreEvents = null;
+const eventsLive = () => coreEvents?.state === "connected";
 let pageJumper = null;
 let launchers = null;
 let screenActivity; // activity on screen per the events (undefined = not known yet, null = none)
 const onScreen = () => (screenActivity === undefined ? returnTracker?.current || null : screenActivity);
 function syncCoreEvents() {
-  const want = !!(core && connected && !standby && config?.apiKey && (returnTracker?.enabled || pageJumper?.enabled || launchers?.enabled || displays?.displays.length || autoWidgets?.enabled));
+  // always on while connected: besides the features below, the events keep the device values the
+  // integration reads current, so it seldom has to ask the remote (see CoreClient)
+  const want = !!(core && connected && !standby && config?.apiKey);
   if (want) {
     if (!coreEvents) coreEvents = new CoreEvents({ address: config.address, apiKey: config.apiKey, log, warn,
+      onChange: (id, attrs) => core?.entityEvent(id, attrs),
+      onOpen: () => core?.clearEntities(),
       onEntity: (id, attrs) => { displayEntityEvent(id, attrs); autoWidgets?.event(id, attrs); },
       onActivity: (id) => {
         screenActivity = id;
@@ -1298,19 +1142,6 @@ function stopPolling() {
 // ---------------------------------------------------------------------------
 // Setup flow
 // ---------------------------------------------------------------------------
-
-const PIN_PAGE = [
-  {
-    id: "pin",
-    label: { en: "Web-configurator PIN" },
-    field: { text: { value: "" } }
-  },
-  {
-    id: "address",
-    label: { en: "Remote address (leave as 127.0.0.1 unless setup fails)" },
-    field: { text: { value: "127.0.0.1" } }
-  }
-];
 
 // Setup flow state (one setup session at a time).
 let setupStage = "pin"; // "menu" | "pin" | "rules" | "tile" | "return" | "backup" | "restore" | "restored"
@@ -1445,38 +1276,6 @@ async function tilePage(errors) {
   return new uc.RequestUserInput({ en: "Add the Last Result tile" }, page);
 }
 
-function rulesPage(text, errors) {
-  const page = [];
-  if (errors && errors.length) {
-    page.push({
-      id: "errors",
-      label: { en: "Not saved: please fix" },
-      field: { label: { value: { en: errors.slice(0, 8).map((e) => "- " + e).join("\n") } } }
-    });
-  }
-  page.push({
-    id: "help",
-    label: { en: "Smart Controls" },
-    field: {
-      label: {
-        value: {
-          en: "The builder page is easier: " + builderUrls(BUILDER_PORT)[0] + " . You can also paste or edit the rules here. Each control becomes an entity in the **Remote Smart Controls** group. After saving, add any new controls to the integration and to the activities that use them."
-        }
-      }
-    }
-  });
-  page.push({ id: "rules", label: { en: "Rules (JSON)" }, field: { textarea: { value: text } } });
-  return page;
-}
-
-function prettyRules(text) {
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2);
-  } catch {
-    return text;
-  }
-}
-
 // ---- backup / restore as text (also Integration Manager's "Backup Config") ----
 async function backupPage() {
   const b = await webServer.selfBackup.make(false);
@@ -1546,15 +1345,16 @@ async function setupHandler(msg) {
       }
       if (v.action === "reset_rules") {
         try {
-          fs.rmSync(rulesFile, { force: true });
+          removeFile(rulesFile);
         } catch {}
-        fs.writeFileSync(path.join(api.getConfigDirPath(), "smart_vars.json"), "{}");
+        smart?.varsLater?.flush();
+        writeText(path.join(api.getConfigDirPath(), "smart_vars.json"), "{}");
         initSmart();
         log("smart buttons reset to defaults");
         return new uc.SetupComplete();
       }
       setupStage = "rules";
-      return new uc.RequestUserInput({ en: "Edit Smart Controls" }, rulesPage(prettyRules(loadRulesText())));
+      return new uc.RequestUserInput({ en: "Edit Smart Controls" }, rulesPage(prettyRules(loadRulesText()), [], builderUrls(BUILDER_PORT)[0]));
     }
     if (setupStage === "backup" || setupStage === "restored") return new uc.SetupComplete();
     if (setupStage === "restore") {
@@ -1606,9 +1406,9 @@ async function setupHandler(msg) {
       const res = validateRules(text, selfApi.keys);
       if (res.errors.length) {
         warn("smart rules rejected:", res.errors.join(" | "));
-        return new uc.RequestUserInput({ en: "Edit Smart Controls" }, rulesPage(text, res.errors));
+        return new uc.RequestUserInput({ en: "Edit Smart Controls" }, rulesPage(text, res.errors, builderUrls(BUILDER_PORT)[0]));
       }
-      fs.writeFileSync(rulesFile, JSON.stringify(JSON.parse(text), null, 2));
+      writeText(rulesFile, JSON.stringify(JSON.parse(text), null, 2));
       initSmart();
       log("smart buttons saved");
       return new uc.SetupComplete();
@@ -1657,6 +1457,8 @@ async function pinSetup(v) {
     config = { address, apiKey };
     saveConfig(config);
     core = client;
+    core.live = eventsLive;
+    coreEvents?.stop(); coreEvents = null; // reconnect the events with the new key
     publishStates();
     controls.recover().catch((e) => warn("control:", e.message));
     log("setup complete, API key stored");
@@ -1888,7 +1690,8 @@ const webServer = startWebServer({
       current: label(known[0]),
       previous: label(known[1]),
       groupError: returnTracker.groupError || null,
-      coreEvents: coreEvents ? coreEvents.status() : null
+      coreEvents: coreEvents ? coreEvents.status() : null,
+      deviceReads: core?.reads || null // device values read from the remote vs answered from memory
     };
   },
   saveReturn: async (body) => {
@@ -1987,16 +1790,16 @@ const webServer = startWebServer({
     log(`state icons saved: ${stateIcons.icons.map((b) => b.name || b.id).join(", ") || "none"}`);
     startPolling();
   },
-  loadRulesText: () => ({ text: loadRulesText(), defaults: !fs.existsSync(rulesFile) }),
+  loadRulesText: () => ({ text: loadRulesText(), defaults: !fileExists(rulesFile) }),
   defaultRulesText: () => fs.readFileSync(path.join(HERE, "default-rules.json"), "utf8"),
   validate: (rules) => validateRules(typeof rules === "string" ? rules : rules ?? null, selfApi.keys).errors,
   saveRules: (rules) => {
     const obj = typeof rules === "string" ? JSON.parse(rules) : rules;
-    fs.writeFileSync(rulesFile, JSON.stringify(obj, null, 2));
+    writeText(rulesFile, JSON.stringify(obj, null, 2));
     initSmart();
     log("smart controls saved from the builder");
   },
-  version: JSON.parse(fs.readFileSync(driverJson, "utf8")).version || "",
+  version: readJson(driverJson).version || "",
   log,
   warn
 });
@@ -2004,6 +1807,7 @@ const webServer = startWebServer({
 config = loadConfig();
 if (config?.apiKey) {
   core = new CoreClient(config.address, { apiKey: config.apiKey });
+  core.live = eventsLive;
   log("loaded configuration for", config.address);
   refresh().then(() => controls.recover()).catch((e) => warn("control:", e.message));
 } else {

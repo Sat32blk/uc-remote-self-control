@@ -6,6 +6,7 @@ VERSION=$(node -p "require('./src/driver.json').version")
 rm -rf build && mkdir -p build/bin dist
 cp src/driver.json build/
 cp src/bin/*.js src/bin/*.json build/bin/
+rm -f build/bin/driver.json # a copy left by the tests; the real one is build/driver.json
 cp -r src/bin/web build/bin/
 (cd build/bin && npm install --omit=dev --no-package-lock && rm -rf node_modules/.bin)
 (cd build && tar --owner=0 --group=0 -czf "../dist/uc-intg-self-control-$VERSION.tar.gz" driver.json bin)

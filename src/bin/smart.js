@@ -37,6 +37,7 @@
 //   { "stop": true }
 
 import fs from "node:fs";
+import { readJson, writeText, saveLater } from "./safefile.js";
 
 export const LIMITS = { buttons: 60, cases: 12, actions: 24, delayMs: 60000, waitMs: 60000 };
 
@@ -237,7 +238,7 @@ export class SmartEngine {
     this.vars = {};
     this.running = new Set();
     try {
-      this.vars = JSON.parse(fs.readFileSync(varsFile, "utf8"));
+      this.vars = readJson(varsFile);
     } catch {
       this.vars = {};
     }
@@ -257,9 +258,10 @@ export class SmartEngine {
     return this.rules.aliases[x] || x;
   }
 
-  saveVars() {
+  saveVars() { (this.varsLater ||= saveLater(() => this.writeVars())).schedule(); }
+  writeVars() {
     try {
-      fs.writeFileSync(this.varsFile, JSON.stringify(this.vars));
+      writeText(this.varsFile, JSON.stringify(this.vars));
     } catch (e) {
       this.log("could not save smart-button variables:", e.message);
     }

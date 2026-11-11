@@ -13,6 +13,7 @@
 
 import fs from "node:fs";
 import { takeTouched } from "./core.js";
+import { readJson, writeText } from "./safefile.js";
 
 export const MIN_WRITE_MS = Number(process.env.UC_SELF_PAGE_WRITE_MS ?? 5000); // at most one page write per activity every 5 s
 const hashOf = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return h.toString(36); };
@@ -194,14 +195,14 @@ export class StateIcons {
 
   load() {
     try {
-      const data = JSON.parse(fs.readFileSync(this.file, "utf8"));
+      const data = readJson(this.file);
       this.icons = Array.isArray(data.icons) ? data.icons : [];
     } catch {
       this.icons = [];
     }
   }
   save() {
-    fs.writeFileSync(this.file, JSON.stringify({ icons: this.icons }, null, 2));
+    writeText(this.file, JSON.stringify({ icons: this.icons }, null, 2));
   }
   get enabled() {
     return this.icons.length > 0;

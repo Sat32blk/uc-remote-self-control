@@ -52,7 +52,8 @@ devices[MARANTZ].state = "OFF";
 devices[TV].state = "ON";
 const srv = await start(CORE_PORT);
 const binDir = path.resolve("src/bin");
-fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
+const ownDriverJson = !fs.existsSync(path.join(binDir, "driver.json")); // run-all.js puts one there for all tests running at once
+if (ownDriverJson) fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
 const drv = spawn(process.execPath, ["driver.js"], {
   cwd: binDir,
   env: { ...process.env, UC_CONFIG_HOME: cfgDir, UC_INTEGRATION_HTTP_PORT: String(WS_PORT), UC_DISABLE_MDNS_PUBLISH: "true", UC_SELF_BUILDER_PORT: "10934", UC_SELF_RETURN_POLL_MS: "250", UC_SELF_PAGE_WRITE_MS: "0" },
@@ -180,6 +181,7 @@ const cf = (y) => Array.from({ length: 11 }, (_, i) => `custom:col_${y}_${String
 const column = { id: "col_level", name: "Volume column", activity: "uc.main.act5", location: { x: 0, y: 0 }, entity: MARANTZ, attr: "volume", kind: "level", min: 0, max: 80,
   design: "column", color: "orange", frames: cf(0), cells: [0, 1, 2].map((y) => ({ x: 0, y, frames: cf(y) })), show: "change", showMs: 1200 };
 devices[MARANTZ].volume = 40;
+await sleep(150); // the remote reports the change as an event first (the integration keeps that value)
 h = await http("POST", "/api/icons", { icons: [tv, column] });
 ok(h.status === 200 && h.data.icons.find((b) => b.id === "col_level")?.cellDefaults?.length === 3, "column over 3 tiles saved; each tile's own picture kept as its default");
 await sleep(600);
@@ -216,7 +218,7 @@ ok(h.status === 401, "after logout the API needs a login again");
 drv.kill();
 ws.terminate();
 srv.close();
-fs.rmSync(path.join(binDir, "driver.json"));
+if (ownDriverJson) fs.rmSync(path.join(binDir, "driver.json"), { force: true });
 console.log("\n--- driver log (state icon lines) ---\n" + drvLog.split("\n").filter((l) => /state icon/i.test(l)).slice(0, 15).join("\n"));
 console.log(failures ? `\n${failures} FAILED` : "\nALL PASSED");
 process.exit(failures ? 1 : 0);

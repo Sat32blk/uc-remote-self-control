@@ -11,8 +11,8 @@ import { wroteActivity } from "./core.js";
 const MAX = 40;
 
 export class CoreEvents {
-  constructor({ address, apiKey, onActivity = () => {}, onActivityOff = () => {}, onEntity = () => {}, log = () => {}, warn = () => {} }) {
-    Object.assign(this, { address, apiKey, onActivity, onActivityOff, onEntity, log, warn });
+  constructor({ address, apiKey, onActivity = () => {}, onActivityOff = () => {}, onEntity = () => {}, onChange = () => {}, onOpen = () => {}, log = () => {}, warn = () => {} }) {
+    Object.assign(this, { address, apiKey, onActivity, onActivityOff, onEntity, onChange, onOpen, log, warn });
     this.events = [];
     this.ws = null;
     this.state = "off";
@@ -39,6 +39,7 @@ export class CoreEvents {
       this.state = "connected";
       this.error = null;
       ws.send(JSON.stringify({ kind: "req", id: 1, msg: "subscribe_events", msg_data: { channels: ["all"] } }));
+      try { this.onOpen(); } catch (e) { this.warn("events: " + e.message); }
     });
     ws.on("message", (raw) => this.onMessage(raw));
     ws.on("error", (e) => { this.error = e.message; });
@@ -74,6 +75,10 @@ export class CoreEvents {
     if (m.kind !== "event") return;
     const d = m.msg_data || {};
     const state = d.new_state?.attributes?.state;
+    // every device's new values (activities too): the kept copies of device values stay current
+    if (m.msg === "entity_change" && d.entity_id && d.new_state?.attributes) {
+      try { this.onChange(d.entity_id, d.new_state.attributes); } catch (e) { this.warn("events: " + e.message); }
+    }
     // an activity reported as ON = it was opened (started, or reopened while already on)
     // our own page / button changes are reported the same way as an activity being opened: skip those
     const ours = d.entity_id && wroteActivity(d.entity_id);

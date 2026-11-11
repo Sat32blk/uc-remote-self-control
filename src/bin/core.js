@@ -33,12 +33,57 @@ export function wroteActivity(id, withinMs = 2000) {
   return t !== undefined && Date.now() - t < withinMs;
 }
 
+// Device values (GET /entities/<id>) are kept in memory. While the remote's live events are connected
+// (see CoreEvents) they keep these values current, so a value is read from the remote at most every
+// LIVE_MAX_AGE ms as a safety check. Without events every read asks the remote as before (so "wait
+// until" steps see a change at once); only reads of the same device at the same moment share a request.
+// For BUSY_MS after this integration sends a command, kept values are reused for 1 s at most, so a step
+// waiting for a device still sees the change if the remote doesn't report it as an event.
+const LIVE_MAX_AGE = Number(process.env.UC_SELF_LIVE_MAX_AGE_MS || 20000);
+const BUSY_MS = 15000;
+const ENTITY_PATH = /^\/entities\/([^/?#]+)$/;
+
 export class CoreClient {
+  #ent = new Map(); // "<id as in the path>" -> { e, at }
+  #reading = new Map(); // same key -> promise of a read in progress
   constructor(address, { apiKey, pin, timeoutMs = 5000 } = {}) {
     this.base = `http://${address || "127.0.0.1"}/api`;
     this.apiKey = apiKey;
     this.pin = pin;
     this.timeoutMs = timeoutMs;
+    this.live = () => false; // set by the driver: true while the remote's events are connected
+    this.reads = { remote: 0, memory: 0 }; // device reads answered by the remote / from memory (builder stats)
+  }
+
+  /** An entity_change event: merge the new values into the kept copy (only devices read before). */
+  entityEvent(id, attrs) {
+    const c = this.#ent.get(encodeURI(id));
+    if (!c || !attrs || typeof attrs !== "object") return;
+    c.e = { ...(c.e || {}), attributes: { ...(c.e?.attributes || {}), ...attrs } };
+  }
+  /** Forget every kept device value (events reconnected: some may have been missed). */
+  clearEntities() {
+    this.#ent.clear();
+  }
+
+  #maxAge() {
+    if (!this.live()) return 0;
+    return Date.now() - (this.commandAt || 0) < BUSY_MS ? 1000 : LIVE_MAX_AGE;
+  }
+
+  async #entity(key) {
+    const c = this.#ent.get(key);
+    if (c && Date.now() - c.at < this.#maxAge()) { this.reads.memory++; return structuredClone(c.e); }
+    let p = this.#reading.get(key);
+    if (!p) {
+      this.reads.remote++;
+      p = this.request("GET", `/entities/${key}`).then(
+        (e) => { this.#ent.set(key, { e, at: Date.now() }); return e; },
+        (err) => { this.#ent.delete(key); throw err; }
+      ).finally(() => this.#reading.delete(key));
+      this.#reading.set(key, p);
+    }
+    return structuredClone(await p);
   }
 
   #authHeader() {
@@ -48,6 +93,10 @@ export class CoreClient {
   }
 
   async request(method, path, body) {
+    if (method !== "GET") { // a command or change to a device: read it fresh next time
+      const m = /^\/entities\/([^/?#]+)/.exec(path);
+      if (m) { this.#ent.delete(m[1]); this.commandAt = Date.now(); }
+    }
     const am = method !== "GET" ? /^\/activities\/([^/?]+)(?:\/ui\/pages\/([^/?]+))?/.exec(path) : null;
     const act = am?.[1];
     if (act) {
@@ -92,7 +141,8 @@ export class CoreClient {
   }
 
   get(path) {
-    return this.request("GET", path);
+    const m = ENTITY_PATH.exec(path);
+    return m ? this.#entity(m[1]) : this.request("GET", path);
   }
 
   /** GET with the paging headers (Pagination-Count / -Limit / -Page): { data, count, limit, page }. */

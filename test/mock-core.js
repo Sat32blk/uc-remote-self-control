@@ -1,5 +1,6 @@
 // Fake remote Core REST API for local testing. Records every PATCH.
 import http from "node:http";
+import { WebSocketServer } from "ws";
 
 const PIN = "1234";
 const KEY = "test-api-key-abc";
@@ -73,7 +74,7 @@ function entityList() {
   for (const [k, n] of Object.entries(selfEntities)) list.push({ entity_id: "self_control.main." + k, entity_type: k.startsWith("smart_last") ? "sensor" : k.startsWith("smart_") ? "button" : "switch", integration_id: "self_control.main", name: { en: n }, attributes: { state: "ON" } });
   return list;
 }
-export const options = { marantzBootMs: 300 }; // how long the receiver takes to report ON
+export const options = { marantzBootMs: 300, events: true }; // how long the receiver takes to report ON
 
 function deviceCommand(id, cmd, params = {}) {
   const d = devices[id];
@@ -324,5 +325,30 @@ export function start(port) {
       send(404, { message: "not found " + url });
     });
   });
+  // the remote's live events (/ws): entity_change for every device change, like a real remote
+  // (options.events = false: no events, the integration falls back to reading only)
+  const wss = new WebSocketServer({ noServer: true });
+  srv.on("upgrade", (req, sock, head) => {
+    if (!options.events || req.url !== "/ws" || req.headers["api-key"] !== KEY) return sock.destroy();
+    wss.handleUpgrade(req, sock, head, (ws) => {
+      ws.on("message", (raw) => { try { const m = JSON.parse(String(raw)); if (m.kind === "req") ws.send(JSON.stringify({ kind: "resp", id: m.id, code: 200, msg: "result" })); } catch {} });
+    });
+  });
+  let last = JSON.stringify(devices);
+  const seen = Object.fromEntries(Object.keys(devices).map((id) => [id, JSON.stringify(devices[id])]));
+  const tick = setInterval(() => {
+    const now = JSON.stringify(devices);
+    if (now === last) return;
+    last = now;
+    for (const id of Object.keys(devices)) {
+      const v = JSON.stringify(devices[id]);
+      if (seen[id] === v) continue;
+      seen[id] = v;
+      const msg = JSON.stringify({ kind: "event", msg: "entity_change", cat: "ENTITY", msg_data: { entity_id: id, entity_type: "media_player", new_state: { attributes: { ...devices[id] } } } });
+      for (const c of wss.clients) if (c.readyState === 1) c.send(msg);
+    }
+  }, 25);
+  tick.unref();
+  srv.on("close", () => { clearInterval(tick); wss.close(); });
   return new Promise((r) => srv.listen(port, "127.0.0.1", () => r(srv)));
 }

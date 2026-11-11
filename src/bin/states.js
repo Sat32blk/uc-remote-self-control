@@ -2,6 +2,7 @@
 // for the builder, plus every value seen so far, so state icons and smart-control conditions can offer
 // values like an audio format that only shows up now and then. Devices can be watched in the background.
 import fs from "node:fs";
+import { readJson, writeText, saveLater } from "./safefile.js";
 
 export const REMOTE_ID = "self:remote";
 const MAX_VALUES = 60; // per device and attribute
@@ -15,19 +16,21 @@ export class DeviceStates {
     this.seen = {}; // entity -> attr -> [values]  (numbers: { min, max })
     this.watched = [];
     this.dirty = false;
+    this.later = saveLater(() => this.write());
     this.load();
   }
   load() {
     try {
-      const d = JSON.parse(fs.readFileSync(this.file, "utf8"));
+      const d = readJson(this.file);
       if (d.seen && typeof d.seen === "object") this.seen = d.seen;
       if (Array.isArray(d.watched)) this.watched = d.watched.filter((x) => typeof x === "string").slice(0, MAX_WATCH);
     } catch {}
   }
-  save() {
+  save() { if (this.dirty) this.later.schedule(); }
+  write() {
     if (!this.dirty) return;
     try {
-      fs.writeFileSync(this.file, JSON.stringify({ seen: this.seen, watched: this.watched }));
+      writeText(this.file, JSON.stringify({ seen: this.seen, watched: this.watched }));
       this.dirty = false;
     } catch (e) {
       this.warn("states: couldn't save:", e.message);
@@ -89,7 +92,7 @@ export class DeviceStates {
     }
     if (!on && has) this.watched = this.watched.filter((x) => x !== entity);
     this.dirty = true;
-    this.save();
+    this.later.flush(); this.write(); // your watch list: saved at once
     return this.watched;
   }
 

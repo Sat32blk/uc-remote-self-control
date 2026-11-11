@@ -40,7 +40,8 @@ ok(shortForm.errors.length === 0 && shortForm.rules.buttons[0].cases.length === 
 // ---- driver ------------------------------------------------------------
 const srv = await start(CORE_PORT);
 const binDir = path.resolve("src/bin");
-fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
+const ownDriverJson = !fs.existsSync(path.join(binDir, "driver.json")); // run-all.js puts one there for all tests running at once
+if (ownDriverJson) fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
 fs.writeFileSync(path.join(cfgDir, "smart_rules.json"), JSON.stringify(TEST_RULES));
 const drv = spawn(process.execPath, ["driver.js"], {
   cwd: binDir,
@@ -173,6 +174,7 @@ await sleep(200);
 const before = JSON.stringify({ c: cfg.button.static_color.rgb, b: cfg.button.brightness, d: cfg.display, s: cfg.sound.enabled });
 await press("smart_night_mode", 900);
 ok(cfg.button.static_color.rgb.join() === "255,30,20" && cfg.button.brightness === 10 && cfg.display.brightness === 30 && cfg.sound.enabled === false, "night mode ON: red 10 %, display 30 %, sound off");
+await sleep(2300); // saved within 2 s (batched)
 ok(JSON.parse(fs.readFileSync(path.join(cfgDir, "smart_vars.json"), "utf8")).night_mode === "on", "variable night_mode=on persisted");
 await press("smart_night_mode", 900);
 const after = JSON.stringify({ c: cfg.button.static_color.rgb, b: cfg.button.brightness, d: cfg.display, s: cfg.sound.enabled });
@@ -335,7 +337,7 @@ ok(codes.at(-1) === 429, "too many wrong PINs -> 429: " + codes.join(","));
 drv.kill();
 ws.terminate();
 srv.close();
-fs.rmSync(path.join(binDir, "driver.json"));
+if (ownDriverJson) fs.rmSync(path.join(binDir, "driver.json"), { force: true });
 console.log("\n--- driver log (smart lines) ---\n" + drvLog.split("\n").filter((l) => /smart|rules|builder/i.test(l)).slice(0, 30).join("\n"));
 console.log(failures ? `\n${failures} FAILED` : "\nALL PASSED");
 process.exit(failures ? 1 : 0);

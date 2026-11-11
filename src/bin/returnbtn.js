@@ -19,6 +19,7 @@
 // resize every button and break pages built from tiled pictures.
 
 import fs from "node:fs";
+import { readJson, writeText, saveLater } from "./safefile.js";
 
 export const RETURN_MARK = "↩";
 export const RETURN_ICON = "uc:back";
@@ -109,14 +110,18 @@ export class ReturnTracker {
 
   read() {
     try {
-      return JSON.parse(fs.readFileSync(this.file, "utf8"));
+      return readJson(this.file);
     } catch {
       return {};
     }
   }
-  save() {
+  /** Settings: saved at once. */
+  save() { this.later?.flush(); this.write(); }
+  /** History and placement: many changes in a row become one write. */
+  saveSoon() { (this.later ||= saveLater(() => this.write())).schedule(); }
+  write() {
     try {
-      fs.writeFileSync(this.file, JSON.stringify({ history: this.history, cfg: this.cfg, hostState: this.hostState }, null, 2));
+      writeText(this.file, JSON.stringify({ history: this.history, cfg: this.cfg, hostState: this.hostState }, null, 2));
     } catch (e) {
       this.warn("return: saving failed:", e.message);
     }
@@ -176,7 +181,7 @@ export class ReturnTracker {
       const left = this.current;
       for (const s of started) { const id = this.alias.originalOf(s); this.history = [id, ...this.history.filter((x) => x !== id)].slice(0, HISTORY_MAX); }
       this.log(`return: current ${this.nameOf(this.current)}, previous ${this.nameOf(this.previous) || "-"}`);
-      this.save();
+      this.saveSoon(); // history: batched
       this.onChange();
       if (left && left !== this.current) await this.closeLeft(core, left, now);
       await this.refresh(false);
@@ -196,7 +201,7 @@ export class ReturnTracker {
     this.history = [id, ...this.history.filter((x) => x !== id)].slice(0, HISTORY_MAX);
     if (this.states) this.states[id] = "ON";
     this.log(`return: opened ${this.nameOf(id)} (from the remote's events), previous ${this.nameOf(this.previous) || "-"}`);
-    this.save();
+    this.saveSoon(); // history: batched
     this.onChange();
     if (left) await this.closeLeft(core, left, this.states || {});
     await this.refresh(false);
@@ -240,7 +245,7 @@ export class ReturnTracker {
         this.warn(`return: updating ${this.nameOf(host)} failed:`, e.message);
       }
     }
-    this.save();
+    this.saveSoon(); // history: batched
   }
 
   async apply(core, host, target, hs) {

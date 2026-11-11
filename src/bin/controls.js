@@ -4,6 +4,7 @@
 // activity's defaults (or nothing). The rocker can be "borrowed": it stays mapped to the TV and is
 // mapped to Control only while a control is on.
 import fs from "node:fs";
+import { readJson, writeText } from "./safefile.js";
 
 export const LIMITS = { controls: 30, activities: 40 };
 const TARGET_TYPES = ["display", "backlight", "light", "volume", "slider"];
@@ -97,7 +98,7 @@ export class Controls {
 
   load() {
     try {
-      const d = JSON.parse(fs.readFileSync(this.file, "utf8"));
+      const d = readJson(this.file);
       const v = validateControls(d.config || {});
       if (!v.errors.length) this.config = v.config;
       this.remembered = d.remembered && typeof d.remembered === "object" ? d.remembered : {};
@@ -106,7 +107,7 @@ export class Controls {
   }
   save() {
     try {
-      fs.writeFileSync(this.file, JSON.stringify({ config: this.config, remembered: this.remembered, borrowed: this.borrowed }, null, 2));
+      writeText(this.file, JSON.stringify({ config: this.config, remembered: this.remembered, borrowed: this.borrowed }, null, 2));
     } catch (e) {
       this.warn("controls: couldn't save:", e.message);
     }

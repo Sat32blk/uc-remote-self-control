@@ -50,7 +50,8 @@ devices[MARANTZ].source = "SHIELD";
 devices[TV].volume = 10;
 const srv = await start(CORE_PORT);
 const binDir = path.resolve("src/bin");
-fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
+const ownDriverJson = !fs.existsSync(path.join(binDir, "driver.json")); // run-all.js puts one there for all tests running at once
+if (ownDriverJson) fs.copyFileSync("src/driver.json", path.join(binDir, "driver.json"));
 const drv = spawn(process.execPath, ["driver.js"], {
   cwd: binDir,
   env: { ...process.env, UC_CONFIG_HOME: cfgDir, UC_INTEGRATION_HTTP_PORT: String(WS_PORT), UC_DISABLE_MDNS_PUBLISH: "true", UC_SELF_BUILDER_PORT: "10935", UC_SELF_RETURN_POLL_MS: "250", UC_SELF_SLIDER_HOLD_MS: "600" },
@@ -307,7 +308,7 @@ ok(h.status === 200 && !r.msg_data.available_entities.some((e) => /^(slider|menu
 drv.kill();
 ws.terminate();
 srv.close();
-fs.rmSync(path.join(binDir, "driver.json"));
+if (ownDriverJson) fs.rmSync(path.join(binDir, "driver.json"), { force: true });
 console.log("\n--- driver log (slider/menu lines) ---\n" + drvLog.split("\n").filter((l) => /slider|menu|Receiver Input/i.test(l)).slice(0, 14).join("\n"));
 console.log(failures ? `\n${failures} FAILED` : "\nALL PASSED");
 process.exit(failures ? 1 : 0);
