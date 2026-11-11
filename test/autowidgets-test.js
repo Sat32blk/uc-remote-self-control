@@ -143,4 +143,30 @@ ok(p1.length === 23 && p1.some((it) => it.text === "EDITED") && p1.some((it) => 
 ok(acts.multi.pages[1].items.length === 0, "removing the Smart widget takes it off its page");
 ok(JSON.stringify(itemFor("sensor", "s.x", { x: 1, y: 2, w: 2, h: 1 })) === JSON.stringify({ type: "sensor", location: { x: 1, y: 2 }, size: { width: 2, height: 1 }, sensor: { sensor_id: "s.x", show_label: false } }), "sensor item format");
 
+// widgets shown for a few seconds
+v = validateAutoWidgets({ widgets: [{ ...spot2, cases: [{ ...spot2.cases[0], dur: { mode: "change", secs: 0 } }] }] });
+ok(v.errors.some((e) => /seconds/.test(e)) && v.errors.some((e) => /value to watch/.test(e)), "timed: seconds and the watched value are checked");
+const pop = { ...spot2, id: "aw_pop", name: "Input pop-up", cases: [{ ...spot2.cases[0], dur: { mode: "change", secs: 1, watch: { entity: "x.rx", attr: "source" } } }] };
+const rise = { ...spot2, id: "aw_rise", name: "Roku pop-up", area: { x: 0, y: 0, w: 4, h: 1 }, cases: [{ if: { entity: "x.roku", is: "PLAYING" }, show: "x.roku", type: "media_player", dur: { mode: "rise", secs: 3 } }] };
+v = validateAutoWidgets({ widgets: [pop, rise] });
+ok(!v.errors.length && v.widgets[0].cases[0].dur.watch.attr === "source", "timed widgets accepted " + v.errors.join("; "));
+ent["x.rx"].attributes.state = "ON"; ent["x.roku"].attributes.state = "ON";
+r = await aw.replace(v.widgets);
+const has = (f) => acts.one.pages[0].items.some(f);
+ok(!r.errors.length && !has((it) => it.select) && !has((it) => it.media_player_id), "nothing pops up just because it was saved");
+await new Promise((ok2) => setTimeout(ok2, 1100));
+ent["x.rx"].attributes.source = "GAME";
+await aw.refresh();
+ok(has((it) => it.select?.select_id === "x.rx") && aw.status.aw_pop.until > Date.now() && aw.status.aw_pop.secs === 1, "the input changed: the pop-up shows, with when it hides");
+await new Promise((ok2) => setTimeout(ok2, 2300));
+await aw.busy;
+ok(!has((it) => it.select), "…and is gone after its seconds (on its own)");
+ent["x.roku"].attributes.state = "PLAYING";
+await aw.refresh();
+await new Promise((ok2) => setTimeout(ok2, 1200)); await aw.busy;
+ok(has((it) => it.media_player_id === "x.roku"), "rise: shows when the Roku starts playing");
+await new Promise((ok2) => setTimeout(ok2, 3300)); await aw.busy;
+ok(!has((it) => it.media_player_id === "x.roku") && ent["x.roku"].attributes.state === "PLAYING", "…and goes away after its seconds although it's still playing");
+await aw.replace([]);
+
 console.log(fails ? `${fails} FAILED` : "ALL PASSED"); process.exit(fails ? 1 : 0);

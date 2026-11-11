@@ -278,6 +278,12 @@ body.tour-paused .secbar { position: sticky; top: 8px; z-index: 60; box-shadow: 
 .awok { color: var(--ok); font-weight: 700; font-size: 12px; } .awno { color: var(--muted); font-size: 12px; }
 .awthen { background: var(--panel); }
 .awthen select { max-width: 100%; }
+.awdur { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; flex-basis: 100%; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.awdur select, .awdur input { width: auto; max-width: 100%; }
+.awcd { font-weight: 700; }
+.awpv .w { position: relative; }
+.awtimer { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.12); }
+.awtimer i { display: block; height: 100%; background: #f2a541; transition: width .25s linear; }
 .awwords { background: var(--inset); border-radius: 10px; padding: 8px 10px; font-size: 13px; margin: 0; }
 .awpv { display: grid; gap: 3px; background: #0c0e11; border-radius: 14px; padding: 6px; user-select: none; touch-action: none; position: relative; }
 .awpv .c { border: 1px dashed #333a44; border-radius: 6px; }
@@ -4237,13 +4243,16 @@ function awCondsIn(c) {
 }
 const awIn = (list) => list.map((w) => ({
   id: w.id, name: w.name, kind: w.kind, activity: w.activity, page: w.page, area: w.area ? { ...w.area } : null,
-  cases: w.cases.map((c) => ({ ...awCondsIn(c.if), show: c.show || "", type: c.type || "", area: c.area || null })),
+  cases: w.cases.map((c) => ({ ...awCondsIn(c.if), show: c.show || "", type: c.type || "", area: c.area || null,
+    dur: c.dur ? { mode: c.dur.mode, secs: c.dur.secs, watch: c.dur.watch ? `${c.dur.watch.entity}|${c.dur.watch.attr}` : "" } : null })),
   otherwise: { show: w.otherwise?.show || "", type: w.otherwise?.type || "", area: w.otherwise?.area || null }
 }));
 function awOut() {
   return AW.widgets.map((w) => ({
     id: w.id, name: w.name, kind: w.kind, activity: w.activity, page: w.page, area: w.area,
-    cases: w.cases.map((c) => { const conds = c.conds.map(condOut); const o = { if: conds.length === 0 ? true : conds.length === 1 ? conds[0] : { [c.join]: conds }, show: c.show, type: c.show ? c.type || AW_TYPE[w.kind] : "" }; if (w.kind === "spot" && c.area) o.area = c.area; return o; }),
+    cases: w.cases.map((c) => { const conds = c.conds.map(condOut); const o = { if: conds.length === 0 ? true : conds.length === 1 ? conds[0] : { [c.join]: conds }, show: c.show, type: c.show ? c.type || AW_TYPE[w.kind] : "" }; if (w.kind === "spot" && c.area) o.area = c.area;
+      if (c.show && c.dur && c.dur.mode !== "while") { o.dur = { mode: c.dur.mode, secs: c.dur.secs }; if (c.dur.mode === "change") { const [entity, attr] = String(c.dur.watch || "").split("|"); o.dur.watch = { entity: entity || "", attr: attr || "" }; } }
+      return o; }),
     otherwise: { show: w.otherwise.show, type: w.otherwise.show ? w.otherwise.type || AW_TYPE[w.kind] : "", ...(w.kind === "spot" && w.otherwise.area ? { area: w.otherwise.area } : {}) }
   }));
 }
@@ -4279,8 +4288,15 @@ function awPoll() {
     const before = JSON.stringify([AW.status, AW.paused]);
     AW.status = r.data.status || {}; AW.paused = r.data.paused || {};
     if (JSON.stringify([AW.status, AW.paused]) !== before && !AW.placing && !document.activeElement?.closest?.("#aw-root input, #aw-root textarea")) renderAW();
-  }, 2000);
+  }, 1000);
 }
+// countdowns of widgets shown for a few seconds
+setInterval(() => {
+  if (!AW || CUR_TAB !== "icons" || secOf("icons") !== "auto") return;
+  const now = Date.now();
+  document.querySelectorAll("#aw-root [data-until]").forEach((e) => { e.textContent = ` · hides in ${Math.max(0, Math.ceil((+e.dataset.until - now) / 1000))} s`; });
+  document.querySelectorAll("#aw-root [data-bar]").forEach((e) => { e.style.width = Math.max(0, (+e.dataset.bar - now) / (+e.dataset.secs * 10)) + "%"; });
+}, 250);
 function awChanged(rerender) { if (rerender) renderAW(); else awSaveBar(); }
 
 /** What a saved widget shows now (from the integration), or null while it has unsaved changes. */
@@ -4322,7 +4338,8 @@ function awPageView(pi, focus, { place = false, small = false } = {}) {
   for (let y = 0; y < g.height; y++) for (let x = 0; x < g.width; x++) pv.append(el("div", { class: "c", "data-x": x, "data-y": y, style: awPos({ x, y, w: 1, h: 1 }) }));
   for (const it of page?.items || []) pv.append(el("div", { class: "it" + (covered(it) ? " hid" : ""), style: awPos(awItemArea(it)) }, ...(small ? [] : awItemFace(it))));
   for (const p of placed) pv.append(el("div", { class: "w " + (p.w === focus ? "me" : "other"), style: awPos(p.area), title: p.w.name },
-    small ? null : el("b", {}, p.w.name), small ? null : el("span", {}, p.w.kind === "spot" ? devName(p.show) : `shows ${p.show ? devName(p.show) : "…"}`)));
+    small ? null : el("b", {}, p.w.name), small ? null : el("span", {}, p.w.kind === "spot" ? devName(p.show) : `shows ${p.show ? devName(p.show) : "…"}`),
+    ...(() => { const lv = awLive(p.w); return lv?.until > Date.now() && lv.secs ? [el("div", { class: "awtimer" }, el("i", { "data-bar": lv.until, "data-secs": lv.secs, style: `width:${Math.max(0, (lv.until - Date.now()) / (lv.secs * 10))}%` }))] : []; })()));
   if (focus?.area && !placed.some((p) => p.w === focus)) pv.append(el("div", { class: "w ghost", style: awPos(focus.area), title: "Where it goes (not showing now)" }));
   if (place) pv.addEventListener("pointerdown", (e) => awDragStart(e, pv, pi, focus));
   return pv;
@@ -4382,7 +4399,7 @@ function awMini(r, onDone) {
   paint();
   return m;
 }
-function awThenRow(w, then, id) {
+function awThenRow(w, then, id, isCase = false) {
   const spot = w.kind === "spot";
   const filter = spot ? (d) => ["media_player", "select", "sensor"].includes(d.type) && !awIsOwn(d.id) : (d) => d.type === AW_TYPE[w.kind] && !awIsOwn(d.id);
   const opts = deviceOptions(filter, { own: true });
@@ -4393,7 +4410,34 @@ function awThenRow(w, then, id) {
     row.append(el("span", { class: "sep" }, "at"), select(id + "-w", [["own", `its usual place (${awWhere(w.area)})`], ["other", "another place…"]], own ? "own" : "other", (v) => { then.area = v === "own" ? null : { ...(w.area || { x: 0, y: 0, w: 1, h: 1 }) }; awChanged(true); }, "Where"));
     if (!own) row.append(awMini(then.area, () => awChanged(true)), el("span", { class: "hint" }, awWhere(then.area)));
   }
+  if (isCase && then.show) row.append(awDurLine(w, then, id));
   return row;
+}
+/** The things a "changes" timer can watch: every value of every device (and this remote). */
+function awWatchOptions() {
+  return Object.values(DEV).filter((d) => d.type !== "activity" && d.type !== "macro" && !awIsOwn(d.id))
+    .flatMap((d) => Object.keys(d.values || {}).map((a) => [`${d.id}|${a}`, `${d.name} · ${a.replace(/_/g, " ")}`]));
+}
+const awWatchName = (wt) => { const [e, a] = String(wt || "").split("|"); return e ? `${devName(e)} · ${String(a || "").replace(/_/g, " ")}` : "a value"; };
+/** "Shown: while this is true / for a few seconds when it becomes true / … each time a value changes". */
+function awDurLine(w, c, id) {
+  const d = c.dur || { mode: "while", secs: 5, watch: "" };
+  const first = c.conds?.find((x) => x.t === "device" && x.ent);
+  const set = (k, v) => { c.dur = { ...d, [k]: v }; if (c.dur.mode === "change" && !c.dur.watch) c.dur.watch = first ? `${first.ent}|${first.attr || "state"}` : ""; awChanged(true); };
+  const line = el("div", { class: "awdur" }, el("b", {}, w.kind === "spot" ? "Shown" : "Shows it"),
+    select(id + "-dm", [["while", "while this is true"], ["rise", "for a few seconds, when it becomes true"], ["change", "for a few seconds, each time a value changes"]], d.mode, (v) => set("mode", v), "How long"));
+  if (d.mode !== "while") {
+    const secs = input(id + "-ds", String(d.secs), (v) => { c.dur = { ...d, secs: Math.max(1, Math.min(60, Math.round(+v) || 5)) }; awChanged(false); }, { label: "Seconds", type: "number" });
+    secs.min = 1; secs.max = 60; secs.style.width = "72px";
+    secs.addEventListener("change", () => renderAW()); // the note and "In words" follow once you leave the box
+    line.append(secs, el("span", {}, "s"));
+    if (d.mode === "change") line.append(el("span", { class: "sep" }, "when"), select(id + "-dw", awWatchOptions(), d.watch, (v) => set("watch", v), "Which value"), el("span", { class: "sep" }, "changes"));
+    const away = w.kind === "spot" ? " and your icons come back" : " and it goes back to what's below";
+    line.append(el("p", { class: "hint", style: "flex-basis:100%;margin:2px 0 0" }, d.mode === "rise"
+      ? `It shows for ${d.secs} s each time the conditions above become true, then goes away${away}, even if they're still true.`
+      : `While the conditions above are true, it shows for ${d.secs} s each time this value changes, then goes away${away}. A new change starts the ${d.secs} s again.`));
+  }
+  return line;
 }
 /** Moves a branch up or down: branches are checked top to bottom, the first true one is used. */
 function awMoveCase(w, ci, d) {
@@ -4405,7 +4449,8 @@ function awMoveCase(w, ci, d) {
 }
 function awDescribe(w) {
   const verb = (t) => (w.kind !== "spot" ? `it shows ${awShowName(w, t.show)}` : !t.show ? "nothing, your icons show" : `place ${devName(t.show)} ${t.area ? "at " + awWhere(t.area) : "in its usual place"}`);
-  return [...w.cases.map((c) => `If ${c.conds.map(describeCond).join(c.join === "any" ? " or " : " and ") || "always"}: ${verb(c)}`), `otherwise: ${verb(w.otherwise)}`].join(" · ");
+  const dur = (c) => !c.show || !c.dur || c.dur.mode === "while" ? "" : c.dur.mode === "rise" ? `, for ${c.dur.secs} s when it becomes true` : `, for ${c.dur.secs} s each time ${awWatchName(c.dur.watch)} changes`;
+  return [...w.cases.map((c) => `If ${c.conds.map(describeCond).join(c.join === "any" ? " or " : " and ") || "always"}: ${verb(c)}${dur(c)}`), `otherwise: ${verb(w.otherwise)}`].join(" · ");
 }
 function awCard(w, i, list, res) {
   const id = nid("aw");
@@ -4416,7 +4461,7 @@ function awCard(w, i, list, res) {
   card.append(el("div", { class: "awhead", on: { click: (e) => { if (e.target.closest("button")) return; AW.open = open ? null : w.id; AW.placing = null; renderAW(); } } },
     awOnePage() ? el("span", { class: "prio", title: "Higher in the list wins when two spots would show on the same place" }, String(i + 1)) : null,
     el("span", { class: "nm" }, w.name || "(no name)"), el("span", { class: "kind" }, AW_KINDS[w.kind]),
-    el("span", { class: "nowtag" + (d.state === "showing" ? " on" : "") }, state),
+    el("span", { class: "nowtag" + (d.state === "showing" ? " on" : "") }, state, d.state === "showing" && live?.until > Date.now() ? el("span", { class: "awcd", "data-until": live.until }, ` · hides in ${Math.ceil((live.until - Date.now()) / 1000)} s`) : null),
     open ? el("span", { class: "grow" }) : el("span", { class: "sum" }, awDescribe(w)),
     awOnePage() && i ? el("button", { type: "button", class: "small ghost", title: "Move up: wins over the ones below", on: { click: () => { const a = AW.widgets.indexOf(list[i - 1]), b = AW.widgets.indexOf(w); [AW.widgets[a], AW.widgets[b]] = [AW.widgets[b], AW.widgets[a]]; awChanged(true); } } }, "↑") : null,
     el("span", { "aria-hidden": "true" }, open ? "▾" : "▸")));
@@ -4444,7 +4489,7 @@ function awCard(w, i, list, res) {
       el("button", { class: "ghost small", type: "button", on: { click: () => { w.cases.splice(ci, 1); awChanged(true); } } }, "Remove branch")));
     const cl = el("div", { class: "lines" });
     c.conds.forEach((cond, k) => { const row = condRow(cond, c.conds, k); const t = live?.conds?.[ci]?.[k]; if (t !== undefined) row.insertBefore(el("span", { class: t ? "awok" : "awno" }, t ? "✓ true now" : "✗ not now"), row.lastChild); cl.append(row); });
-    br.append(cl, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { c.conds.push(newCond("device")); awChanged(true); } } }, "Add condition")), awThenRow(w, c, id + "-c" + ci));
+    br.append(cl, el("div", { class: "row" }, el("button", { class: "small", type: "button", on: { click: () => { c.conds.push(newCond("device")); awChanged(true); } } }, "Add condition")), awThenRow(w, c, id + "-c" + ci, true));
     left.append(br);
   });
   left.append(el("div", { class: "branch" + (live && live.branch < 0 ? " awlive" : "") }, el("div", { class: "branch-head" }, el("span", { class: "tag else" }, "Otherwise"), live && live.branch < 0 ? el("span", { class: "awok" }, "← in use now") : null), awThenRow(w, w.otherwise, id + "-o")));
@@ -4676,7 +4721,7 @@ TOURS["icons:auto"] = { title: "Auto Widgets", steps: [
       if (!awOnPage().length && TOUR) { awCreate(awOnePage() ? "spot" : "media"); AW.placing = null; AW.msg = null; TOUR.made = "aw"; TOUR.awId = AW.open; renderAW(); }
       else if (!AW.open) { AW.open = awOnPage()[0].id; renderAW(); } }, h: "One card per widget", p: "The header shows what it's doing now (green: showing) and a summary of its rules. Click a header to open or close it. The number is its priority: higher wins when two land on the same place." },
   { t: () => tvis("#aw-root .awcard.open .branch"), h: "3 · The rules", p: "The same conditions as Smart Controls. Branches are checked top to bottom (↑ ↓ to reorder) and the first true one is used: the green outline is the one in use now." },
-  { t: () => tvis("#aw-root .awcard.open .awthen"), h: "…then place / show", p: "A spot: which widget to place and where, or <b>nothing</b> so your icons show. A Smart widget: which device it shows." },
+  { t: () => tvis("#aw-root .awcard.open .awthen"), h: "…then place / show", p: "A spot: which widget to place and where, or <b>nothing</b> so your icons show. A Smart widget: which device it shows. <b>Shown</b> below it: while the rule is true, or only <b>for a few seconds</b> when it becomes true or each time a value changes, like a pop-up." },
   { t: "#states-icons", h: "Find the right values", p: "Device states shows what every device reports, live. Click a condition's value box, then a value here. ✓ / ✗ under a value show which of your conditions check it." },
   { t: () => tvis("#aw-root .awcard.open .awright"), h: "4 · The preview", p: "The page as it looks now: orange is this widget, blue the others. Notes tell you if it's hidden, blocked by a higher one, or not placed yet." },
   { t: () => tvis("#aw-root .awcard.open .awwords"), h: "Read it back", p: "<b>In words</b> says the whole rule as a sentence: a quick check that it does what you meant." },

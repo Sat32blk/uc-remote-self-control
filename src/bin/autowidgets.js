@@ -14,6 +14,8 @@
 // { widgets: [ { id: "aw_…", name, kind: "spot"|"media"|"select"|"sensor", activity, page (page_id),
 //                area: {x,y,w,h},
 //                cases: [ { if: COND, show: <entity id>|"", type: "media_player"|"select"|"sensor", area?: {x,y,w,h} } ],
+//                  (a case may have dur: { mode: "rise"|"change", secs: 1–60, watch?: {entity, attr} }: shown for
+//                   secs after its conditions became true, or each time the watched value changed while true)
 //                otherwise: { show, type, area? } } ],
 //   bases: { <activity>: { page_id, items, ours, hash, wrote } } }   (one-page activities with spots)
 // The first true case wins; otherwise the "otherwise" branch. Spots higher in the list win a spot two would cover.
@@ -99,7 +101,20 @@ export function validateAutoWidgets(body) {
       const p = `${at}, ${k ? "else if " + k : "if"}`;
       if (c?.if === undefined) errors.push(`${p}: needs a condition`);
       else vCond(c.if, p, errors);
-      return { if: c?.if, ...vShow(c, p, errors, kind) };
+      const out = { if: c?.if, ...vShow(c, p, errors, kind) };
+      if (c?.dur && c.dur.mode && c.dur.mode !== "while") {
+        const mode = ["rise", "change"].includes(c.dur.mode) ? c.dur.mode : (errors.push(`${p}: unknown "shown" choice`), "rise");
+        const secs = Number(c.dur.secs);
+        if (!Number.isInteger(secs) || secs < 1 || secs > 60) errors.push(`${p}: seconds must be 1 to 60`);
+        const dur = { mode, secs: Math.max(1, Math.min(60, Math.round(secs) || 5)) };
+        if (mode === "change") {
+          const e = str(c.dur.watch?.entity, 200), a = str(c.dur.watch?.attr, 80);
+          if (!e || !a) errors.push(`${p}: pick the value to watch`);
+          dur.watch = { entity: e, attr: a };
+        }
+        out.dur = dur;
+      }
+      return out;
     });
     if (cases.length > AW_LIMITS.cases) errors.push(`${at}: at most ${AW_LIMITS.cases} branches`);
     const otherwise = vShow(w?.otherwise || {}, `${at}, otherwise`, errors, kind);
@@ -120,7 +135,8 @@ export class AutoWidgets {
     Object.assign(this, { getCore, test, publish, ownId, instance, file, now, log, warn });
     this.widgets = [];
     this.bases = {};
-    this.status = {}; // id -> { branch, show, area, state, conds: [[bool]], error }
+    this.status = {}; // id -> { branch, show, area, state, conds: [[bool]], until, secs, error }
+    this.timed = {}; // "<widget id>:<branch>" -> { seen, ok, v, until } for branches shown for a few seconds
     this.paused = {}; // activity -> reason
     this.lastWrite = {};
     this.retry = {};
@@ -149,7 +165,7 @@ export class AutoWidgets {
   watched() {
     const out = new Set();
     const walk = (c) => { if (!c || typeof c !== "object") return; if (c.entity) out.add(c.entity); if (c.activity_on) out.add(c.activity_on); for (const k of ["all", "any"]) (c[k] || []).forEach(walk); if (c.not) walk(c.not); };
-    for (const w of this.widgets) { for (const c of w.cases) { walk(c.if); if (c.show && w.kind !== "spot") out.add(c.show); } if (w.otherwise.show && w.kind !== "spot") out.add(w.otherwise.show); }
+    for (const w of this.widgets) { for (const c of w.cases) { walk(c.if); if (c.dur?.watch?.entity) out.add(c.dur.watch.entity); if (c.show && w.kind !== "spot") out.add(c.show); } if (w.otherwise.show && w.kind !== "spot") out.add(w.otherwise.show); }
     return out;
   }
 
@@ -189,10 +205,42 @@ export class AutoWidgets {
       for (const p of parts) { try { res.push(!!(await this.test(p, cache))); } catch { res.push(false); } }
       conds.push(res);
       const ok = c && typeof c === "object" && c.any ? res.some(Boolean) : res.every(Boolean);
-      if (branch < 0 && ok) branch = i;
+      if (branch < 0 && (await this.timedOn(w, i, ok, cache))) branch = i;
     }
     const then = branch >= 0 ? w.cases[branch] : w.otherwise;
-    return { branch, show: then.show || "", type: then.type || TYPE_OF[w.kind], area: then.area || w.area, conds };
+    const until = branch >= 0 && then.dur ? this.timed[`${w.id}:${branch}`]?.until || 0 : 0;
+    return { branch, show: then.show || "", type: then.type || TYPE_OF[w.kind], area: then.area || w.area, conds, until, secs: until ? then.dur.secs : 0 };
+  }
+
+  /**
+   * Whether a branch is in use. A plain branch: while its conditions are true. A timed one: for its seconds
+   * after its conditions became true ("rise"), or after the watched value changed while they're true
+   * ("change"), even if they stop being true meanwhile. The first check after a start or a save only notes
+   * the current state, so nothing pops up just because the integration started.
+   */
+  async timedOn(w, i, ok, cache) {
+    const dur = w.cases[i].dur;
+    const key = `${w.id}:${i}`;
+    if (!dur) { delete this.timed[key]; return ok; }
+    let v;
+    if (dur.mode === "change") { try { v = JSON.stringify((await this.read(dur.watch.entity, cache))?.[dur.watch.attr] ?? null); } catch { v = undefined; } }
+    const prev = this.timed[key];
+    const now = this.now();
+    let until = prev?.until || 0;
+    if (prev?.seen) {
+      if (dur.mode === "rise" && ok && !prev.ok) until = now + dur.secs * 1000;
+      if (dur.mode === "change" && ok && v !== undefined && prev.v !== undefined && v !== prev.v) until = now + dur.secs * 1000;
+    }
+    this.timed[key] = { seen: true, ok, v: v ?? prev?.v, until };
+    if (until > now) this.wakeAt(until);
+    return until > now;
+  }
+
+  /** A check right when a timed widget's seconds are up, so it goes away on time. */
+  wakeAt(t) {
+    if (this.wake && this.wake.at <= t && this.wake.at > this.now()) return;
+    clearTimeout(this.wake?.id);
+    this.wake = { at: t, id: setTimeout(() => { this.wake = null; this.refresh(); }, Math.max(0, t - this.now()) + 30) };
   }
 
   async _refresh(force) {
@@ -361,6 +409,7 @@ export class AutoWidgets {
     this.widgets = widgets;
     this.paused = {};
     this.status = {};
+    this.timed = {};
     this.lastSent = {};
     await beforePlace(); // the driver registers the Smart widget entities, so the remote can add them
 
