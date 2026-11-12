@@ -33,7 +33,7 @@ The builder's first tab shows your Remote 3 or Remote Two (picked from the remot
 - **Drag and drop.** The **Pictures** window sits beside the remote, as tall as it, with as many pictures per row as the page has columns; long lists scroll inside it. Pick **Icons on the remote**, **Built-in icons** (the remote's own, drawn as on the remote), **Channel icons**, **Level pictures & state icons** (the ones this integration made) or **Local folder** (pictures on your computer, shrunk and uploaded when you save).
 - **Widgets:** text button, sensor, select, media widget and number pad.
 - **What it does:** click a button and pick a device (the activity's own come first), then its command, or search with a few words (*shield movies*). **Custom value** sends a typed value such as an app link; **Not added yet** adds a device your integrations offer straight from there.
-- **Physical keys and the touch slider:** click them on the drawing to set short and long presses.
+- **Physical keys and the touch slider:** click them on the drawing to set short and long presses. The touch slider can point at any device with a volume, brightness or position: one in the activity, another one on the remote (added to the activity when you save), or one that is **not added yet** (added to the remote when you pick it).
 - **Pages:** add, rename, change the grid, move, delete. **Activities:** rename, duplicate, delete or make a new one; activity group, prevent sleep and voice assistant.
 
 ![What it does: the SHIELD's commands, including app links, for the selected button](docs/images/page-editor-what-it-does.png)
@@ -339,6 +339,7 @@ src/bin/core.js                         REST client for the remote's Core API; k
 src/bin/settings.js                     the remote's settings as selects and switches, color presets
 src/bin/setup-pages.js                  setup flow pages (PIN, Smart Controls as JSON)
 src/bin/safefile.js                     safe saving: write and swap, .bak copies, batched saves
+src/bin/util.js                         small shared helpers
 src/bin/smart.js                        Smart Controls: validation and engine
 src/bin/web.js                          builder web server and device catalog
 src/bin/web/builder.html                builder page (no external files; works offline)
@@ -377,6 +378,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.4.8:** Page Editor: the **touch slider** picker now also lists devices that aren't in the activity yet and devices that are **not added yet** to the remote (for example a new slider or the Control entity of this integration); picking one adds it. Clean-up: unused code and styles removed, shared helpers in one place.
 - **1.4.7:** Faster and lighter on the remote. The integration now keeps the device values it reads in memory, and the remote's live events keep them current. So Auto Widgets, Displays, state icons, sliders and Smart Controls conditions no longer ask the remote for every device every second or two; they react as soon as the remote reports a change, with a check every 20 s. Settings files are saved safely, with a `.bak` copy that is used if a file is damaged ([details](#configuration)). Remembered values, ↩ history and values seen are saved once every 2 s at most instead of on every change. Developers: `driver.js` is split up a little, and the tests run 4 at a time (about 50 s instead of over 2 min).
 - **1.4.6:** The full 1.4.5 release below, with Auto Widgets pop-ups. The 1.4.5 download on GitHub was an earlier build without pop-ups, so install 1.4.6 instead.
 - **1.4.5:** **[Auto Widgets](#auto-widgets)** (Icons & Sliders → Auto Widgets): widget spots that place your devices' real widgets on one-page activities by rules, and Smart widgets (Smart Media Widget, Smart Select, Smart Sensor) that show the device the rules pick on activities with several pages; the Smart Controls conditions, branches you can move up and down, **pop-ups** (a branch shown only for a few seconds when it becomes true or each time a value changes), a live preview per widget, ✓ / ✗ per condition (also in the Device states panel), and saving adds and places everything on the remote. **[Guided tours](#guided-tours)** for every builder section and every part of the Page Editor (**▶ Show me how**; click to try, **▶ Continue** to go on), with the steps to do on the remote highlighted, offered once the first time you open a section. A **new install** offers 20 entities: the **Smart Test Button** demo is gone (start from a template, e.g. *Backlight Color Cycle*), the builder's *Load the defaults* button is gone, and the setup menu's reset is now **Remove all Smart Controls**. (Test builds 1.3.7-autotest and 1.3.7-aw1 to aw9.)

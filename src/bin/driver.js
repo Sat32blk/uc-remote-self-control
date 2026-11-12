@@ -13,7 +13,7 @@ import { SmartEngine, validateRules, vCond } from "./smart.js";
 import { startWebServer, builderUrls } from "./web.js";
 import { checkBackup } from "./backup.js";
 import { listActivities, addTile, PAGE_NAME } from "./tile.js";
-import { ReturnTracker, RETURN_MARK, activityGroups } from "./returnbtn.js";
+import { ReturnTracker, activityGroups } from "./returnbtn.js";
 import { StateIcons, validateIcons } from "./stateicons.js";
 import { Extras, validateExtras } from "./extras.js";
 import { Controls, validateControls } from "./controls.js";
@@ -1604,7 +1604,6 @@ async function awActivities(fresh = false) {
     if (part.length < 100) break;
   }
   const name = (n) => (n && typeof n === "object" ? n.en || Object.values(n)[0] || "" : n || "");
-  const ownIds = new Set(autoWidgets.smart().map((w) => `${OWN_PREFIX}.${w.id}`));
   const list = [];
   for (const a of all) {
     if (!a?.entity_id || a.options?.editable === false || launchers?.originalOf?.(a.entity_id) !== a.entity_id) continue;

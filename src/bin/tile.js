@@ -8,11 +8,11 @@
 //   POST  /activities/{id}/ui/pages        new page
 //   PATCH /activities/{id}/ui/pages/{pid}  replace our page on a re-run
 
+import { nameOf } from "./util.js";
+
 export const PAGE_NAME = "Smart Controls";
 const GRID_W = 4;
 const GRID_H = 6;
-
-const nameOf = (n) => (n && typeof n === "object" ? n.en || n.en_US || Object.values(n)[0] || "" : n || "");
 
 async function pagedGet(core, base) {
   const out = [];

@@ -9,6 +9,7 @@
 // (the remote slept) is counted as idle, never as activity use.
 import fs from "node:fs";
 import { readJson, writeText } from "./safefile.js";
+import { nameOf } from "./util.js";
 
 const DAY = 864e5;
 const GAP_MS = 90 * 1000; // ticks further apart than this: the remote slept in between
@@ -17,7 +18,6 @@ const MAX_USES = 20000;
 const MAX_APPS = 30; // per use
 export const STATS_DEFAULTS = { on: true, every: 15, keepDays: 90 };
 const isOn = (st) => /^(ON|RUNNING|COMPLETED)$/i.test(String(st || ""));
-const nameOf = (n) => (n && typeof n === "object" ? n.en || n.en_US || Object.values(n)[0] || "" : n || "");
 
 export class Stats {
   constructor({ file, log = () => {}, warn = () => {}, originalOf = (x) => x }) {

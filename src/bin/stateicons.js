@@ -11,12 +11,11 @@
 // A state icon can also be a *level graphic*: kind "level" with a range (min..max) and 11 frames
 // (0 %, 10 % … 100 %). The frame closest to the device's value is shown, like a volume bar.
 
-import fs from "node:fs";
 import { takeTouched } from "./core.js";
 import { readJson, writeText } from "./safefile.js";
+import { nameOf, hashOf } from "./util.js";
 
 export const MIN_WRITE_MS = Number(process.env.UC_SELF_PAGE_WRITE_MS ?? 5000); // at most one page write per activity every 5 s
-const hashOf = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return h.toString(36); };
 
 export const MAX_ICONS = 60;
 export const MAX_DEVICES = 25; // different devices the state icons watch (each is read every 2 s)
@@ -40,7 +39,6 @@ export function spotsOf(b) {
 const spotKey = (activity, loc) => `${activity}|${loc.x},${loc.y}`;
 const ICON_RE = /^(custom|uc):[A-Za-z0-9_.\-]{1,120}$/;
 
-const nameOf = (n) => (n && typeof n === "object" ? n.en || n.en_US || Object.values(n)[0] || "" : n || "");
 const norm = (v) => String(v ?? "").trim().toLowerCase();
 const sameSpot = (a, b) => (a?.x ?? 0) === (b?.x ?? 0) && (a?.y ?? 0) === (b?.y ?? 0);
 

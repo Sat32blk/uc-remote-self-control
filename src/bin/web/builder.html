@@ -158,7 +158,6 @@ header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; j
 header .t { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 h1 { margin: 0; font-size: 24px; font-weight: 600; text-wrap: balance; }
 header p { margin: 0; color: var(--muted); max-width: 72ch; }
-.panes { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
 .editor { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .side { flex: 1 1 340px; min-width: 0; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: flex; flex-direction: column; gap: 12px; }
 @media (max-width: 960px) { .side { position: static; } }
@@ -368,9 +367,6 @@ details textarea { width: 100%; min-height: 120px; margin-block: 8px; }
 .strip { display: flex; flex-wrap: wrap; gap: 4px; background: #0f1114; padding: 8px; border-radius: 10px; }
 .strip figure { margin: 0; display: flex; flex-direction: column; align-items: center; font-size: 10px; color: #9aa3ad; }
 .tiles { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.tpick { width: 48px; height: 48px; min-height: 48px; padding: 0; display: flex; align-items: center; justify-content: center; background: #0f1114; border: 2px solid transparent; border-radius: 10px; }
-.tpick.none { width: auto; padding: 0 10px; color: #c9ced5; font-size: 12px; }
-.tpick.sel { border-color: var(--accent); }
 .pane { display: flex; flex-direction: column; gap: 14px; max-width: 1180px; width: 100%; }
 .createbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .createbar select { max-width: 320px; }
@@ -436,7 +432,6 @@ input.missing { border-color: var(--danger); outline: 2px solid var(--danger); }
 .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 14px; }
 label.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
 label.check input { min-height: 0; width: 18px; height: 18px; }
-.section-title { margin: 6px 0 0; font-size: 17px; font-weight: 600; }
 .fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .choice { border-radius: 10px; background: var(--inset); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 @media (prefers-reduced-motion: no-preference) { button { transition: border-color .15s; } }
@@ -2779,7 +2774,6 @@ async function tryIt(body) {
 }
 
 // Tile icon picker: the 12 drawn icons, uploaded to the remote when picked (ti_<key>.png).
-const TILE_PREFIX = "custom:ti_";
 function tilePicker(x, label) {
   return el("div", { class: "row" }, picSlot({ key: "tile|" + (x.id || "new") + "|" + (x.options ? "menu" : "slider"), label: (x.name || label), prefix: "tile_" + slugPart(x.name), clearText: "Default", clearTitle: "The remote's default icon",
     get: () => x.icon || null, set: (icon) => { x.icon = icon || ""; extrasChanged(true); } }),
@@ -3043,15 +3037,6 @@ function levelColors(lv, id, { onlyMain = false } = {}) {
     box.append(ramp, el("p", { class: "hint" }, blend ? "The main colour is at 0 %; each colour is reached at its %, blended smoothly in between." : "The level switches to each colour once the value reaches its %, e.g. red from 80 %."));
   }
   return box;
-}
-/** The picture to draw under a slider's gauge: the one stored before, or the clicked button's custom icon. */
-function levelBgOf(lv, cur) {
-  if (cur?.bg && cur.activity === lv.activity && JSON.stringify(cur.location) === JSON.stringify(lv.location)) return cur.bg;
-  const act = ICON_ACTS.find((a) => a.id === lv.activity);
-  const ic = act?.page && lv.location ? itemAt(act, lv.location)?.icon : null;
-  // once the level graphic is live the page shows our frames; the original picture is the binding's default look
-  if (cur?.default?.icon && cur.activity === lv.activity && JSON.stringify(cur.location) === JSON.stringify(lv.location)) return cur.default.icon.startsWith("custom:") ? cur.default.icon : null;
-  return ic && ic.startsWith("custom:") && !/^custom:lv_/.test(ic) ? ic : null;
 }
 /** A see-through picture for buttons added to empty spots of a level's area. */
 let BLANK_ICON = null;

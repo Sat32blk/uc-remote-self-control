@@ -177,8 +177,6 @@ input[type=number]{width:70px}
 .dotlegend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute)}
 .dotlegend i{display:inline-block;width:9px;height:9px;border-radius:5px;margin-right:4px;vertical-align:-1px}
 .pic.on{border:2px solid var(--acc);background:var(--accbg)}
-.badge{font-size:11px;padding:1px 6px;border-radius:999px}
-.badge.used{background:#e7f0fb;color:#1d4f91}.badge.free{background:#fdf0e3;color:#8a3f09}
 h2{margin:0;font-size:17px}
 h3{margin:0;font-size:15px}
 .insp{display:flex;flex-direction:column;gap:10px}
@@ -226,7 +224,6 @@ h3{margin:0;font-size:15px}
 .steps{display:flex;flex-direction:column;gap:6px}
 .stp{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--field)}
 .stp .n{width:22px;color:var(--mute);font-size:13px}
-.stp.running{border-color:#60a5fa;background:#eff6ff}
 .stp.done{border-color:#86c99a}
 .stp.fail{border-color:#f87171;background:#fef2f2}
 .chk{font-size:12px;padding:2px 8px;border-radius:999px}
@@ -279,8 +276,6 @@ details.more summary{cursor:pointer;font-weight:600}
 .tbmsg:has(#gridmsg:empty):has(#savewarn.hidden){display:none}
 #savewarn{color:#7c2d12}
 .tb #savestatus{max-width:340px;text-align:right}
-.topgrid{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-start}
-.savebox{display:flex;flex-direction:column;gap:6px;align-items:flex-end;max-width:420px}
 .pe3{display:grid;grid-template-columns:minmax(230px,0.8fr) auto minmax(260px,0.9fr);grid-template-rows:auto auto;gap:14px;align-items:start}
 /* the page scrolls; the side columns take their full height and the remote stays in view (sticky) */
 .stage{overflow:visible}
@@ -321,14 +316,10 @@ details.more summary{cursor:pointer;font-weight:600}
 .fold.collapsed .arrow{transform:rotate(-90deg)}
 .fold.collapsed .cbody{display:none}
 .pic .path{font-size:10px;color:#6b7280;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.badge.local{background:#ecfdf5;color:#065f46}
 .grid.tiny .item{font-size:9px;padding:1px;border-radius:6px}
 .grid.tiny .item.sensor .val{font-size:11px}
 .grid.tiny .item .lbl{display:none}
 .grid.tiny .cell{border-radius:6px}
-.seg{display:flex;gap:4px;background:var(--soft);border-radius:10px;padding:3px}
-.seg button{flex:1;border:0;background:transparent;padding:7px 8px;border-radius:8px;cursor:pointer;font-weight:600;color:var(--mute)}
-.seg button.on{background:var(--field);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .sq{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .sqs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:7px 8px;background:var(--field)}
 .sqs .n{width:18px;color:var(--mute);font-size:13px}
@@ -380,8 +371,6 @@ details.more summary{cursor:pointer;font-weight:600}
 .erow .u{font-size:12px;color:var(--mute);margin-left:auto;white-space:nowrap}
 .elist{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--field);max-height:420px;overflow-y:auto}
 .tb2{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
-.tb .seg{display:inline-flex}
-.tb .seg button{flex:0 0 auto;padding:5px 10px;font-size:13px}
 .tb label.ck{display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer}
 .tb label.ck input{accent-color:var(--acc)}
 .pe3.subseq .petop{grid-column:1 / 4}
@@ -401,8 +390,8 @@ details.more summary{cursor:pointer;font-weight:600}
 :root[data-theme="midnight"]{--bg:#0b1324;--card:#111c33;--field:#16233f;--soft:#1b2a4a;--soft2:#13203a;--line:#22345a;--line2:#2e4470;--ink:#e8eefc;--mute:#9fb0d0;--acc:#38bdf8;--accfg:#00131f;--accbg:#0c2a3a;--selbg:#38bdf8;--selfg:#00131f;--ok:#6ee7b7;--err:#fda4af;--warnbg:#1f1a10;--warnline:#5b4a1f;--warnink:#fde68a;--chg:#1e2a1a}
 :root[data-dark] .pill{background:var(--accbg);color:var(--ink)}
 :root[data-dark] nav.tabs span{color:var(--mute)}
-:root[data-dark] .badge.used,:root[data-dark] .chk.ok,:root[data-dark] .st.run{background:#1e3a5f;color:#bfdbfe}
-:root[data-dark] .badge.free,:root[data-dark] .st.off,:root[data-dark] .chk.bad{background:#4a1d1d;color:#fecaca}
+:root[data-dark] .chk.ok,:root[data-dark] .st.run{background:#1e3a5f;color:#bfdbfe}
+:root[data-dark] .st.off,:root[data-dark] .chk.bad{background:#4a1d1d;color:#fecaca}
 :root[data-dark] .st.kept,:root[data-dark] .chip2.on,:root[data-dark] .chip.on{background:#14381f;border-color:#2f6b40;color:#bbf7d0}
 :root[data-dark] .st.skip,:root[data-dark] .st.rem,:root[data-dark] .sqs .k,:root[data-dark] .erow .t{background:var(--soft);color:var(--mute)}
 :root[data-dark] .sqs .k.on{background:#14381f;color:#bbf7d0}:root[data-dark] .sqs .k.off{background:#4a1d1d;color:#fecaca}
@@ -414,23 +403,13 @@ details.more summary{cursor:pointer;font-weight:600}
 :root[data-theme="contrast"] .card,:root[data-theme="contrast"] .btn,:root[data-theme="contrast"] select,:root[data-theme="contrast"] input{border-width:2px}
 :root[data-theme="config"] .card{border-radius:18px}
 :root[data-theme="config"] .btn{border-radius:999px}
-.themepick{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mute)}
-.themepick select{padding:3px 6px;font-size:13px;background:var(--field);color:var(--ink);border:1px solid var(--line2);border-radius:6px}
 .modalbg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:30px 16px;overflow:auto}
 .modal{width:min(1240px,100%);display:flex;flex-direction:column;gap:12px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
 .wzgrid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px}
 @media (max-width:900px){.wzgrid{grid-template-columns:1fr}}
-.wzt{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
-.wzt select{width:100%}
-.wzt th{text-align:left;font-size:12px;color:var(--mute);font-weight:600;padding:5px 6px;border-bottom:1px solid var(--line)}
-.wzt td{padding:6px;border-bottom:1px solid var(--line);vertical-align:middle}
-.wzt tr.new td{background:var(--chg)}
-.wzt select{max-width:100%;font-size:13px;padding:4px 6px}
 .tl{font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--soft2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;white-space:pre-wrap;overflow:auto;color:var(--ink)}
 .tl .ts{color:var(--acc);font-weight:700}
 .tl .kp{color:var(--mute)}
-.wzdel{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:13px;color:var(--mute)}
-.wzdel input{width:60px;padding:3px 6px}
 .wzsteps{display:flex;gap:6px;list-style:none;margin:0;padding:0;font-size:13px;counter-reset:s}
 .wzsteps li{counter-increment:s;padding:4px 10px;border-radius:999px;background:var(--soft);color:var(--mute)}
 .wzsteps li::before{content:counter(s) ". "}
@@ -1153,7 +1132,6 @@ function applyGlyphs() {
   for (const x of UCICONS) { const ch = (GLYPHS && GLYPHS[x.name]) || ""; x.ch = ch; if (ch) { UCMAP[x.name] = ch; found++; } }
   return found;
 }
-const ucChar = (v) => { const t = String(v || ""); if (t.length === 1) return t; const m = /^\\?u([0-9a-f]{4,5})$/i.exec(t); return m ? String.fromCodePoint(parseInt(m[1], 16)) : ""; };
 /** The web configurator's way: uc:<name> -> its alias (if any) -> the character in Font Awesome 6 Pro light. */
 async function loadIconGlyphs() {
   try {
@@ -2172,21 +2150,58 @@ function cmdPicker(key, opts, value, onPick) {
   return wrap;
 }
 function hwOptions() { return [["", "Nothing (the remote's default)"], ...allCmds()]; }
-/** What the touch slider can control in this activity: devices' volume, brightness or position. */
+/** What the touch slider can control: a device's volume, brightness or position. */
+const SLIDER_FEAT = { volume: "volume", dim: "brightness", position: "position" };
+const SLIDER_TYPES = { media_player: "volume", light: "dim", cover: "position" };
+const sliderLabel = (v) => (v === "off" ? "Off: sliding does nothing" : !v ? "Default (the remote picks)" : v.split("|").map((x, i) => (i ? SLIDER_FEAT[x] || x : DEV[x]?.name || x)).join(" · "));
+/** Grouped choices: this activity's devices, the remote's other devices, and what integrations offer but isn't on the remote yet. */
 function sliderOptions(a) {
-  const out = [["", "Default (the remote picks)"], ["off", "Off: sliding does nothing"]];
-  const feat = { volume: "volume", dim: "brightness", position: "position" };
-  for (const id of a.devices) { const d = DEV[id]; if (!d) continue; for (const f of d.features || []) if (feat[f]) out.push([`${id}|${f}`, `${d.name} · ${feat[f]}`]); }
-  if (a.slider && !out.some(([v]) => v === a.slider)) out.push([a.slider, a.slider.split("|").map((x, i) => (i ? x : DEV[x]?.name || x)).join(" · ")]);
-  return out;
+  const of = (d) => (d.features || []).filter((f) => SLIDER_FEAT[f]).map((f) => [`${d.id}|${f}`, `${d.name} · ${SLIDER_FEAT[f]}`]);
+  const here = a.devices.map((id) => DEV[id]).filter(Boolean).flatMap(of);
+  const other = DEVICES.filter((d) => !a.devices.includes(d.id) && d.id !== a.id).flatMap(of);
+  const offers = INTG.filter((i) => i.status === "ok").flatMap((i) => (i.ents || []).filter((e) => !e.added && !DEV[e.id] && SLIDER_TYPES[e.type] && (!e.features || e.features.includes(SLIDER_TYPES[e.type]))).map((e) => ({ ...e, intg: i })));
+  if (a.slider && a.slider !== "off" && ![...here, ...other].some(([v]) => v === a.slider)) here.push([a.slider, sliderLabel(a.slider)]);
+  return { here, other, offers };
 }
+let sliderSt = { msg: "", err: false, adding: false, loading: false };
 function renderHwInspector(box) {
   const a = act(), f = (label, ctl) => el("label", { class: "f" }, label, ctl);
   if (selHw === "SLIDER") {
-    const opts = sliderOptions(a);
-    box.replaceChildren(el("h2", {}, "Touch slider"), el("p", { class: "hint" }, `What sliding does in ${a.name}. The remote shows its own level pop-up. Devices are listed when they're part of the activity.`),
-      el("div", { class: "row" }, f("Slider controls", sel(opts, a.slider, (v) => { a.slider = v; log(`Touch slider of ${a.name} set to ${opts.find((o) => o[0] === v)[1]}`); renderAll(); }, "Slider controls"))),
-      el("div", { class: "row" }, el("button", { class: "btn", type: "button", on: { click: () => { selHw = null; renderAll(); } } }, "Done")));
+    // integrations not asked yet: ask them what they offer, then draw again
+    const waiting = INTG.filter((i) => i.status === "ok" && !i.ents);
+    if (waiting.length && !sliderSt.loading) { sliderSt.loading = true; Promise.all(waiting.map((i) => loadIntgEnts(i).catch(() => { i.ents = i.ents || []; }))).then(() => { sliderSt.loading = false; if (selHw === "SLIDER") renderInspector(); }); }
+    const { here, other, offers } = sliderOptions(a);
+    const opt = ([v, t]) => el("option", { value: v, selected: v === (a.slider || "") }, t);
+    const group = (label, kids) => (kids.length ? el("optgroup", { label }, ...kids) : "");
+    const pick = async (v) => {
+      sliderSt.msg = "";
+      if (v.startsWith("+")) { // not on the remote yet: add it right away, then point the slider at it
+        const e = offers.find((x) => x.id === v.slice(1));
+        if (!e) return;
+        sliderSt = { ...sliderSt, adding: true, err: false, msg: `Adding ${e.name} to the remote…` }; renderInspector();
+        try {
+          const id = await addOffer(e);
+          const feat = (DEV[id]?.features || []).find((x) => SLIDER_FEAT[x]);
+          if (!feat) throw new Error("it has no volume, brightness or position to slide");
+          a.slider = `${id}|${feat}`;
+          sliderSt = { ...sliderSt, adding: false, msg: `${DEV[id].name} was added to the remote. It's added to ${a.name} when you save.` };
+          log(`Touch slider of ${a.name} set to ${sliderLabel(a.slider)}`);
+        } catch (err) { sliderSt = { ...sliderSt, adding: false, err: true, msg: err.message === "no backup" ? "Nothing was added: a backup is needed first." : `${e.name} couldn't be used: ${err.message}` }; }
+        renderAll();
+        return;
+      }
+      a.slider = v; log(`Touch slider of ${a.name} set to ${sliderLabel(v)}`); renderAll();
+    };
+    const s = el("select", { "aria-label": "Slider controls", id: "slider-sel", disabled: sliderSt.adding, on: { change: (e) => pick(e.target.value) } },
+      opt(["", sliderLabel("")]), opt(["off", sliderLabel("off")]),
+      group("In this activity", here.map(opt)),
+      group("On the remote (added to this activity when you save)", other.map(opt)),
+      group("Not added yet (added to the remote when you pick it)", offers.map((e) => el("option", { value: "+" + e.id }, `${e.name} · ${SLIDER_FEAT[SLIDER_TYPES[e.type]]} (${e.intg.name})`))));
+    box.replaceChildren(el("h2", {}, "Touch slider"), el("p", { class: "hint" }, `What sliding does in ${a.name}. The remote shows its own level pop-up. You can pick any device with a volume, brightness or position, also one that isn't in this activity or on the remote yet.`),
+      el("div", { class: "row" }, f("Slider controls", s)),
+      sliderSt.loading && !offers.length ? el("p", { class: "hint" }, "Asking your integrations what else they offer…") : "",
+      sliderSt.msg ? el("p", { class: sliderSt.err ? "warn" : "hint", role: "status" }, sliderSt.msg) : "",
+      el("div", { class: "row" }, el("button", { class: "btn", type: "button", on: { click: () => { selHw = null; sliderSt.msg = ""; renderAll(); } } }, "Done")));
     return;
   }
   if (!a.editable) { box.replaceChildren(el("h2", {}, `Physical key: ${HW[selHw][0]}`), el("p", { class: "warn" }, lockText(a))); return; }
@@ -3237,7 +3252,7 @@ async function loadIntgEnts(i, reload) {
   const offer = avail.map((e) => {
     const raw = String(e.entity_id || e.driver_entity_id || "");
     const own = raw.startsWith(i.id + ".") ? raw.slice(i.id.length + 1) : raw;
-    return { id: `${i.id}.${own}`, add: own, name: txt(e.name) || own, type: e.entity_type || "?", added: false, avail: true };
+    return { id: `${i.id}.${own}`, add: own, name: txt(e.name) || own, type: e.entity_type || "?", features: e.features || null, added: false, avail: true };
   }).filter((e) => e.add && !DEV[e.id]);
   i.ents = [...on, ...offer];
 }

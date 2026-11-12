@@ -20,7 +20,6 @@
 //   RULE: { when: WHEN, show: SHOW, dur: "once" | "while" | "next" | seconds, prio: "normal" | "high" }
 //   WHEN: { type: "changes", src } | { type: "above" | "below", src, val: number } | { type: "equals", src, val }
 //       | { type: "control", control: "" (any) | control id } | { type: "activity", activity: id }
-import fs from "node:fs";
 import { readJson, writeText } from "./safefile.js";
 
 export const DISPLAY_LIMITS = { displays: 20, rules: 16, steps: 20, text: 120, stepMinS: 0.5, stepMaxS: 60, durMaxS: 300 };

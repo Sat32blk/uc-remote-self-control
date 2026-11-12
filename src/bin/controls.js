@@ -3,15 +3,14 @@
 // volume, a slider, the remote's own screen or key brightness). With no control on, they do the
 // activity's defaults (or nothing). The rocker can be "borrowed": it stays mapped to the TV and is
 // mapped to Control only while a control is on.
-import fs from "node:fs";
 import { readJson, writeText } from "./safefile.js";
+import { isNum } from "./util.js";
 
 export const LIMITS = { controls: 30, activities: 40 };
 const TARGET_TYPES = ["display", "backlight", "light", "volume", "slider"];
 const BUTTONS = ["VOLUME_UP", "VOLUME_DOWN"];
 const ENTITY = "self_control.main.control";
 const pct = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
-const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const slugOf = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 30);
 
 function vTarget(t, at, errors, { allowNull }) {

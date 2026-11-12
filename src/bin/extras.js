@@ -22,17 +22,15 @@
 //                 "options": [{ "label": "TV", "do": [STEP...], "when": COND }] }]
 // }
 
-import fs from "node:fs";
 import { vActions, vCond } from "./smart.js";
 import { readJson, writeText } from "./safefile.js";
+import { sleep, isNum } from "./util.js";
 
 export const LIMITS = { sliders: 30, menus: 30, options: 30, presses: 60, sweep: 150, delayMs: 2000 };
 const SLIDER_ID = /^slider_[a-z0-9_]{1,36}$/;
 const MENU_ID = /^menu_[a-z0-9_]{1,36}$/;
 const ICON_RE = /^(custom|uc):[A-Za-z0-9_.\-]{1,120}$/;
 const HOLD_MS = Number(process.env.UC_SELF_SLIDER_HOLD_MS || 3000); // after a change from the remote, don't let a slow device report flip it back
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const toNum = (v) => (typeof v === "number" ? v : parseFloat(String(v ?? "").replace(/[^0-9.+-]/g, "")));
 
 /** Rounds v to min + k*step inside [min, max]. */

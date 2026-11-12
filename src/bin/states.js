@@ -1,7 +1,6 @@
 // Device states: what the integrations report for a device (its attributes on the remote), read live
 // for the builder, plus every value seen so far, so state icons and smart-control conditions can offer
 // values like an audio format that only shows up now and then. Devices can be watched in the background.
-import fs from "node:fs";
 import { readJson, writeText, saveLater } from "./safefile.js";
 
 export const REMOTE_ID = "self:remote";

@@ -36,8 +36,8 @@
 //     show messages one after another on one of this integration's display sensors
 //   { "stop": true }
 
-import fs from "node:fs";
 import { readJson, writeText, saveLater } from "./safefile.js";
+import { sleep } from "./util.js";
 
 export const LIMITS = { buttons: 60, cases: 12, actions: 24, delayMs: 60000, waitMs: 60000 };
 
@@ -189,7 +189,6 @@ export function validateRules(input, selfKeys = []) {
 // Engine
 // ---------------------------------------------------------------------------
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const toNum = (v) => (typeof v === "number" ? v : parseFloat(String(v).replace(/[^0-9.+-]/g, "")));
 const norm = (v) => (v === undefined || v === null ? "" : String(v)).trim().toUpperCase();
 

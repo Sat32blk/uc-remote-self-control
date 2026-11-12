@@ -10,13 +10,12 @@
 // activity is not on screen, so it opens on the right page.
 //
 // A page is named by its page_id, its name (case-insensitive) or "#n" (its position in the user's order).
-import fs from "node:fs";
 import { readJson, writeText } from "./safefile.js";
+import { nameOf } from "./util.js";
 
 export const MAX_START_RULES = 30;
 const MAX_BRANCHES = 8;
 
-const nameOf = (n) => (n && typeof n === "object" ? n.en || n.en_US || Object.values(n)[0] || "" : n || "");
 const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 /** Validates start-page rules. vCond(cond, path, errs) checks a condition. Returns { errors, starts }. */

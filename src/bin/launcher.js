@@ -17,16 +17,14 @@
 //
 // Config: { launchers: [{ id, name, icon?, targets: [{ activity, steps: [{ entity_id, cmd_id, params? }],
 //   delay? }], rules: [{ if: COND, target: activity }], otherwise: activity }] }
-import fs from "node:fs";
 import { freeSpot } from "./returnbtn.js";
 import { readJson, writeText } from "./safefile.js";
+import { nameOf, hashOf } from "./util.js";
 
 export const LIMITS = { launchers: 20, targets: 6, branches: 8, steps: 4, delayMs: 30000, places: 40 };
 const START = ["activity.start", "activity.on"];
 const COPY_NOTE = "Self-Control launcher copy of ";
 
-const nameOf = (n) => (n && typeof n === "object" ? n.en || n.en_US || Object.values(n)[0] || "" : n || "");
-const hashOf = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return h.toString(36); };
 const list = (x) => (Array.isArray(x) ? x : []);
 const enc = (id) => encodeURI(id);
 
@@ -484,7 +482,7 @@ export class Launchers {
       // copies no longer used: buttons back to the original, then delete
       for (const [lid, per] of Object.entries(this.copies)) {
         const l = launchers.find((x) => x.id === lid);
-        for (const [orig, c] of Object.entries(per)) {
+        for (const orig of Object.keys(per)) {
           if (l && l.targets.some((t) => t.activity === orig)) continue;
           try { await this.dropCopy(lid, orig, l ? l.otherwise : orig); } catch (e) { problems.push(`removing the copy of ${orig}: ${e.message}`); }
         }

@@ -39,6 +39,7 @@ import { makeBackup, restoreBackup, checkBackup } from "./backup.js";
 import { writeStats } from "./core.js";
 import { editorRoutes, checkAppLinks, sendBody, servePage } from "./editor.js";
 import { readJson as readJsonFile, writeText } from "./safefile.js";
+import { nameOf } from "./util.js";
 const MAX_RESTORE_BODY = 24 * 1024 * 1024; // a backup carries its pictures
 const MAX_BODY = 512 * 1024;
 
@@ -66,8 +67,6 @@ const STATES = {
   climate: ["OFF", "HEAT", "COOL", "HEAT_COOL", "FAN", "AUTO", "UNAVAILABLE"], cover: ["OPEN", "OPENING", "CLOSED", "CLOSING", "UNAVAILABLE"],
   activity: ["ON", "OFF", "RUNNING", "ERROR"], macro: ["RUNNING", "COMPLETED", "ERROR"], select: ["ON", "UNAVAILABLE"], sensor: ["ON", "UNAVAILABLE"]
 };
-
-const nameOf = (n) => (n && typeof n === "object" ? n.en || n.en_US || Object.values(n)[0] || "" : n || "");
 
 export function lanAddresses() {
   const out = [];

@@ -18,15 +18,14 @@
 // page has no room for the on-screen button. The page's grid is never changed: adding a row would
 // resize every button and break pages built from tiled pictures.
 
-import fs from "node:fs";
 import { readJson, writeText, saveLater } from "./safefile.js";
+import { nameOf } from "./util.js";
 
 export const RETURN_MARK = "↩";
 export const RETURN_ICON = "uc:back";
 const HISTORY_MAX = 10;
 const CMD = "activity.start";
 
-const nameOf = (n) => (n && typeof n === "object" ? n.en || n.en_US || Object.values(n)[0] || "" : n || "");
 const isOn = (s) => String(s || "").toUpperCase() === "ON";
 
 async function pagedGet(core, base) {

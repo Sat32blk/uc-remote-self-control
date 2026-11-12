@@ -19,10 +19,10 @@
 //                otherwise: { show, type, area? } } ],
 //   bases: { <activity>: { page_id, items, ours, hash, wrote } } }   (one-page activities with spots)
 // The first true case wins; otherwise the "otherwise" branch. Spots higher in the list win a spot two would cover.
-import fs from "node:fs";
 import { vCond } from "./smart.js";
 import { takeTouched } from "./core.js";
 import { readJson, writeText } from "./safefile.js";
+import { hashOf } from "./util.js";
 
 export const AW_LIMITS = { widgets: 40, cases: 12, grid: 12 };
 export const AW_KINDS = ["spot", "media", "select", "sensor"];
@@ -44,7 +44,6 @@ export const MEDIA_FEATURES = ["on_off", "toggle", "volume", "volume_up_down", "
   "media_artist", "media_album", "media_image_url", "media_type", "dpad", "home", "menu", "context_menu", "info", "settings",
   "select_source", "select_sound_mode", "channel_switcher", "play_media", "browse_media", "search_media"];
 
-const hashOf = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return h.toString(36); };
 const str = (v, max = 120) => (typeof v === "string" ? v.slice(0, max) : "");
 export const overlap = (a, b) => !!a && !!b && !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
 /** The cells a page item covers, as an area. */
