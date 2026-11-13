@@ -1714,7 +1714,8 @@ function renderSeq() {
     el("div", { class: "memb" }, ...[...new Set([...a.devices, ...used])].map((d) => used.has(d) || !DEV[d]?.cmds ? el("span", { class: "chip2" + (used.has(d) ? " on" : ""), title: used.has(d) ? "used in a sequence" : "in the activity" }, DEV[d]?.name || d) : el("button", { type: "button", class: "chip2", title: "Not in the sequences yet: set it up", on: { click: () => openSetup(d) } }, (DEV[d]?.name || d) + " · set up"))),
     el("div", { class: "row", style: "margin-top:10px;gap:6px" },
       sel([["", "+ Add a device…"], ...DEVICES.filter((d) => d.cmds?.length && !inSeq(a, d.id)).map((d) => [d.id, d.name])], "", (v) => { if (v) openSetup(v); }, "Add a device")),
-    el("p", { class: "hint", style: "margin:6px 0 0" }, "Grey devices aren't in the sequences yet: click one to set it up."));
+    el("p", { class: "hint", style: "margin:6px 0 0" }, "Grey devices aren't in the sequences yet: click one to set it up."),
+    el("button", { class: "btn small", type: "button", style: "margin-top:8px", on: { click: () => setSub("ents") } }, "Sensors, lights and other entities →"));
   renderSeqSettings();
 }
 // ---- Entities of an activity: what it includes, add (also from integrations: not added yet), take out ----
@@ -3712,6 +3713,13 @@ const ED_TOURS = {
     { t: "#save", h: "8 · Save to remote", p: "Only what changed is saved. Pages are read again first and merged, so a button you didn't touch keeps the remote's version. Pages of the activity <b>on screen</b> wait until you leave it (a page change there jumps the remote to page 1), unless you choose to save them now.", try: false },
     { t: "#bk", h: "Your safety net", p: "Before the first change of a visit, a copy of your activities, macros and home screen is saved on the remote. Download it here.", try: false }
   ] },
+  "pages:ents": { title: "Entities", steps: [
+    { t: "#tour-btn", h: "Page Editor: Entities", p: "The devices, sensors and lights an activity includes: the ones its pages, keys, touch slider and Start/Stop steps can use." },
+    { t: "#ent-card", h: "1 · What's in it", p: "Grouped by kind. <b>Green</b> ones are in use somewhere (hover one to see where). Blue ones are added when you save, crossed-out ones are taken out when you save." },
+    { t: "#ent-add", h: "2 · Add entity", p: "Everything on the remote that isn't in this activity, sensors too. At the bottom, <b>Not added yet</b> lists what your integrations offer but the remote doesn't have: picking one adds it to the remote right away (after a backup).", remote: true },
+    { t: "#ent-card", h: "3 · Take one out", p: "<b>✕</b> takes an entity out of the activity; it stays on the remote. Entities in use have no ✕: remove them from the page, key or step first." },
+    { t: "#save", h: "4 · Save to remote", p: "The activity's entities are saved with the rest of your changes.", try: false }
+  ], before: () => { if (subView !== "ents") { setSub("ents"); setMode("pages"); } } },
   "pages:seq": { title: "Start/Stop", steps: [
     { t: "#tour-btn", h: "Page Editor: Start/Stop", p: "What an activity does when it starts and when it's turned off: power, inputs, waits, commands, macros." },
     { t: "#seq-on", h: "1 · Start sequence", p: "Steps run top to bottom when the activity starts: power on, a command (input, app), a wait, a macro. Drag to reorder. Devices already on skip their power-on." },

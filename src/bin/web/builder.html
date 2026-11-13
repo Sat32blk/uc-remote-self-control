@@ -435,6 +435,11 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
 .fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .choice { border-radius: 10px; background: var(--inset); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 @media (prefers-reduced-motion: no-preference) { button { transition: border-color .15s; } }
+.reload-status { position: relative; margin-top: 8px; padding: 8px 34px 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); font-size: 13.5px; max-width: 640px; }
+.reload-status.ok b { color: var(--ok); } .reload-status.err { color: var(--danger); }
+.reload-status ul { margin: 4px 0 0; padding-left: 18px; }
+.reload-status > button { position: absolute; top: 4px; right: 4px; }
+.addnote { display: block; margin-top: 4px; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -462,6 +467,7 @@ label.check input { min-height: 0; width: 18px; height: 18px; }
       <button class="small" id="settings-open" type="button">⚙ Settings</button>
       <button class="small" id="logout" type="button">Log out</button>
     </div>
+    <div class="reload-status" id="reload-status" role="status" hidden></div>
     </div>
   </header>
 
@@ -819,7 +825,7 @@ const el = (tag, attrs = {}, ...kids) => {
 let uid = 0;
 const nid = (p) => `${p}-${++uid}`;
 function select(id, options, value, onChange, label) {
-  const s = el("select", { id, "aria-label": label, on: { change: (e) => onChange(e.target.value) } });
+  const s = el("select", { id, "aria-label": label, on: { change: (e) => (e.target.value.includes(ADD_MARK) ? pickOffer(e.target, value, onChange) : onChange(e.target.value)) } });
   let found = false;
   for (const o of options) {
     if (o.group) { const g = el("optgroup", { label: o.group }); for (const [v, t] of o.items) { const op = el("option", { value: v }, t); if (v === value) { op.selected = true; found = true; } g.append(op); } s.append(g); continue; }
@@ -827,6 +833,27 @@ function select(id, options, value, onChange, label) {
   }
   if (!found && value) { const op = el("option", { value }, value + " (not found)"); op.selected = true; s.prepend(op); }
   return s;
+}
+/** A drop-down picked "＋ … (Not added yet)": add it to the remote, then pick it. */
+async function pickOffer(s, before, onChange) {
+  const v = s.value, key = v.slice(v.indexOf(ADD_MARK) + ADD_MARK.length), name = OFFERS.find((o) => o.key === key)?.name || "it";
+  let note = s.nextElementSibling?.classList.contains("addnote") ? s.nextElementSibling : null;
+  if (!note) { note = el("span", { class: "addnote status", role: "status" }); s.after(note); }
+  s.disabled = true; note.className = "addnote status"; note.textContent = `Adding ${name} to the remote…`;
+  try {
+    const { id } = await addOffer(key);
+    onChange(v.slice(0, v.indexOf(ADD_MARK)) + id);
+    const done = `${name} was added to the remote and picked here.`;
+    const ns = s.isConnected ? s : document.getElementById(s.id); // the drop-down may have been drawn again
+    if (ns) {
+      let w = ns.nextElementSibling?.classList.contains("addnote") ? ns.nextElementSibling : null;
+      if (!w) { w = el("span", { class: "addnote status", role: "status" }); ns.after(w); }
+      w.className = "addnote status ok"; w.textContent = done;
+    } else { const st = $("#reload-status"); st.hidden = false; st.className = "reload-status ok"; st.replaceChildren(el("b", {}, "✓ " + done), el("button", { type: "button", class: "ghost small", "aria-label": "Close", on: { click: () => { st.hidden = true; } } }, "✕")); }
+    setTimeout(() => document.querySelectorAll(".addnote.ok").forEach((x) => x.remove()), 8000);
+  } catch (e) {
+    s.disabled = false; s.value = before ?? ""; note.className = "addnote status err"; note.textContent = `${name} couldn't be added: ${e.message}`;
+  }
 }
 function input(id, value, onInput, { label, list, cls, placeholder, type = "text" } = {}) {
   return el("input", { id, type, value: value ?? "", "aria-label": label, class: cls, placeholder, list, on: { input: (e) => onInput(e.target.value) } });
@@ -850,7 +877,92 @@ function deviceOptions(filter, { own = true } = {}) {
   const out = Object.entries(groups).map(([t, items]) => ({ group: TYPE_NAMES[t] || t, items }));
   const mine = own ? ownSorted().filter((d) => !filter || filter(d)) : [];
   if (mine.length) out.push({ group: OWN_GROUP, items: mine.map((d) => [d.id, `${d.name} (${OWN_TYPES[d.type] || d.type})`]) });
+  out.push(...offerGroup(filter));
   return out;
+}
+const ONE_TYPE = { media_player: "media player", remote: "remote", light: "light", switch: "switch", select: "list", cover: "cover", climate: "climate", button: "button", sensor: "sensor", ir_emitter: "IR emitter", voice_assistant: "voice assistant" };
+/** The "Not added yet" group for a drop-down (empty when nothing fits). */
+const offerGroup = (filter) => { const o = offersFor(filter); return o.length ? [{ group: NOT_ADDED_GROUP, items: o.map((x) => [ADD_MARK + x.key, `＋ ${x.name} · ${ONE_TYPE[x.type] || x.type} (${x.intgName})`]) }] : []; };
+
+// ---- Not added yet: what your integrations offer but the remote doesn't have yet ---------------------
+// Every device drop-down lists them last. Picking one adds it to the remote (a backup is made first),
+// then the drop-down picks it as if it had always been there.
+const ADD_MARK = "+add:";
+const NOT_ADDED_GROUP = "Not added yet (picking adds it to the remote)";
+let OFFERS = []; // { key: "<integration>|<id>", intg, intgName, add, id, name, type, features }
+let offersLoading = null, offersBackup = false;
+async function coreGet(path) {
+  const r = await api("POST", "/api/core", { method: "GET", path });
+  if (!r.ok) throw new Error(r.data.error || `HTTP ${r.status}`);
+  return r.data.data;
+}
+async function coreAll(path) {
+  const out = [];
+  for (let p = 1; p <= 30; p++) {
+    const part = await coreGet(`${path}${path.includes("?") ? "&" : "?"}limit=100&page=${p}`);
+    if (!Array.isArray(part) || !part.length) break;
+    out.push(...part);
+    if (part.length < 100) break;
+  }
+  return out;
+}
+/** Asks every connected integration what it offers (reload: asks it to read its own list again first). */
+function loadOffers(reload = false) {
+  if (offersLoading) return offersLoading;
+  offersLoading = (async () => {
+    const insts = await coreAll("/intg/instances").catch(() => []);
+    const st = (i) => String(i.device_state || i.state || "");
+    const ok = insts.filter((i) => i.enabled !== false && /CONNECTED|ACTIVE|IDLE/.test(st(i)) && !/DIS/.test(st(i)));
+    const lists = await Promise.all(ok.map(async (i) => {
+      const id = i.integration_id || i.id, name = (typeof i.name === "string" ? i.name : i.name?.en || Object.values(i.name || {})[0]) || id;
+      const ents = await coreAll(`/intg/instances/${encodeURIComponent(id)}/entities?filter=NEW${reload ? "&reload=true" : ""}`).catch(() => []);
+      return ents.map((e) => {
+        const raw = String(e.entity_id || e.driver_entity_id || ""), add = raw.startsWith(id + ".") ? raw.slice(id.length + 1) : raw;
+        return { key: `${id}|${add}`, intg: id, intgName: name, add, id: `${id}.${add}`, name: (typeof e.name === "string" ? e.name : e.name?.en || Object.values(e.name || {})[0]) || add, type: e.entity_type || "?", features: e.features || [] };
+      }).filter((o) => o.add && !DEV[o.id]);
+    }));
+    OFFERS = lists.flat().sort((a, b) => a.name.localeCompare(b.name));
+    return OFFERS;
+  })().finally(() => { offersLoading = null; });
+  return offersLoading;
+}
+/** Offers a drop-down's filter accepts (they have no commands yet: filters that need commands leave them out). */
+const offersFor = (filter) => OFFERS.filter((o) => !DEV[o.id]).filter((o) => { try { return !filter || filter({ id: o.id, name: o.name, type: o.type, integration: o.intg, features: o.features, commands: [], simple: [], current: {}, values: {} }); } catch { return false; } });
+/** A picked "Not added yet" entry: backup, add it to the remote, read the devices again; gives the new id. */
+async function addOffer(key) {
+  const o = OFFERS.find((x) => x.key === key);
+  if (!o) throw new Error("it isn't offered any more: press Reload devices");
+  if (!offersBackup) {
+    const b = await api("POST", "/api/core/backup", {});
+    if (!b.ok && !confirm(`A backup of the remote couldn't be made${b.data.error ? ` (${b.data.error})` : ""}.\n\nAdd ${o.name} anyway?`)) throw new Error("nothing was added (no backup)");
+    offersBackup = true;
+  }
+  const r = await api("POST", "/api/core", { method: "POST", path: `/intg/instances/${encodeURIComponent(o.intg)}/entities`, body: [o.add] });
+  if (!r.ok) throw new Error(r.data.error || `HTTP ${r.status}`);
+  OFFERS = OFFERS.filter((x) => x.key !== key);
+  await refreshCatalog();
+  const id = DEV[o.id] ? o.id : CAT.devices.find((d) => d.integration === o.intg && d.name === o.name)?.id || (CAT.own || []).find((d) => d.name === o.name)?.id;
+  if (!id) throw new Error("it was added, but the remote doesn't list it yet: press Reload devices");
+  return { id, name: o.name };
+}
+/** Reads the devices again and draws every section with them, keeping what you're editing. */
+async function refreshCatalog() {
+  const cat = await api("GET", "/api/catalog");
+  if (!cat.ok) throw new Error(cat.data.error || "couldn't read the remote's devices");
+  const before = { ...DEV };
+  CAT = cat.data;
+  const COPIES = CAT.copies || {};
+  CAT.activities = CAT.activities.filter((a) => !COPIES[a.id]);
+  CAT.devices = CAT.devices.filter((d) => !COPIES[d.id]);
+  DEV = Object.fromEntries([...CAT.devices, ...(CAT.own || [])].map((d) => [d.id, d]));
+  $("#device-count").textContent = countText();
+  redrawAll();
+  return before;
+}
+function redrawAll() {
+  const each = [() => render(), () => renderRet(), () => renderStarts(), () => renderLaunchers(), () => renderCtl(), () => iconsLoaded && renderIcons(),
+    () => { if (extrasLoaded) { fillMenuSelect(); renderExtras(); } }, () => renderDisplays(), () => renderAW(), () => ["smart", "icons", "ret", "launch"].forEach((w) => statesPanel(w))];
+  for (const f of each) { try { f(); } catch (e) { console.warn("redraw:", e); } }
 }
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const countText = () => `${plural(CAT.devices.length, "device")} · ${plural(CAT.activities.length, "activity").replace(/activitys$/, "activities")}`;
@@ -1610,9 +1722,10 @@ function ctlTargetSelect(id, t, onPick, { none = false, label } = {}) {
     { group: "This remote", items: opts.filter((o) => o.key === "display" || o.key === "backlight").map((o) => [o.key, o.label]) },
     { group: "Lights", items: opts.filter((o) => o.key.startsWith("light:")).map((o) => [o.key, o.label]) },
     { group: "Volume", items: opts.filter((o) => o.key.startsWith("volume:")).map((o) => [o.key, o.label]) },
-    { group: "Your sliders (IR up/down, any number)", items: opts.filter((o) => o.key.startsWith("slider:")).map((o) => [o.key, o.label]) }
+    { group: "Your sliders (IR up/down, any number)", items: opts.filter((o) => o.key.startsWith("slider:")).map((o) => [o.key, o.label]) },
+    { group: NOT_ADDED_GROUP, items: offersFor((d) => d.type === "light" || d.type === "media_player").map((o) => [(o.type === "light" ? "light:" : "volume:") + ADD_MARK + o.key, `＋ ${o.name} ${o.type === "light" ? "(brightness)" : "volume"} (${o.intgName})`]) }
   ].filter((g) => !g.group || g.items.length);
-  return select(id, groups, tKey(t), (k) => onPick(k ? opts.find((o) => o.key === k)?.t || null : null), label);
+  return select(id, groups, tKey(t), (k) => onPick(k ? (opts.find((o) => o.key === k) || ctlTargets().find((o) => o.key === k))?.t || null : null), label);
 }
 const ctlActName = (id) => CAT.activities.find((a) => a.id === id)?.name || id;
 function renderCtlSettings() {
@@ -1790,7 +1903,8 @@ function statesDeviceOptions() {
   const mine = ownSorted();
   return [{ group: "This remote", items: [[REMOTE_ID, "This remote: settings and controls"]] },
     ...(mine.length ? [{ group: OWN_GROUP, items: mine.map((d) => [d.id, `${d.name} · ${OWN_TYPES[d.type] || d.type}`]) }] : []),
-    ...Object.keys(groups).sort((a, b) => a.localeCompare(b)).map((g) => ({ group: g, items: groups[g].sort((x, y) => x[1].localeCompare(y[1])) }))];
+    ...Object.keys(groups).sort((a, b) => a.localeCompare(b)).map((g) => ({ group: g, items: groups[g].sort((x, y) => x[1].localeCompare(y[1])) })),
+    ...offerGroup((d) => d.type !== "macro" && d.type !== "activity")];
 }
 function renderStatesBody(where) {
   const st = SP[where];
@@ -5302,6 +5416,7 @@ async function loadAll() {
   $("#json").textContent = saved;
   $("#login").hidden = true; $("#tabs").hidden = false; $("#session-bar").hidden = false;
   await Promise.all([loadExtras(), loadReturn(), loadControls(), loadSeen(), loadDisplays()]);
+  loadOffers().then(() => { if (OFFERS.length) redrawAll(); }).catch(() => {});
   startStates("smart"); startStates("icons"); startStates("ret"); startStates("launch");
   changed(true);
   let tab = "editor";
@@ -5390,8 +5505,24 @@ $("#backup-restore").addEventListener("click", async () => {
   }
 });
 $("#reload").addEventListener("click", async () => {
-  const cat = await api("GET", "/api/catalog");
-  if (cat.ok) { CAT = cat.data; DEV = Object.fromEntries([...CAT.devices, ...(CAT.own || [])].map((d) => [d.id, d])); $("#device-count").textContent = countText(); render(); if (iconsLoaded) renderIcons(); if (extrasLoaded) { fillMenuSelect(); renderExtras(); } }
+  const b = $("#reload"), st = $("#reload-status");
+  b.disabled = true; b.textContent = "Reloading…"; st.hidden = false; st.className = "reload-status"; st.textContent = "Reading the remote and asking your integrations for new entities…";
+  try {
+    const offersBefore = new Set(OFFERS.map((o) => o.key));
+    const [before] = await Promise.all([refreshCatalog(), loadOffers(true)]);
+    redrawAll();
+    const now = Object.values(DEV), added = now.filter((d) => !before[d.id]), gone = Object.values(before).filter((d) => !DEV[d.id]), renamed = now.filter((d) => before[d.id] && before[d.id].name !== d.name);
+    const newOffers = OFFERS.filter((o) => !offersBefore.has(o.key));
+    const list = (xs) => xs.slice(0, 5).map((d) => d.name).join(", ") + (xs.length > 5 ? ` and ${xs.length - 5} more` : "");
+    const lines = [`${countText()}. Every section is up to date.`];
+    if (added.length) lines.push(`New on the remote: ${list(added)}.`);
+    if (gone.length) lines.push(`No longer on the remote: ${list(gone)}.`);
+    if (renamed.length) lines.push(`Renamed: ${renamed.slice(0, 5).map((d) => `${before[d.id].name} → ${d.name}`).join(", ")}.`);
+    lines.push(OFFERS.length ? `${OFFERS.length} not added yet${newOffers.length && offersBefore.size ? `, new: ${list(newOffers)}` : ""}. Pick them in any device drop-down, under Not added yet.` : "Your integrations offer nothing that isn't on the remote already.");
+    st.className = "reload-status ok"; st.replaceChildren(el("b", {}, "✓ Reloaded"), el("ul", {}, ...lines.map((t) => el("li", {}, t))), el("button", { type: "button", class: "ghost small", "aria-label": "Close", on: { click: () => { st.hidden = true; } } }, "✕"));
+  } catch (e) {
+    st.className = "reload-status err"; st.textContent = "Couldn't reload: " + e.message;
+  } finally { b.disabled = false; b.textContent = "Reload devices"; }
 });
 
 (async () => {

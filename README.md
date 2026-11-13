@@ -33,6 +33,7 @@ The builder's first tab shows your Remote 3 or Remote Two (picked from the remot
 - **Drag and drop.** The **Pictures** window sits beside the remote, as tall as it, with as many pictures per row as the page has columns; long lists scroll inside it. Pick **Icons on the remote**, **Built-in icons** (the remote's own, drawn as on the remote), **Channel icons**, **Level pictures & state icons** (the ones this integration made) or **Local folder** (pictures on your computer, shrunk and uploaded when you save).
 - **Widgets:** text button, sensor, select, media widget and number pad.
 - **What it does:** click a button and pick a device (the activity's own come first), then its command, or search with a few words (*shield movies*). **Custom value** sends a typed value such as an app link; **Not added yet** adds a device your integrations offer straight from there.
+- **Entities (Activities ▾ → Entities):** what the activity includes, grouped by kind. **＋ Add entity** adds anything on the remote (sensors too, which the web configurator can't add to an activity) or something your integrations offer that is **not added yet** (added to the remote right away). **✕** takes one out; entities in use on a page, key, the touch slider or a step can't be taken out.
 - **Physical keys and the touch slider:** click them on the drawing to set short and long presses. The touch slider can point at any device with a volume, brightness or position: one in the activity, another one on the remote (added to the activity when you save), or one that is **not added yet** (added to the remote when you pick it).
 - **Pages:** add, rename, change the grid, move, delete. **Activities:** rename, duplicate, delete or make a new one; activity group, prevent sleep and voice assistant.
 
@@ -199,6 +200,8 @@ The integration serves its own builder page on your network, at `http://<remote-
 
 - **Log in** with the web-configurator PIN.
 - **Pick, don't type:** the builder lists your remote's own devices with their commands, inputs and sound modes, your activities, and the remote's own controls and settings.
+- **Not added yet:** every device drop-down lists, last, what your integrations offer but the remote doesn't have yet (a new Home Assistant sensor, say). Picking one adds it to the remote (a backup is made first) and picks it.
+- **Reload devices** (top right) reads the remote's devices again, asks your integrations for new entities, redraws every section and says what's new, gone, renamed or not added yet.
 - **If / Else if / Otherwise** branches, each with conditions and steps. The first matching branch runs.
 - **Templates** for the remote itself (Night Mode, Quiet Mode, color cycle, brighter/dimmer, backlight by time) and for your devices (smart volume, play/pause or turn on, input with wait, sound mode cycle, action per activity).
 - **Create, then list:** each tab starts with its **+ Create** button. It opens an editor box for the new item; a **name is required**. After **Save**, the item shows below as one bar with its name, what it does and an **Edit** button that opens its settings again (with **Delete** inside).
@@ -378,6 +381,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.4.9:** Page Editor: a new **Activities → Entities** view lists what an activity includes, grouped by kind; **＋ Add entity** adds any device, sensor or light (also ones that are **not added yet** to the remote), and **✕** takes one out. Builder: every device drop-down lists **Not added yet** last; picking one adds it to the remote and picks it. **Reload devices** now asks your integrations for new entities, redraws every section and says what changed.
 - **1.4.8:** Page Editor: the **touch slider** picker now also lists devices that aren't in the activity yet and devices that are **not added yet** to the remote (for example a new slider or the Control entity of this integration); picking one adds it. Clean-up: unused code and styles removed, shared helpers in one place.
 - **1.4.7:** Faster and lighter on the remote. The integration now keeps the device values it reads in memory, and the remote's live events keep them current. So Auto Widgets, Displays, state icons, sliders and Smart Controls conditions no longer ask the remote for every device every second or two; they react as soon as the remote reports a change, with a check every 20 s. Settings files are saved safely, with a `.bak` copy that is used if a file is damaged ([details](#configuration)). Remembered values, ↩ history and values seen are saved once every 2 s at most instead of on every change. Developers: `driver.js` is split up a little, and the tests run 4 at a time (about 50 s instead of over 2 min).
 - **1.4.6:** The full 1.4.5 release below, with Auto Widgets pop-ups. The 1.4.5 download on GitHub was an earlier build without pop-ups, so install 1.4.6 instead.

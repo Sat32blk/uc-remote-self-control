@@ -45,10 +45,6 @@ ok(calls.some((c) => c.m === "POST" && /\/intg\/instances\/hass\.main\/entities/
 const chips = await pg.$$eval("#ent-card .entchip", (c) => c.map((x) => x.className + " :: " + x.textContent));
 console.log(chips);
 ok(chips.some((t) => t.includes("fresh") && t.includes("Kitchen Motion")), "shown as added on save");
-// take out one not in use
-const rm = await pg.$$("#ent-card .entchip:not(.used):not(.fresh) button");
-if (rm.length) { await rm[0].click(); }
-ok(await pg.$("#ent-card .entchip.gone"), "taken out: shown crossed out with a keep button");
 ok(!(await pg.isDisabled("#save")), "Save is enabled");
 await pg.screenshot({ path: SH + "/e3.png" });
 calls.length = 0;
@@ -56,6 +52,14 @@ await pg.click("#save"); await pg.waitForTimeout(2500);
 const patch = calls.find((c) => c.m === "PATCH" && /^\/activities\/[^/]+$/.test(c.p) && c.b?.options?.entity_ids);
 console.log(JSON.stringify(patch?.b?.options?.entity_ids));
 ok(patch && patch.b.options.entity_ids.includes("hass.main.binary_sensor.kitchen_motion"), "saved: entity_ids include the new sensor");
+// after saving, take it out again
+await pg.waitForFunction(() => document.querySelector("#ent-card .entchip:not(.fresh) button[aria-label^='Take Kitchen Motion']"), null, { timeout: 8000 });
+await pg.click("#ent-card button[aria-label^='Take Kitchen Motion']");
+ok(await pg.$("#ent-card .entchip.gone"), "taken out: shown crossed out with a keep button");
+calls.length = 0;
+await pg.click("#save"); await pg.waitForTimeout(2500);
+const patch2 = calls.find((c) => c.m === "PATCH" && /^\/activities\/[^/]+$/.test(c.p) && c.b?.options?.entity_ids);
+ok(patch2 && !patch2.b.options.entity_ids.includes("hass.main.binary_sensor.kitchen_motion"), "saved: taken out of entity_ids " + JSON.stringify(patch2?.b?.options?.entity_ids));
 await pg.setViewportSize({ width: 390, height: 900 }); await pg.waitForTimeout(300); await pg.screenshot({ path: SH + "/e4.png", fullPage: true });
 ok(!errs.length, "no page errors " + errs.join("; "));
 await b.close(); process.exit(fails ? 1 : 0);
