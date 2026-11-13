@@ -27,7 +27,8 @@ export function makeState() {
     available: { "self_control.main": [{ entity_id: "smart_test2", entity_type: "button", integration_id: "self_control.main", name: { en: "test2" }, features: ["press"] }],
       "hass.main": [{ entity_id: "light.porch", entity_type: "light", integration_id: "hass.main", name: { en: "Porch Light" }, features: ["on_off"] },
       { entity_id: "hass.main.switch.fan", entity_type: "switch", integration_id: "hass.main", name: { en: "Bedroom Fan" }, features: ["on_off"] },
-      { entity_id: "light.desk", entity_type: "light", integration_id: "hass.main", name: { en: "Desk Lamp" }, features: ["on_off", "dim"] }] },
+      { entity_id: "light.desk", entity_type: "light", integration_id: "hass.main", name: { en: "Desk Lamp" }, features: ["on_off", "dim"] },
+      { entity_id: "binary_sensor.kitchen_motion", entity_type: "sensor", integration_id: "hass.main", name: { en: "Kitchen Motion" }, features: [] }] },
     intg: [
       { integration_id: "hass.main", driver_id: "hass", name: { en: "Home Assistant" }, enabled: true, device_state: "CONNECTED" },
       { integration_id: "tvdrv.main", driver_id: "tvdrv", name: { en: "TV" }, enabled: true, device_state: "CONNECTED" },

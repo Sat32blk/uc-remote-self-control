@@ -373,9 +373,36 @@ details.more summary{cursor:pointer;font-weight:600}
 .tb2{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
 .tb label.ck{display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer}
 .tb label.ck input{accent-color:var(--acc)}
-.pe3.subseq .petop{grid-column:1 / 4}
+.pe3.subseq .petop,.pe3.subents .petop{grid-column:1 / 4}
+.pe3.subents .peleft,.pe3.subents .pecenter,.pe3.subents .peright{display:none}
+.entcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,340px);gap:18px;align-items:start}
+@media (max-width:1150px){.entcols{grid-template-columns:1fr}}
+.entkind{margin:14px 0 0}.entkind h3{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:0 0 6px;font-weight:650}
+.entchip{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 6px 4px 11px;border-radius:999px;border:1px solid var(--line2);background:var(--field)}
+.entchip.used{background:#e8f5ec;border-color:#86c99a}
+.entchip.fresh{background:#eaf1fd;border-color:#9dbbef}
+.entchip.gone{background:var(--soft);border-style:dashed;text-decoration:line-through;color:var(--mute)}
+.entchip .tag{font-size:11px;color:var(--mute)}
+.entchip.fresh .tag{color:#1d4f91;font-weight:600}
+.entchip button{border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:14px;line-height:1;padding:2px 5px;border-radius:50%}
+.entchip button:hover{background:var(--soft);color:var(--err)}
+.entadd{position:relative;margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.entpop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;width:min(440px,calc(100vw - 32px));background:var(--card);border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.2);padding:10px}
+.entpop input{width:100%;margin-bottom:8px;padding:6px 8px;border:1px solid var(--line2);border-radius:8px;background:var(--field)}
+.entpop .list{max-height:360px;overflow:auto}
+.entpop .grp{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);padding:8px 6px 4px;font-weight:650}
+.entpop .grp.new{color:#1d4f91;border-top:1px dashed var(--line2);margin-top:6px;padding-top:10px}
+.entpop .it{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;border:0;background:transparent;font-size:14px;padding:7px 8px;border-radius:7px;cursor:pointer}
+.entpop .it:hover,.entpop .it:focus-visible{background:var(--soft);outline:none}
+.entpop .it .s{color:var(--mute);font-size:12px;white-space:nowrap}
+.entpop .it.new .n::before{content:"＋ ";color:#1d4f91;font-weight:700}
+:root[data-dark] .entchip.used{background:#14381f;border-color:#2f6b40;color:#bbf7d0}
+:root[data-dark] .entchip.fresh{background:#1b2a44;border-color:#3b5a8c;color:#cfe0ff}
+:root[data-dark] .entchip.fresh .tag,:root[data-dark] .entpop .grp.new,:root[data-dark] .entpop .it.new .n::before{color:#8ab4f8}
 .pe3.subseq .peleft,.pe3.subseq .pecenter,.pe3.subseq .peright{display:none}
 .pe3 #seqsub{grid-column:1 / 4;grid-row:2}
+.pe3 #entsub{grid-column:1 / 4;grid-row:2}
+#ent-help p.hint{margin:0 0 10px}
 .dd{position:relative;display:inline-flex}
 .ddmenu{position:absolute;top:calc(100% + 4px);left:0;z-index:20;min-width:260px;background:var(--field);border:1px solid var(--line2);border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.12);padding:4px;display:flex;flex-direction:column}
 .ddmenu button{border:0;background:transparent;text-align:left;padding:8px 10px;border-radius:7px;cursor:pointer;display:flex;flex-direction:column;gap:1px;font-weight:600;color:var(--ink)}
@@ -466,6 +493,7 @@ details.more summary{cursor:pointer;font-weight:600}
       <button class="btn sel" id="mode-pages" type="button" aria-haspopup="menu" aria-expanded="false">Activities: <b id="dd-label">Interface</b> ▾</button>
       <span class="ddmenu hidden" role="menu" id="dd-menu">
         <button type="button" role="menuitemradio" id="sub-pages" aria-checked="true">Interface<span class="hint">pages, buttons, physical keys</span></button>
+        <button type="button" role="menuitemradio" id="sub-ents" aria-checked="false">Entities<span class="hint">devices, sensors and lights the activity can use</span></button>
         <button type="button" role="menuitemradio" id="sub-seq" aria-checked="false">Start/Stop<span class="hint">start and off sequences, sequence settings</span></button>
         <button type="button" role="menuitemradio" id="sub-groups" aria-checked="false">Activity groups<span class="hint">what switching between activities turns off</span></button>
       </span>
@@ -497,6 +525,17 @@ details.more summary{cursor:pointer;font-weight:600}
       </div>
       <div class="tbmsg"><span class="status" id="gridmsg"></span><span id="savewarn" class="hidden"></span></div>
     </section>
+
+    <div class="entcols hidden" id="entsub">
+      <section class="card" id="ent-card" aria-label="Entities in this activity"></section>
+      <section class="card" id="ent-help">
+        <h2>What is this list?</h2>
+        <p class="hint" style="margin-top:6px">The entities an activity includes are the ones you can use on its pages, buttons and touch slider, and the ones its <b>Start/Stop</b> sequences can control.</p>
+        <p class="hint">Devices you put on a button, page or sequence are added for you when you save. Add others here, for example a <b>sensor</b> for a page or a light for the touch slider (the remote's web configurator doesn't let you add sensors to an activity).</p>
+        <p class="hint"><b>Not added yet</b>, at the bottom of <b>＋ Add entity</b>, lists what your integrations offer but the remote doesn't have yet. Picking one adds it to the remote right away (after a backup), then to this activity when you save.</p>
+        <p class="hint"><b>✕</b> takes an entity out of the activity; it stays on the remote. Green ones are in use and can't be taken out until you remove them from the page, button or sequence.</p>
+      </section>
+    </div>
 
     <div class="seqcols hidden" id="seqsub">
       <section class="card" id="seq-on" aria-label="Start sequence"></section>
@@ -1678,6 +1717,106 @@ function renderSeq() {
     el("p", { class: "hint", style: "margin:6px 0 0" }, "Grey devices aren't in the sequences yet: click one to set it up."));
   renderSeqSettings();
 }
+// ---- Entities of an activity: what it includes, add (also from integrations: not added yet), take out ----
+const ENT_KIND = { media_player: "Media players", remote: "Remotes", light: "Lights", switch: "Switches", sensor: "Sensors", cover: "Covers", climate: "Climate", select: "Lists", button: "Buttons", ir_emitter: "IR emitters", voice_assistant: "Voice assistants" };
+const entKind = (t) => ENT_KIND[t] || String(t || "Other").replace("_", " ");
+const ENT_ONE = { media_player: "media player", remote: "remote", light: "light", switch: "switch", sensor: "sensor", cover: "cover", climate: "climate", select: "list", button: "button", ir_emitter: "IR emitter", voice_assistant: "voice assistant" };
+const entOne = (t) => ENT_ONE[t] || String(t || "other").replace("_", " ");
+let ENTST = { open: false, q: "", msg: "", err: false, busy: false, loading: false };
+/** Where each entity of the activity is used (a page, a button, a sequence, the slider): those can't be taken out. */
+function actEntUses(a) {
+  const u = {}, add = (id, w) => { if (id && id !== a.id) (u[id] = u[id] || new Set()).add(w); };
+  const q = SEQ[a.id] || { on: [], off: [] };
+  for (const id of [...stepDevs(q.on), ...stepDevs(q.off)]) add(id, "a Start/Stop step");
+  for (const p of a.pages) for (const it of p.items) { add(it.entity, `page ${p.name}`); add(devOfKey(it.cmd), `page ${p.name}`); }
+  for (const m of Object.values(a.buttons)) for (const c of [m.short, m.long]) add(devOfKey(c), "a physical key");
+  if (a.slider && a.slider !== "off") add(a.slider.split("|")[0], "the touch slider");
+  return u;
+}
+function entOffers(a, have) {
+  return INTG.filter((i) => i.status === "ok").flatMap((i) => (i.ents || []).filter((e) => !e.added && !DEV[e.id] && !have.has(e.id)).map((e) => ({ ...e, intg: i })));
+}
+function renderEnts() {
+  const a = act(), box = $("#ent-card");
+  if (!a || !box) return;
+  const old = SAVED.activities.find((x) => x.id === a.id) || { devices: [] };
+  if (!ENTST.busy && !ENTST.err && !changedPages().some((x) => x.a.id === a.id)) ENTST.msg = ""; // saved or undone: the note is done
+  const uses = actEntUses(a);
+  const members = [...new Set([...a.devices, ...Object.keys(uses)])];
+  const gone = old.devices.filter((d) => !members.includes(d));
+  const byKind = {};
+  for (const id of [...members, ...gone]) { const t = DEV[id]?.type || "?"; (byKind[t] = byKind[t] || []).push(id); }
+  const chip = (id) => {
+    const used = uses[id], isNew = !old.devices.includes(id), isGone = gone.includes(id), name = DEV[id]?.name || id + " (not on the remote)";
+    const tip = used ? "Used on " + [...used].join(", ") : isGone ? "Taken out when you save" : "In this activity";
+    return el("span", { class: "entchip" + (used ? " used" : "") + (isNew && !isGone ? " fresh" : "") + (isGone ? " gone" : ""), title: tip }, name,
+      used ? el("span", { class: "tag" }, "in use") : isNew ? el("span", { class: "tag" }, "added on save") : isGone ? el("span", { class: "tag" }, "taken out on save") : "",
+      isGone ? el("button", { type: "button", title: "Keep it", "aria-label": `Keep ${name}`, disabled: !a.editable, on: { click: () => { a.devices.push(id); entsChanged(`${name} stays in ${a.name}`); } } }, "↶")
+        : used ? "" : el("button", { type: "button", title: "Take it out of this activity (it stays on the remote)", "aria-label": `Take ${name} out of ${a.name}`, disabled: !a.editable,
+          on: { click: () => { a.devices = a.devices.filter((x) => x !== id); entsChanged(`${name} taken out of ${a.name}`, isNew ? `${name} won't be added.` : `${name} is taken out of ${a.name} when you save. It stays on the remote.`); } } }, "✕"));
+  };
+  const kinds = Object.keys(byKind).sort((x, y) => entKind(x).localeCompare(entKind(y)));
+  // integrations not asked yet: ask what they offer, then draw again
+  const waiting = INTG.filter((i) => i.status === "ok" && !i.ents);
+  if (ENTST.open && waiting.length && !ENTST.loading) { ENTST.loading = true; Promise.all(waiting.map((i) => loadIntgEnts(i).catch(() => { i.ents = i.ents || []; }))).then(() => { ENTST.loading = false; if (subView === "ents") renderEnts(); }); }
+  const addBtn = el("button", { class: "btn primary", type: "button", id: "ent-add", "aria-expanded": String(ENTST.open), "aria-haspopup": "dialog", disabled: !a.editable || ENTST.busy,
+    on: { click: (e) => { e.stopPropagation(); ENTST.open = !ENTST.open; ENTST.q = ""; renderEnts(); if (ENTST.open) $("#ent-q")?.focus(); } } }, ENTST.busy ? "Adding…" : "＋ Add entity");
+  const pop = ENTST.open ? entPicker(a, new Set([...members])) : "";
+  box.replaceChildren(el("h2", {}, `Entities in ${a.name}`),
+    el("p", { class: "hint", style: "margin:4px 0 0" }, `${members.length} ${members.length === 1 ? "entity" : "entities"}. Green ones are in use on a page, a key, the touch slider or a Start/Stop step.`),
+    !a.editable ? el("p", { class: "warn" }, lockText(a)) : "",
+    ...kinds.map((t) => el("div", { class: "entkind" }, el("h3", {}, entKind(t)), el("div", { class: "memb" }, ...byKind[t].sort((x, y) => (DEV[x]?.name || x).localeCompare(DEV[y]?.name || y)).map(chip)))),
+    members.length ? "" : el("p", { class: "hint" }, "Nothing yet."),
+    el("div", { class: "entadd", id: "ent-adder" }, addBtn, pop),
+    ENTST.msg ? el("p", { class: ENTST.err ? "warn" : "hint", role: "status", style: "margin-top:10px" }, ENTST.msg) : "");
+}
+function entPicker(a, have) {
+  const q = ENTST.q.trim().toLowerCase(), hit = (n, t) => !q || n.toLowerCase().includes(q) || entKind(t).toLowerCase().includes(q);
+  const groups = {};
+  for (const d of DEVICES) {
+    if (have.has(d.id) || d.id === a.id || d.type === "activity" || d.type === "macro" || COPIES[d.id] || !hit(d.name, d.type)) continue;
+    const g = kindOfDev(d) === "smart" ? "Made in Remote Self-Control" : entKind(d.type);
+    (groups[g] = groups[g] || []).push(d);
+  }
+  const offers = entOffers(a, have).filter((e) => hit(e.name, e.type));
+  const list = el("div", { class: "list" });
+  for (const g of Object.keys(groups).sort((x, y) => (x.startsWith("Made") ? 1 : 0) - (y.startsWith("Made") ? 1 : 0) || x.localeCompare(y))) {
+    list.append(el("div", { class: "grp" }, g), ...groups[g].sort((x, y) => x.name.localeCompare(y.name)).map((d) => el("button", { type: "button", class: "it", on: { click: () => entAdd(a, d.id) } },
+      el("span", { class: "n" }, d.name), el("span", { class: "s" }, g.startsWith("Made") ? entOne(d.type) : "on the remote"))));
+  }
+  if (offers.length) list.append(el("div", { class: "grp new" }, "Not added yet · added to the remote when picked"), ...offers.map((e) => el("button", { type: "button", class: "it new", on: { click: () => entAddOffer(a, e) } },
+    el("span", { class: "n" }, e.name), el("span", { class: "s" }, `${entOne(e.type)} · ${e.intg.name}`))));
+  else if (ENTST.loading) list.append(el("div", { class: "grp new" }, "Not added yet"), el("p", { class: "hint", style: "padding:4px 8px" }, "Asking your integrations what else they offer…"));
+  if (!list.children.length) list.append(el("p", { class: "hint", style: "padding:8px" }, q ? "Nothing matches." : "Everything on the remote is already in this activity."));
+  const search = el("input", { type: "search", id: "ent-q", placeholder: "Search devices, sensors, lights…", "aria-label": "Search", value: ENTST.q,
+    on: { input: (e) => { ENTST.q = e.target.value; const pos = e.target.selectionStart; renderEnts(); const n = $("#ent-q"); if (n) { n.focus(); n.setSelectionRange(pos, pos); } } } });
+  return el("div", { class: "entpop", role: "dialog", "aria-label": "Add an entity", on: { click: (e) => e.stopPropagation() } }, search, list);
+}
+function entsChanged(logText, note) {
+  ENTST.msg = note || ""; ENTST.err = false;
+  log(logText); renderEnts();
+}
+function entAdd(a, id) {
+  ENTST.open = false;
+  if (!a.devices.includes(id)) a.devices.push(id);
+  entsChanged(`${DEV[id]?.name || id} added to ${a.name}`, `${DEV[id]?.name || id} is added to ${a.name} when you save.`);
+}
+async function entAddOffer(a, e) {
+  ENTST = { ...ENTST, open: false, busy: true, err: false, msg: `Adding ${e.name} to the remote…` }; renderEnts();
+  try {
+    const id = await addOffer(e);
+    ENTST.busy = false;
+    if (!a.devices.includes(id)) a.devices.push(id);
+    entsChanged(`${e.name} added to the remote and to ${a.name}`, `${e.name} was added to the remote. It's added to ${a.name} when you save.`);
+    renderAll();
+  } catch (err) {
+    ENTST = { ...ENTST, busy: false, err: true, msg: err.message === "no backup" ? "Nothing was added: a backup is needed first." : `${e.name} couldn't be added: ${err.message}` };
+    renderEnts();
+  }
+}
+document.addEventListener("click", (e) => { if (ENTST.open && !e.target.closest?.("#ent-adder")) { ENTST.open = false; renderEnts(); } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && ENTST.open) { ENTST.open = false; renderEnts(); $("#ent-add")?.focus(); } });
+
 // =============================================================================================
 // Guided device setup: opens when a device that isn't in the activity's start/off sequences is put
 // on a screen button or physical key (or added on Start/Stop). 1 what kind of device, 2 a few questions
@@ -1877,20 +2016,25 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && WZ) clos
 
 // ---- sub-pages of an activity: pages & keys, or its start & off sequences --------------------------
 let subView = "pages";
+const SUB_LABEL = { pages: "Interface", ents: "Entities", seq: "Start/Stop", groups: "Activity groups" };
 function setSub(v) {
   subView = v;
-  for (const [id, k] of [["#sub-pages", "pages"], ["#sub-seq", "seq"]]) { $(id).classList.toggle("on", v === k); $(id).setAttribute("aria-checked", String(v === k)); }
-  $("#dd-label").textContent = v === "seq" ? "Start/Stop" : "Interface";
+  for (const [id, k] of [["#sub-pages", "pages"], ["#sub-ents", "ents"], ["#sub-seq", "seq"]]) { $(id).classList.toggle("on", v === k); $(id).setAttribute("aria-checked", String(v === k)); }
+  $("#dd-label").textContent = SUB_LABEL[v];
   closeDD();
   document.querySelector(".pe3").classList.toggle("subseq", v === "seq");
+  document.querySelector(".pe3").classList.toggle("subents", v === "ents");
   $("#seqsub").classList.toggle("hidden", v !== "seq");
-  for (const x of document.querySelectorAll(".tbpage")) x.classList.toggle("hidden", v === "seq");
+  $("#entsub").classList.toggle("hidden", v !== "ents");
+  for (const x of document.querySelectorAll(".tbpage")) x.classList.toggle("hidden", v !== "pages");
   $("#seq-sum").classList.toggle("hidden", v !== "seq");
   if (v === "seq") renderSeq();
+  if (v === "ents") renderEnts();
 }
 function closeDD() { $("#dd-menu").classList.add("hidden"); $("#mode-pages").setAttribute("aria-expanded", "false"); }
 $("#sub-pages").addEventListener("click", () => { setSub("pages"); setMode("pages"); });
 $("#sub-seq").addEventListener("click", () => { setSub("seq"); setMode("pages"); });
+$("#sub-ents").addEventListener("click", () => { setSub("ents"); setMode("pages"); });
 document.addEventListener("click", (e) => { if (!e.target.closest("#dd-act")) closeDD(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDD(); });
 $("#seq-groups").addEventListener("click", () => { gTo = act().id; setMode("groups"); });
@@ -2604,6 +2748,7 @@ function msg(t, cls) {
   // the Home screen has its own status line (the Interface view's isn't shown there)
   if (mode === "home" && $("#hstatus")) { const h = $("#hstatus"); h.className = "status " + (cls || ""); h.textContent = t || (homeDirty() ? "Changes not saved yet." : "No changes."); }
 }
+const sameSet = (x, y) => x.length === y.length && x.every((v) => y.includes(v));
 function changedPages() {
   const out = [];
   for (const a of S.activities) {
@@ -2611,7 +2756,7 @@ function changedPages() {
     if (!old) continue;
     const strip = (pgs) => JSON.stringify(pgs.map((p) => ({ ...p })));
     const pages = strip(a.pages) !== strip(old.pages);
-    const keys = a.name !== old.name || JSON.stringify(a.buttons) !== JSON.stringify(old.buttons) || a.slider !== old.slider || JSON.stringify(SEQ[a.id] || null) !== JSON.stringify(SEQSAVED[a.id] || SEQ[a.id] || null) || JSON.stringify(ASET[a.id] || null) !== JSON.stringify(ASETSAVED[a.id] || ASET[a.id] || null);
+    const keys = a.name !== old.name || sameSet(a.devices, old.devices) === false || JSON.stringify(a.buttons) !== JSON.stringify(old.buttons) || a.slider !== old.slider || JSON.stringify(SEQ[a.id] || null) !== JSON.stringify(SEQSAVED[a.id] || SEQ[a.id] || null) || JSON.stringify(ASET[a.id] || null) !== JSON.stringify(ASETSAVED[a.id] || ASET[a.id] || null);
     if (pages || keys) out.push({ a, what: pages ? "pages" : "keys", pages, keys });
   }
   return out;
@@ -2674,7 +2819,7 @@ function optionsPatch(a, old) {
   if (v.voice !== v0.voice) o.voice_assistant = v.voice ? { target: { entity_id: v.voice } } : {};
   if (a.slider !== old.slider) o.touch_slider = sliderOut(a.slider);
   const need = neededDevices(a);
-  if (Object.keys(o).length || need.some((d) => !old.devices.includes(d))) o.entity_ids = need;
+  if (Object.keys(o).length || !sameSet(need, old.devices)) o.entity_ids = need;
   return Object.keys(o).length ? o : null;
 }
 async function saveButtons(a, old) {
@@ -3477,12 +3622,12 @@ function setMode(m) {
   // Interface, Start/Stop and Activity groups all live under the Activities drop-down
   $("#mode-pages").classList.toggle("sel", m === "pages" || m === "groups");
   const which = m === "groups" ? "groups" : subView;
-  $("#dd-label").textContent = which === "groups" ? "Activity groups" : which === "seq" ? "Start/Stop" : "Interface";
-  for (const [id, k] of [["#sub-pages", "pages"], ["#sub-seq", "seq"], ["#sub-groups", "groups"]]) { $(id).classList.toggle("on", which === k); $(id).setAttribute("aria-checked", String(which === k)); }
+  $("#dd-label").textContent = SUB_LABEL[which];
+  for (const [id, k] of [["#sub-pages", "pages"], ["#sub-ents", "ents"], ["#sub-seq", "seq"], ["#sub-groups", "groups"]]) { $(id).classList.toggle("on", which === k); $(id).setAttribute("aria-checked", String(which === k)); }
   if (LIB === "fus" && FUS.data) renderFus();
   if (m === "home") renderHome(); else if (m === "macros") renderMacros(); else if (m === "groups") renderGroups(); else if (m === "dev") renderDevices(); else renderAll();
 }
-$("#mode-pages").addEventListener("click", () => { const m = $("#dd-menu"); const open = m.classList.toggle("hidden") === false; $("#mode-pages").setAttribute("aria-expanded", String(open)); if (open) $(subView === "seq" ? "#sub-seq" : "#sub-pages").focus(); });
+$("#mode-pages").addEventListener("click", () => { const m = $("#dd-menu"); const open = m.classList.toggle("hidden") === false; $("#mode-pages").setAttribute("aria-expanded", String(open)); if (open) $("#sub-" + subView).focus(); });
 $("#m-ucr3").addEventListener("click", () => setModel("ucr3"));
 $("#m-ucr2").addEventListener("click", () => setModel("ucr2"));
 $("#mode-home").addEventListener("click", () => setMode("home"));
@@ -3520,7 +3665,7 @@ addEventListener("resize", () => requestAnimationFrame(fitRemote));
 function renderAll() {
   restoreNewActButton();
   if (!act()) { $("#grid").replaceChildren(el("p", { class: "hint", style: "color:#9ca3af;padding:10px" }, "No activities on the remote yet: make one with + New.")); renderPics(); renderChannels(); return; }
-  renderPages(); renderActSettings(); renderGrid(); renderInspector(); renderPics(); renderChannels(); renderSave(); if (subView === "seq") renderSeq();
+  renderPages(); renderActSettings(); renderGrid(); renderInspector(); renderPics(); renderChannels(); renderSave(); if (subView === "seq") renderSeq(); if (subView === "ents") renderEnts();
   setLib(LIB);
   requestAnimationFrame(fitRemote);
 }
