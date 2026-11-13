@@ -137,7 +137,7 @@ export function buildCatalog(entities, commandDefs, ownIntegrationPrefix) {
   return { devices, activities, own };
 }
 
-export function startWebServer({ port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, statsApi = null, displaysApi = null, autoWidgetsApi = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
+export function startWebServer({ androidApi, port, pagePath, getCore, makePinClient, smart, controls, settings, loadRulesText, defaultRulesText, saveRules, validate, stateIcons, validateIcons, onIconsChanged, extras, controlsApi, deviceStates, validateExtras, onExtrasChanged, returnSettings, saveReturn, pagesApi = null, launchersApi = null, statsApi = null, displaysApi = null, autoWidgetsApi = null, cleanup = null, version = "", editorPath = null, dataDir = null, onScreen = () => null, log, warn }) {
   /** Everything set up here as one backup; withPictures = include the custom pictures (base64). */
   async function buildBackup(withPictures) {
     const core = getCore();
@@ -527,6 +527,17 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
       const r = await doRestore(b, which);
       send(res, r.errors.length && !r.done.length ? 422 : 200, { ok: !r.errors.length, ...r });
     },
+    // ---- Android apps (network debugging) ----
+    "GET /api/android": async (req, res) => {
+      if (!androidApi) return send(res, 404, { error: "Android apps aren't in this build." });
+      send(res, 200, androidApi.view());
+    },
+    ...Object.fromEntries(["add", "remove", "rename", "connect", "scan", "apps", "launch", "publish"].map((k) => [`POST /api/android/${k}`, async (req, res) => {
+      if (!androidApi) return send(res, 404, { error: "Android apps aren't in this build." });
+      const body = await readJson(req);
+      try { send(res, 200, (await androidApi[k === "apps" ? "setApps" : k](body)) ?? { ok: true }); }
+      catch (e) { send(res, e.code && e.code >= 400 && e.code < 600 ? e.code : 400, { error: e.message, code: typeof e.code === "string" ? e.code : undefined }); }
+    }])),
     "GET /api/autowidgets": async (req, res) => {
       if (!autoWidgetsApi) return send(res, 404, { error: "Auto Widgets aren't in this build." });
       try { send(res, 200, await autoWidgetsApi.get(/[?&]fresh=1/.test(req.url))); } catch (e) { send(res, 502, { error: e.message }); }
@@ -596,6 +607,16 @@ export function startWebServer({ port, pagePath, getCore, makePinClient, smart, 
 
   const server = http.createServer(async (req, res) => {
     const url = (req.url || "/").split("?")[0];
+    // app pictures for the remote's Browse screen and widget (no login: the remote fetches them itself)
+    const pic = req.method === "GET" && /^\/aa\/pic\/([^/]+)\/([^/]+)$/.exec(url);
+    if (pic) {
+      try {
+        const img = androidApi ? await androidApi.picture(decodeURIComponent(pic[1]), decodeURIComponent(pic[2])) : null;
+        if (!img) { res.writeHead(404); return res.end(); }
+        res.writeHead(200, { "Content-Type": img.type || "image/png", "Cache-Control": "public, max-age=3600" });
+        return res.end(img.body);
+      } catch { res.writeHead(502); return res.end(); }
+    }
     const key = `${req.method} ${url === "/index.html" ? "/" : url}`;
     const handler = routes[key];
     try {

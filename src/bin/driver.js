@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import * as uc from "@unfoldedcircle/integration-api";
 import { CoreClient, CoreError } from "./core.js";
 import { SmartEngine, validateRules, vCond } from "./smart.js";
-import { startWebServer, builderUrls } from "./web.js";
+import { startWebServer, builderUrls, lanAddresses } from "./web.js";
 import { checkBackup } from "./backup.js";
 import { listActivities, addTile, PAGE_NAME } from "./tile.js";
 import { ReturnTracker, activityGroups } from "./returnbtn.js";
@@ -26,6 +26,7 @@ import { isReturnItem } from "./returnbtn.js";
 import { spotsOf } from "./stateicons.js";
 import { Displays, validateDisplays } from "./displays.js";
 import { AutoWidgets, validateAutoWidgets, MEDIA_FEATURES } from "./autowidgets.js";
+import { AndroidApps, AA_FEATURES } from "./androidapps.js";
 import { readJson, writeText, readText, exists as fileExists, remove as removeFile } from "./safefile.js";
 import { pctTo255, toPct, hsToRgb, rgbToHs, settingsTables } from "./settings.js";
 import { PIN_PAGE, rulesPage, prettyRules } from "./setup-pages.js";
@@ -585,6 +586,99 @@ function publishAutoWidget(id, attrs) {
   if (!api.updateEntityAttributes(id, attrs)) Object.assign(e.attributes, attrs);
 }
 
+// ---------------------------------------------------------------------------
+// Android apps: one media player per Android TV ("<name> apps"), its apps opened over network debugging.
+// See androidapps.js.
+// ---------------------------------------------------------------------------
+const AREA_ANDROID = "Android apps";
+let androidApps = null;
+const aaEntities = {};
+/** The address the remote uses to fetch app pictures from this integration (its builder web server). */
+function publicBase() {
+  if (process.env.UC_SELF_PUBLIC_URL) return process.env.UC_SELF_PUBLIC_URL.replace(/\/$/, "");
+  const ip = lanAddresses()[0];
+  return ip ? `http://${ip}:${BUILDER_PORT}` : "";
+}
+function buildAndroidEntities() {
+  for (const k of Object.keys(aaEntities)) delete aaEntities[k];
+  for (const d of androidApps?.devices || []) {
+    if (!d.added) continue;
+    const id = androidApps.entityId(d);
+    const handler = async (entity, cmdId, params) => {
+      const st = await androidApps.command(d.id, String(cmdId).replace(/^media_player\./, ""), params || {});
+      return st === 200 ? uc.StatusCodes.Ok : st === 404 ? uc.StatusCodes.NotFound : st === 400 ? uc.StatusCodes.BadRequest : uc.StatusCodes.ServiceUnavailable;
+    };
+    const e = new uc.MediaPlayer(id, { en: `${d.name} apps` }, { features: AA_FEATURES, area: AREA_ANDROID, deviceClass: "streaming_box", attributes: androidApps.attrs(d), cmdHandler: handler });
+    e.browse = async (o) => androidApps.browse(d.id, o);
+    e.search = async (o) => androidApps.search(d.id, o);
+    aaEntities[id] = e;
+  }
+}
+function publishAndroid(id, attrs) {
+  const e = aaEntities[id];
+  if (!e) return;
+  if (!api.updateEntityAttributes(id, attrs)) Object.assign(e.attributes, attrs);
+}
+const aaPics = new Map(); // remote picture id -> { type, body, at }
+async function androidPicture(devId, pkg) {
+  const d = androidApps?.dev(devId), a = d?.apps.find((x) => x.pkg === pkg);
+  if (!a?.pic || !core) return null;
+  const id = a.pic.replace(/^custom:/, "");
+  const hit = aaPics.get(id);
+  if (hit && Date.now() - hit.at < 3600000) return hit;
+  const img = await core.download(`/resources/Icon/${encodeURIComponent(id)}`);
+  const v = { type: img.type, body: img.body, at: Date.now() };
+  aaPics.set(id, v);
+  if (aaPics.size > 300) aaPics.delete(aaPics.keys().next().value);
+  return v;
+}
+const androidApi = {
+  view: () => ({ ...androidApps.view(), publicBase: publicBase(), entityPrefix: `${OWN_PREFIX}.` }),
+  add: (b) => { const d = androidApps.add(b); return androidApps.view(d.id); },
+  remove: async (b) => {
+    const d = androidApps.dev(b.id);
+    if (d?.added) { d.added = false; buildAndroidEntities(); registerEntities(); }
+    androidApps.remove(b.id);
+    return androidApps.view();
+  },
+  rename: (b) => { androidApps.rename(b.id, b.name); buildAndroidEntities(); registerEntities(); return androidApps.view(b.id); },
+  connect: (b) => androidApps.connect(b.id),
+  scan: async (b) => {
+    let pics = [];
+    try {
+      for (let page = 1; page <= 20; page++) {
+        const part = await core.get(`/resources/Icon?limit=100&page=${page}`);
+        const list = Array.isArray(part) ? part : [];
+        pics.push(...list.map((r) => r.id || r.resource_id || r.name).filter(Boolean));
+        if (list.length < 100) break;
+      }
+    } catch {}
+    const r = await androidApps.scan(b.id, pics);
+    return { ...r, device: androidApps.view(b.id) };
+  },
+  setApps: (b) => { androidApps.setApps(b.id, Array.isArray(b.apps) ? b.apps : []); return androidApps.view(b.id); },
+  launch: (b) => androidApps.launch(b.id, b.pkg),
+  /** Puts "<name> apps" on the remote (and keeps it there): entity, then the remote's own list. */
+  publish: async (b) => {
+    const d = androidApps.dev(b.id);
+    if (!d) throw Object.assign(new Error("no such device"), { code: 404 });
+    if (!core) throw Object.assign(new Error("The integration isn't connected to the remote."), { code: 503 });
+    d.added = true; androidApps.save(true);
+    buildAndroidEntities(); registerEntities();
+    const ent = `${OWN_PREFIX}.${androidApps.entityId(d)}`;
+    let added = false;
+    try { await core.get(`/entities/${encodeURI(ent)}`); } catch (e) {
+      if (e.status && e.status !== 404) throw e;
+      try { await core.get(`/intg/instances/${encodeURIComponent(OWN_PREFIX)}/entities?filter=NEW&reload=true&limit=100`); } catch {}
+      await core.post(`/intg/instances/${encodeURIComponent(OWN_PREFIX)}/entities`, [androidApps.entityId(d)]);
+      added = true;
+    }
+    log(`android apps: ${d.name} apps ${added ? "added to" : "updated on"} the remote`);
+    return { entity: ent, added, device: androidApps.view(d.id) };
+  },
+  picture: androidPicture
+};
+
 function registerEntities() {
   api.clearAvailableEntities();
   for (const [, id] of LAYOUT) api.addAvailableEntity(entities[id]);
@@ -594,6 +688,7 @@ function registerEntities() {
   for (const e of Object.values(extraEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(controlEntities)) api.addAvailableEntity(e);
   for (const e of Object.values(awEntities)) api.addAvailableEntity(e);
+  for (const e of Object.values(aaEntities)) api.addAvailableEntity(e);
   syncConfiguredEntities();
 }
 
@@ -1548,6 +1643,10 @@ autoWidgets = new AutoWidgets({ getCore: () => core, test: (c, cache) => smart.t
   file: path.join(api.getConfigDirPath(), "autowidgets.json"), log, warn });
 buildAutoWidgetEntities();
 setInterval(() => { if (!standby && core && smart) autoWidgets.refresh(); }, 1000);
+androidApps = new AndroidApps({ dir: api.getConfigDirPath(), picUrl: (dev, pkg) => (publicBase() ? `${publicBase()}/aa/pic/${encodeURIComponent(dev)}/${encodeURIComponent(pkg)}` : ""), onChange: publishAndroid, log, warn });
+buildAndroidEntities();
+// which app is in front on each TV (the widget's title and picture): every 10 s while the remote is awake
+setInterval(() => { if (!standby && connected) androidApps.poll().catch(() => {}); }, 10000);
 deviceStates = new DeviceStates({ getCore: () => core, file: path.join(api.getConfigDirPath(), "states_seen.json"), remote: remoteState, log, warn });
 initSmart();
 pageJumper = new PageJumper({ getCore: () => core, onScreen, test: (c) => smart.test(c, new Map()), file: path.join(api.getConfigDirPath(), "pages.json"), log, warn });
@@ -1628,6 +1727,7 @@ const webServer = startWebServer({
   editorPath: path.join(HERE, "web", "editor.html"),
   dataDir: api.getConfigDirPath(),
   onScreen: () => onScreen(),
+  androidApi,
   autoWidgetsApi: {
     get: async (fresh) => ({ ...autoWidgets.view(), activities: await awActivities(fresh), own: OWN_PREFIX }),
     status: () => ({ status: autoWidgets.status, paused: autoWidgets.paused }),

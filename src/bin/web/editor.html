@@ -480,6 +480,29 @@ details.more summary{cursor:pointer;font-weight:600}
 .fus-tile.old { opacity: .45; }
 .fus-tile span { font-size: 10px; line-height: 1.2; width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-all; text-align: center; }
 .fus-tiles.dense .fus-tile span { font-size: 9px; }
+.aa .card,.aa-dev{margin-bottom:12px}
+.aa-new{font-size:10.5px;background:#eaf1fd;color:#1d4f91;padding:1px 6px;border-radius:999px;font-weight:700}
+.aa-how{margin-top:10px;font-size:13.5px}.aa-how summary{cursor:pointer;color:var(--mute)}.aa-how ol{margin:6px 0 0;padding-left:20px}
+.aa-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.aa-pill{font-size:12px;padding:2px 9px;border-radius:999px;font-weight:600;background:var(--soft);color:var(--mute)}
+.aa-pill.ok{background:#e8f5ec;color:#15803d}.aa-pill.wait{background:#fef7e0;color:#a16207}.aa-pill.err{background:#fdecea;color:#b42318}
+.aa-steps{margin:8px 0 0;padding-left:20px;font-size:13.5px}
+.aa-tools{gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.aa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;margin-top:8px}
+.aa-app{display:grid;grid-template-columns:auto 40px minmax(0,1fr);gap:8px;align-items:start;border:1px solid var(--line);border-radius:10px;padding:7px 9px}
+.aa-app.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.aa-app.gone{opacity:.6}
+.aa-app>input{margin-top:12px}
+.aa-mid{display:flex;flex-direction:column;gap:3px;min-width:0}
+.aa-name{font-weight:600;font-size:13.5px;border:1px solid transparent;background:transparent;padding:1px 4px;border-radius:6px}
+.aa-name:focus{border-color:var(--line2);background:var(--field)}
+.aa-pkg{font-size:11px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,monospace;padding-left:4px}
+.aa-small{width:108px;font-size:12px;padding:2px 5px;border:1px solid var(--line2);border-radius:6px;background:var(--field)}
+.aa-fav{border:0;background:transparent;font-size:16px;cursor:pointer;color:var(--mute);padding:0 3px}.aa-fav.on{color:#d97706}
+.aa-try{border:0;background:transparent;color:#1d4f91;font-size:12px;cursor:pointer;padding:0 3px}.aa-try:disabled{color:var(--mute);cursor:default}
+.aa-bar{justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+:root[data-dark] .aa-pill.ok{background:#14381f;color:#86efac}:root[data-dark] .aa-pill.wait{background:#3a3110;color:#fde68a}:root[data-dark] .aa-pill.err{background:#3b1512;color:#fecaca}
+:root[data-dark] .aa-new{background:#1b2a44;color:#8ab4f8}:root[data-dark] .aa-try{color:#8ab4f8}
 </style>
 </head>
 <body>
@@ -3490,6 +3513,174 @@ async function intgAction(fn, okText) {
     await loadAll(); dvIntg = keep; renderAll(); setMode("dev");
   });
 }
+// ---- Android apps: TVs over network debugging, their apps on the remote (one "<name> apps" media player each) ----
+const AA_KEY = "__android";
+let AA = { loaded: false, loading: false, devices: [], prefix: "self_control.main.", msg: {}, err: {}, busy: {}, open: {}, showSys: {}, top: "", topErr: false };
+async function aaApi(path, body) {
+  const r = await fetch("/api/android" + path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) } : { credentials: "same-origin" });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j.error || `HTTP ${r.status}`), { code: j.code });
+  return j;
+}
+async function aaLoad() {
+  if (AA.loading) return;
+  AA.loading = true;
+  try { const v = await aaApi(""); AA.devices = v.devices || []; AA.prefix = v.entityPrefix || AA.prefix; AA.loaded = true; }
+  catch (e) { AA.top = "Android apps couldn't be read: " + e.message; AA.topErr = true; AA.loaded = true; }
+  AA.loading = false;
+  if (mode === "dev") renderDevices();
+}
+const aaDev = (id) => AA.devices.find((d) => d.id === id);
+const aaPut = (d) => { const i = AA.devices.findIndex((x) => x.id === d.id); if (i >= 0) AA.devices[i] = { ...AA.devices[i], ...d }; else AA.devices.push(d); };
+function aaSay(id, text, err = false) { AA.msg[id] = text; AA.err[id] = err; }
+async function aaDo(id, label, fn) {
+  AA.busy[id] = label; aaSay(id, ""); renderDevices();
+  try { await fn(); } catch (e) { aaSay(id, e.message, true); }
+  AA.busy[id] = ""; renderDevices();
+}
+function aaListCard(q) {
+  const n = AA.devices.length, on = AA.devices.filter((d) => d.added).length;
+  return el("div", { class: "mcard" + (dvIntg === AA_KEY && !q ? " on" : ""), role: "button", tabindex: "0", on: { click: () => { dvIntg = AA_KEY; dvQ = ""; $("#dv-q").value = ""; renderDevices(); }, keydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); dvIntg = AA_KEY; renderDevices(); } } } },
+    el("span", {}, el("b", {}, "Android apps"), " ", el("span", { class: "aa-new" }, "new"), el("br"), el("span", { class: "k" }, n ? `${n} TV${n === 1 ? "" : "s"} · ${on} on the remote` : "Open apps on Android TVs")));
+}
+const AA_STATE = { ok: ["ok", "Connected"], waiting: ["wait", "Waiting for you on the TV"], connecting: ["wait", "Connecting…"], error: ["err", "Not connected"], off: ["off", "Not connected yet"] };
+function aaPanel() {
+  if (!AA.loaded) { aaLoad(); return el("section", { class: "card" }, el("p", { class: "hint" }, "Reading your Android devices…")); }
+  const name = el("input", { type: "text", placeholder: "Name, e.g. SHIELD Theater", "aria-label": "Name", maxlength: "40", style: "width:200px" });
+  const host = el("input", { type: "text", placeholder: "Address, e.g. 192.168.1.40", "aria-label": "Address", style: "width:190px" });
+  const add = el("button", { class: "btn primary", type: "button" }, "＋ Add device");
+  add.addEventListener("click", async () => {
+    const [h, port] = host.value.trim().split(":");
+    if (!h) { AA.top = "Type the TV's address (Settings › Network on the TV shows it)."; AA.topErr = true; renderDevices(); return; }
+    try {
+      const d = await aaApi("/add", { name: name.value.trim() || "Android TV", host: h, port: Number(port) || 5555 });
+      aaPut(d); AA.top = ""; AA.open[d.id] = false;
+      aaConnect(d.id);
+    } catch (e) { AA.top = "Not added: " + e.message; AA.topErr = true; renderDevices(); }
+  });
+  return el("div", { class: "aa" },
+    el("section", { class: "card" },
+      el("h2", {}, "Android apps"),
+      el("p", { class: "hint", style: "margin:4px 0 10px" }, "Finds the apps on your Android TV devices and puts the ones you pick on the remote: each TV becomes one device, ", el("b", {}, "<name> apps"), ", whose input list and ", el("b", {}, "Browse"), " screen are your apps. Picking one opens it on the TV, and its D-pad, Home, Back and play keys work too. It uses Android's ", el("b", {}, "network debugging"), ", built into this integration."),
+      el("div", { class: "row", style: "gap:8px;flex-wrap:wrap" }, name, host, add),
+      AA.top ? el("p", { class: AA.topErr ? "warn" : "status ok", role: "status", style: "margin:8px 0 0" }, AA.top) : "",
+      el("details", { class: "aa-how" }, el("summary", {}, "First time on a TV: turn on network debugging"),
+        el("ol", {}, el("li", {}, "On the TV: Settings › Device Preferences › About › ", el("b", {}, "Build"), ": press OK 7 times (\"You are now a developer\")."),
+          el("li", {}, "Settings › Device Preferences › ", el("b", {}, "Developer options"), ": turn on ", el("b", {}, "Network debugging"), " (on some Google TVs: ", el("b", {}, "USB debugging"), ")."),
+          el("li", {}, "Add the TV here. It asks ", el("b", {}, "Allow network debugging?"), ": tick ", el("b", {}, "Always allow from this computer"), " and press ", el("b", {}, "Allow"), "."))),
+    ),
+    ...AA.devices.map(aaCard),
+    AA.devices.length ? "" : el("p", { class: "hint", style: "margin:4px 2px" }, "No TVs yet."));
+}
+async function aaConnect(id) {
+  const d = aaDev(id); if (!d) return;
+  d.status = { state: "connecting" }; renderDevices();
+  const poll = setInterval(async () => { try { const v = await aaApi(""); const x = v.devices.find((y) => y.id === id); if (x && x.status?.state === "waiting" && aaDev(id)?.status?.state !== "waiting") { aaDev(id).status = x.status; renderDevices(); } } catch {} }, 1000);
+  try {
+    const v = await aaApi("/connect", { id }); aaPut(v);
+    if (!d.apps?.length) { AA.busy[id] = "Scanning…"; renderDevices(); const r = await aaApi("/scan", { id }); aaPut(r.device); AA.open[id] = true; aaSay(id, `${r.found} apps found${r.system ? ` (${r.system} system apps hidden)` : ""}. Pictures were matched by name from your library; pick the apps you want.`); }
+  } catch (e) { const x = aaDev(id); if (x) x.status = { state: "error", error: e.message }; aaSay(id, e.message, true); }
+  clearInterval(poll); AA.busy[id] = ""; renderDevices();
+}
+function aaCard(d) {
+  const st = d.status?.state || "off", [cls, label] = AA_STATE[st] || AA_STATE.off, busy = AA.busy[d.id];
+  const ent = AA.prefix + d.entity, onRemote = !!DEV[ent];
+  const head = el("div", { class: "aa-h" },
+    el("span", {}, el("b", {}, d.name), el("span", { class: "hint", style: "margin-left:8px" }, `${d.host}${d.port !== 5555 ? ":" + d.port : ""}${d.status?.model ? " · " + d.status.model : ""}`)),
+    el("span", { class: "row", style: "gap:6px;flex-wrap:wrap" }, el("span", { class: "aa-pill " + cls }, busy || label),
+      st !== "ok" ? el("button", { class: "btn small", type: "button", disabled: !!busy || st === "waiting" || st === "connecting", on: { click: () => aaConnect(d.id) } }, st === "error" ? "Try again" : "Connect") : "",
+      st === "ok" ? el("button", { class: "btn small", type: "button", disabled: !!busy, on: { click: () => aaDo(d.id, "Scanning…", async () => { const r = await aaApi("/scan", { id: d.id }); aaPut(r.device); AA.open[d.id] = true; aaSay(d.id, `${r.found} apps found.`); }) } }, "Scan again") : "",
+      d.apps?.length ? el("button", { class: "btn small", type: "button", on: { click: () => { AA.open[d.id] = !AA.open[d.id]; renderDevices(); } } }, AA.open[d.id] ? "Close" : d.added ? "Change apps" : "Pick apps") : "",
+      el("button", { class: "btn small danger", type: "button", disabled: !!busy, on: { click: (e) => {
+        const b = e.currentTarget;
+        if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = d.added ? "Click again: its apps stop working on the remote" : "Click again to remove"; return; }
+        aaDo(d.id, "Removing…", async () => { const v = await aaApi("/remove", { id: d.id }); AA.devices = v.devices || []; });
+      } } }, "Remove")));
+  const kids = [head];
+  if (st === "waiting") kids.push(el("ol", { class: "aa-steps" }, el("li", {}, "Look at the TV: ", el("b", {}, "Allow network debugging?")), el("li", {}, "Tick ", el("b", {}, "Always allow from this computer"), ", then press ", el("b", {}, "Allow"), "."), el("li", {}, "This page carries on by itself.")));
+  if (st === "error" && d.status?.error) kids.push(el("p", { class: "warn", style: "margin:8px 0 0" }, d.status.error));
+  const picked = (d.apps || []).filter((a) => a.on && !a.gone);
+  if (d.added && !AA.open[d.id]) kids.push(el("p", { class: "hint", style: "margin:6px 0 0" }, `On the remote as "${d.name} apps"${onRemote ? "" : " (reload to see it here)"}: ${picked.length} apps · ${picked.slice(0, 6).map((a) => a.name).join(", ")}${picked.length > 6 ? "…" : ""}`));
+  if (AA.open[d.id] && d.apps?.length) kids.push(...aaApps(d, onRemote));
+  if (AA.msg[d.id]) kids.push(el("p", { class: AA.err[d.id] ? "warn" : "status ok", role: "status", style: "margin:8px 0 0" }, AA.msg[d.id]));
+  return el("section", { class: "card aa-dev" }, ...kids);
+}
+function aaApps(d, onRemote) {
+  const showSys = !!AA.showSys[d.id], list = d.apps.filter((a) => showSys || !a.sys || a.on);
+  const folders = [...new Set(d.apps.map((a) => a.folder).filter(Boolean))];
+  const flId = "aa-fl-" + d.id, picId = "aa-pics";
+  const changed = () => { d.dirty = true; };
+  const appCard = (a) => {
+    const p = a.pic ? picOf("custom:" + a.pic) : null;
+    return el("div", { class: "aa-app" + (a.on ? " on" : "") + (a.gone ? " gone" : "") },
+      el("input", { type: "checkbox", checked: a.on, "aria-label": "Pick " + a.name, on: { change: (e) => { a.on = e.target.checked; changed(); renderDevices(); } } }),
+      el("span", { class: "aa-pic" }, p ? picThumb(p, 40) : el("span", { class: "thumb", style: "width:40px;height:40px;background:#374151;font-size:16px" }, a.name.slice(0, 1).toUpperCase())),
+      el("span", { class: "aa-mid" },
+        el("input", { class: "aa-name", value: a.name, "aria-label": "Name of " + a.pkg, maxlength: "40", on: { change: (e) => { a.name = e.target.value.trim() || a.name; changed(); } } }),
+        el("span", { class: "aa-pkg", title: a.pkg }, a.gone ? "not on the TV any more · " + a.pkg : a.pkg),
+        el("span", { class: "row", style: "gap:4px;flex-wrap:wrap" },
+          el("input", { class: "aa-small", list: picId, value: a.pic || "", placeholder: "picture…", "aria-label": "Picture of " + a.name, title: "A picture from your library (type to search)", on: { change: (e) => { a.pic = e.target.value.trim(); changed(); renderDevices(); } } }),
+          el("input", { class: "aa-small", list: flId, value: a.folder || "", placeholder: "folder…", "aria-label": "Folder of " + a.name, title: "Apps with the same folder are grouped in Browse", on: { change: (e) => { a.folder = e.target.value.trim(); changed(); } } }),
+          el("button", { class: "aa-fav" + (a.fav ? " on" : ""), type: "button", title: a.fav ? "In Favorites" : "Add to Favorites", "aria-pressed": String(!!a.fav), "aria-label": "Favorite " + a.name, on: { click: () => { a.fav = !a.fav; changed(); renderDevices(); } } }, a.fav ? "★" : "☆"),
+          el("button", { class: "aa-try", type: "button", disabled: a.gone || d.status?.state !== "ok", on: { click: () => aaDo(d.id, "Opening…", async () => { await aaApi("/launch", { id: d.id, pkg: a.pkg }); aaSay(d.id, `${a.name} opened on ${d.name}.`); }) } }, "Try it"))));
+  };
+  const save = async (publish) => {
+    await aaDo(d.id, publish ? "Adding…" : "Saving…", async () => {
+      const v = await aaApi("/apps", { id: d.id, apps: d.apps.map((a) => ({ pkg: a.pkg, on: a.on, fav: a.fav, name: a.name, folder: a.folder || "", pic: a.pic || "" })) });
+      aaPut(v); d.dirty = false;
+      if (!publish) { aaSay(d.id, d.added ? "Saved. The remote has the new list." : "Saved."); return; }
+      const r = await aaApi("/publish", { id: d.id }); aaPut(r.device); AA.open[d.id] = false;
+      aaSay(d.id, `"${d.name} apps" is on the remote with ${r.device.apps.filter((x) => x.on).length} apps. Put it on a page as a media widget (its Browse lists your apps), or use "select source · <app>" on a button.`);
+      if (!DEV[r.entity] && !remoteRefuses()) { const keep = AA_KEY; await busy(async () => { await loadAll(); dvIntg = keep; renderAll(); setMode("dev"); }); }
+    });
+  };
+  const acts = S.activities.filter((x) => x.editable);
+  const actSel = el("select", { "aria-label": "Activity for the apps page" }, ...acts.map((x) => el("option", { value: x.id }, x.name)));
+  return [
+    el("datalist", { id: picId }, ...PICS.filter((x) => String(x.id).startsWith("custom:") && !isFrame(x.file || "")).map((x) => el("option", { value: x.file || String(x.id).slice(7) }))),
+    el("datalist", { id: flId }, ...folders.map((f) => el("option", { value: f }))),
+    el("div", { class: "row aa-tools" },
+      el("button", { class: "btn small", type: "button", on: { click: () => { d.apps.forEach((a) => { if (!a.sys && !a.gone) a.on = true; }); changed(); renderDevices(); } } }, "Pick all"),
+      el("button", { class: "btn small", type: "button", on: { click: () => { d.apps.forEach((a) => (a.on = false)); changed(); renderDevices(); } } }, "Pick none"),
+      el("label", { class: "hint", style: "display:flex;gap:4px;align-items:center;margin:0" }, el("input", { type: "checkbox", checked: showSys, on: { change: (e) => { AA.showSys[d.id] = e.target.checked; renderDevices(); } } }), "Show system apps"),
+      el("span", { class: "hint", style: "margin:0 0 0 auto" }, `${d.apps.filter((a) => a.on).length} picked · ★ = Favorites · folders group them in Browse`)),
+    el("div", { class: "aa-grid" }, ...list.map(appCard)),
+    el("div", { class: "row aa-bar" },
+      el("span", { class: "row", style: "gap:6px" }, "Make an apps page in", actSel,
+        el("button", { class: "btn small", type: "button", disabled: !onRemote || !acts.length, title: onRemote ? "A new page with one button per picked app" : "Add it to the remote first", on: { click: () => aaMakePage(d, actSel.value) } }, "Make it")),
+      el("span", { class: "row", style: "gap:6px" },
+        d.added ? el("button", { class: "btn", type: "button", disabled: !!AA.busy[d.id], on: { click: () => save(false) } }, "Save") : "",
+        el("button", { class: "btn primary", type: "button", disabled: !!AA.busy[d.id] || !d.apps.some((a) => a.on), on: { click: () => save(true) } }, d.added ? "Save and update the remote" : "Add to the remote")))
+  ];
+}
+/** A new page in an activity: one button per picked app (its picture, or its name), each opening the app. */
+function aaMakePage(d, forAct) {
+  const a = S.activities.find((x) => x.id === forAct), ent = AA.prefix + d.entity;
+  if (!a || !DEV[ent]) return;
+  const apps = d.apps.filter((x) => x.on && !x.gone);
+  // the apps widget on top (what's open; tap it, then Browse, for every app), one button per app below
+  const w = GRIDDEF.w, top = 2, h = Math.max(GRIDDEF.h, top + Math.ceil(apps.length / w));
+  const pg = { id: nid("new_p"), name: `${d.name} apps`.slice(0, 30), grid: { w, h: Math.min(h, GRIDMAX.h) }, items: [], isNew: true };
+  pg.items.push({ id: nid("i"), type: "media_player", entity: ent, icon: null, text: "", loc: { x: 0, y: 0 }, size: { w, h: top }, cmd: null });
+  apps.slice(0, w * (pg.grid.h - top)).forEach((x, i) => {
+    const cmd = keyOf({ entity_id: ent, cmd_id: "media_player.select_source", params: { source: x.name } });
+    const pic = x.pic && PIC["custom:" + x.pic] ? "custom:" + x.pic : null;
+    pg.items.push({ id: nid("i"), type: pic ? "icon" : "text", icon: pic, text: pic ? "" : x.name.slice(0, 50), loc: { x: i % w, y: top + Math.floor(i / w) }, size: { w: 1, h: 1 }, cmd });
+  });
+  a.pages.push(pg);
+  if (!a.devices.includes(ent)) a.devices.push(ent);
+  log(`Page "${pg.name}" with the apps widget and ${pg.items.length - 1} app buttons added to ${a.name}`);
+  const nb = pg.items.length - 1;
+  const note = `Page "${pg.name}" added to ${a.name}: the apps widget and ${nb} app buttons${apps.length > nb ? ` (${apps.length - nb} more are in the widget's Browse)` : ""}. Move or resize them as you like, then press Save to remote.`;
+  aaSay(d.id, note);
+  // show the new page: Activities › Interface, that activity and page
+  setSub("pages"); setMode("pages");
+  actId = a.id; pageId = pg.id; selId = null;
+  const as = $("#act"); if (as) as.value = a.id;
+  dirty(); renderAll();
+  msg(note, "ok");
+}
+
 function renderDevices() {
   const q = dvQ.trim().toLowerCase();
   const cur = INTG.find((x) => x.id === dvIntg);
@@ -3500,6 +3691,7 @@ function renderDevices() {
   $("#dv-sum").textContent = `${INTG.length} integrations · ${all.filter((e) => e.added).length} devices on the remote`;
   $("#dv-intgs").replaceChildren(...INTG.map((i) => el("div", { class: "mcard" + (i.id === dvIntg && !q ? " on" : ""), role: "button", tabindex: "0", on: { click: () => { dvMsg = ""; dvIntg = i.id; dvQ = ""; $("#dv-q").value = ""; dvPick.clear(); dvRemPick.clear(); dvEnt = null; renderDevices(); } } },
     el("span", {}, el("b", {}, i.name), el("br"), el("span", { class: "k" }, el("span", { class: "stdot " + i.status }), STATUS_TXT[i.status], ` · ${entsOf(i).filter((e) => e.added).length} added`, i.ents && i.ents.some((e) => !e.added) ? el("b", { style: "color:var(--acc)" }, ` · ${i.ents.filter((e) => !e.added).length} to add`) : "")))));
+  $("#dv-intgs").append(aaListCard(q));
   const row = (e, pickSet, showIntg) => {
     const uses = e.added ? entUses(e.id).length : 0;
     return el("div", { class: "erow" + (dvEnt === e.id ? " on" : ""), on: { click: () => { dvEnt = e.id; renderDevices(); } } },
@@ -3514,6 +3706,8 @@ function renderDevices() {
     const hits = all.filter((e) => (e.name + " " + e.type + " " + e.intg.name).toLowerCase().includes(q));
     main.replaceChildren(dvMsg ? el("p", { class: dvErr ? "warn" : "status ok", id: "dv-status", role: "status", style: "margin:0" }, dvMsg) : "", el("section", { class: "card" }, el("h2", {}, `Search: ${hits.length} found`), el("p", { class: "hint", style: "margin:4px 0 8px" }, "Devices on the remote, and what the integrations you opened offer."),
       el("div", { class: "elist" }, ...hits.map((e) => row(e, e.added ? dvRemPick : dvPick, true))), hits.length ? "" : el("p", { class: "hint" }, "Nothing matches.")));
+  } else if (dvIntg === AA_KEY) {
+    main.replaceChildren(aaPanel());
   } else if (!cur) {
     main.replaceChildren(el("section", { class: "card" }, el("p", { class: "hint" }, "No integrations on the remote.")));
   } else {
@@ -3537,7 +3731,8 @@ function renderDevices() {
             el("button", { class: "btn small", type: "button", title: "Look again for devices the integration offers", on: { click: async () => { i.ents = null; await loadIntgEnts(i, true); renderDevices(); } } }, "Look for new devices"),
             el("a", { class: "btn small", href: configurator, target: "_blank", rel: "noopener", title: "An integration's setup (address, login, PIN) runs in the remote's web configurator" }, "Set up again ↗"))),
         i.status === "bad" ? el("p", { class: "warn", style: "margin-top:10px" }, `${i.name} isn't answering. Its ${added.length} device${added.length === 1 ? "" : "s"} can't be controlled until it reconnects; buttons and sequences using them will fail (see "When a command fails" on Activities › Start/Stop).`) : ""),
-      appLinksCard(i),
+      ANDROID_DRIVERS.test(i.driver) ? el("section", { class: "card" }, el("h2", {}, "Opening apps"), el("p", { class: "hint", style: "margin:4px 0 8px" }, "App links stopped working with Android's latest updates. ", el("b", {}, "Android apps"), " (in the list on the left) finds the apps on your TVs over network debugging and puts them on the remote, ready to open."),
+        el("button", { class: "btn small", type: "button", on: { click: () => { dvIntg = AA_KEY; renderDevices(); } } }, "Go to Android apps →")) : "",
       el("section", { class: "card" },
         el("div", { class: "ic" }, el("h2", {}, `On the remote (${added.length})`), remBtn),
         el("p", { class: "hint", style: "margin:4px 0 8px" }, "Tick to remove. A device that's used somewhere asks again."),
@@ -3562,72 +3757,8 @@ function renderDevices() {
     uses.length ? el("ul", { class: "uses" }, ...uses.map((u) => el("li", {}, u))) : el("p", { class: "hint" }, e.added ? "Not used anywhere yet." : "Add it first."),
     e.added ? el("div", { class: "row", style: "margin-top:12px" }, el("button", { class: "btn small", type: "button", on: { click: () => setMode("pages") } }, "Put it on a page →")) : "");
 }
-// ---- App links section (Android TV integrations, or any that already has links) ---------------------------
+// Android TV integrations: their old "app links" no longer work (see Android apps)
 const ANDROID_DRIVERS = /androidtv|android_tv|googletv|google_tv/i;
-let alPreview = null; // { intg, links, errors, file }
-function appLinksCard(i) {
-  const links = APPLINKS[i.id] || [];
-  if (!ANDROID_DRIVERS.test(i.driver) && !links.length) return "";
-  const save = async (next, okText) => {
-    const all = { ...APPLINKS, [i.id]: next };
-    if (!next.length) delete all[i.id];
-    try {
-      const r = await fetch("/api/editor/applinks", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ links: all }) });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-      APPLINKS = j.links || all;
-      dvMsg = okText; dvErr = false;
-      // buttons already on the remote that use these links were read before the names were known:
-      // read everything again so they show "select source · <name>" too, with no second entry
-      if (!remoteRefuses()) {
-        const keep = dvIntg, msg = dvMsg;
-        alPreview = null;
-        await busy(async () => { await loadAll(); dvIntg = keep; renderAll(); setMode("dev"); });
-        dvMsg = msg; dvErr = false; renderDevices(); return;
-      }
-      for (const d of DEVICES.filter((x) => x.integration === i.id)) applyLinks(d);
-      dvMsg = okText + " Buttons already on the remote show the app names after you save or undo your other changes and reload.";
-    } catch (e) { dvMsg = "App links not saved: " + e.message; dvErr = true; }
-    alPreview = null; renderDevices();
-  };
-  const file = el("input", { type: "file", accept: ".txt,text/plain", class: "hidden", on: { change: async (e) => {
-    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
-    const r = parseAppLinks(await f.text());
-    alPreview = { intg: i.id, file: f.name, ...r }; renderDevices();
-  } } });
-  const prev = alPreview && alPreview.intg === i.id ? alPreview : null;
-  const byCmd = new Map(links.map((l) => [l.cmd, l]));
-  const fresh = prev ? prev.links.filter((l) => !byCmd.has(l.cmd)).length : 0;
-  const renamed = prev ? prev.links.filter((l) => byCmd.has(l.cmd) && byCmd.get(l.cmd).name !== l.name).length : 0;
-  // apps every device of this integration already has: not added a second time
-  const devs = DEVICES.filter((x) => x.integration === i.id && x.srcCmd);
-  const already = (l) => devs.length > 0 && devs.every((d) => linkOnDevice(d, l));
-  const devNames = devs.map((d) => d.name).join(", ") || i.name;
-  const prevAlready = prev ? prev.links.filter(already) : [];
-  const download = () => {
-    const blob = new Blob([links.map((l) => `${l.cmd} = ${l.name}`).join("\n") + "\n"], { type: "text/plain" });
-    const a = el("a", { href: URL.createObjectURL(blob), download: `${i.name.replace(/[^A-Za-z0-9]+/g, "_")}_apps.txt` }); document.body.append(a); a.click(); a.remove();
-  };
-  return el("section", { class: "card", id: "applinks" },
-    el("div", { class: "ic" }, el("h2", {}, `App links (${links.length})`),
-      el("div", { class: "row", style: "gap:6px" },
-        el("label", { class: "btn small primary" }, "Load a text file…", file),
-        links.length ? el("button", { class: "btn small", type: "button", on: { click: download } }, "Download as text file") : "",
-        links.length ? el("button", { class: "btn small danger", type: "button", on: { click: (e) => { const b = e.currentTarget; if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "Click again to remove all"; return; } save([], "All app links removed."); } } }, "Remove all") : "")),
-    el("p", { class: "hint", style: "margin:4px 0 8px" }, `Apps ${i.name} can open that aren't in its input list. One per line: `, el("code", {}, "https://www.paramountplus.com/ = Paramount+"),
-      ". Use the app's own deep link: since a Google Play Store change, market://launch?id=… links no longer open apps. Find an app's link with adb shell cmd package dump <package> (Schemes), or in the Home Assistant deep-link guide",
-      `. They show by name in What it does, start/off steps and the guided setup ("select source · Tivimate"). Kept by this integration, on the remote (and in its Backup).`),
-    prev ? el("div", { class: "cp-custom", style: "border:1px solid var(--line);border-radius:8px" },
-      el("span", { style: "flex-basis:100%" }, el("b", {}, prev.file), `: ${prev.links.length} app link(s) found${links.length ? ` · ${fresh} new · ${renamed} renamed` : ""}${prev.errors.length ? ` · ${prev.errors.length} line(s) skipped` : ""}.`),
-      prev.errors.length ? el("span", { class: "hint", style: "flex-basis:100%" }, prev.errors.slice(0, 5).join("; ")) : "",
-      prevAlready.length ? el("span", { class: "hint", style: "flex-basis:100%" }, `${prevAlready.length} already on ${devNames}, skipped (only its own entry shows): ${prevAlready.map((l) => l.name).join(", ")}.`) : "",
-      links.length ? el("button", { class: "btn small primary", type: "button", disabled: !prev.links.length, on: { click: () => { const m = new Map(links.map((l) => [l.cmd, { ...l }])); for (const l of prev.links) m.set(l.cmd, l); save([...m.values()].slice(0, 300), `${fresh} app link(s) added, ${renamed} renamed.`); } } }, "Add to the list") : "",
-      el("button", { class: "btn small" + (links.length ? "" : " primary"), type: "button", disabled: !prev.links.length, on: { click: () => save(prev.links.slice(0, 300), `${Math.min(300, prev.links.length)} app link(s) saved.`) } }, links.length ? "Replace the list" : "Use these"),
-      el("button", { class: "btn small", type: "button", on: { click: () => { alPreview = null; renderDevices(); } } }, "Cancel")) : "",
-    links.length ? el("div", { class: "elist", style: "max-height:260px;overflow:auto;margin-top:8px" }, ...links.map((l, k) => el("div", { class: "erow", style: "cursor:default" },
-      el("span", {}, el("b", {}, l.name), already(l) ? el("span", { class: "hint" }, ` · already on ${devNames}, skipped`) : ""), el("span", { class: "t", style: "flex:1;min-width:0;overflow-wrap:anywhere;text-align:left" }, l.cmd),
-      el("button", { class: "btn small danger", type: "button", "aria-label": "Remove " + l.name, on: { click: () => save(links.filter((_, j) => j !== k), `${l.name} removed.`) } }, "✕")))) : el("p", { class: "hint" }, "None yet."));
-}
 $("#dv-q").addEventListener("input", (e) => { dvQ = e.target.value; renderDevices(); });
 // "+ Add an integration": Integration Manager's page when it's installed, else the web configurator's integrations
 const MANAGER_DRIVER = "intg_manager_driver", MANAGER_PORT = 9999;

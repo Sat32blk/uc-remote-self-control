@@ -41,6 +41,7 @@ export const activities = {
 let pageSeq = 100;
 export const pageOrders = []; // PATCH page_order calls
 export const icons = {}; // uploaded icon id -> raw body
+export const ownAdded = []; // ids added with POST /intg/instances/self_control.main/entities
 export const groups = [
   { group_id: "g_av", name: { en: "Living room AV" }, activity_ids: [], options: { turn_off_unused_entities: "run_off_sequence" } },
   { group_id: "g_other", name: { en: "Bedroom" }, activity_ids: ["uc.main.ro"], options: { turn_off_unused_entities: "always" } }
@@ -155,6 +156,18 @@ export function start(port) {
         if (icons[id]) return send(422, { message: "exists" });
         icons[id] = body;
         return send(201, [{ type: "Icon", id, size: body.length }]);
+      }
+      if (/^\/api\/resources\/Icon(\?|$)/.test(url) && req.method === "GET") {
+        const q = new URLSearchParams(url.split("?")[1] || ""), limit = Number(q.get("limit") || 10), page = Number(q.get("page") || 1);
+        return send(200, Object.keys(icons).slice((page - 1) * limit, page * limit).map((id) => ({ type: "Icon", id })));
+      }
+      // this integration's own entities: what it offers (filter=NEW) and adding one to the remote
+      const own = /^\/api\/intg\/instances\/self_control\.main\/entities(\?.*)?$/.exec(url);
+      if (own && req.method === "GET") return send(200, []);
+      if (own && req.method === "POST") {
+        let ids = []; try { ids = JSON.parse(body); } catch {}
+        for (const id of ids) { selfEntities[id] = id; ownAdded.push(id); }
+        return send(200, {});
       }
       const ri = /^\/api\/resources\/Icon\/([^/?]+)$/.exec(url);
       if (ri && req.method === "GET") {

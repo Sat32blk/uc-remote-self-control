@@ -17,7 +17,7 @@ Everything runs on the remote and is set up in a browser page the integration se
 
 - [Features](#features)
   - [Page Editor](#page-editor): [activities and pages](#activities-and-pages) · [start and stop, with a guided setup](#start-and-stop-with-a-guided-setup) · [activity groups](#activity-groups) · [home screen](#home-screen) · [macros](#macros) · [devices, integrations and app links](#devices-integrations-and-app-links) · [themes](#themes) · [safe saving](#safe-saving)
-  - [Smart Controls](#smart-controls) · [State icons](#state-icons) · [Sliders, quick menus and level pictures](#sliders-quick-menus-and-level-pictures) · [Controls](#controls) · [Return ↩ and page jumps](#return--and-page-jumps) · [Smart Launchers](#smart-launchers) · [Displays](#displays) · [Auto Widgets](#auto-widgets) · [Guided tours](#guided-tours) · [Statistics](#statistics) · [Image Fusionner tiles](#image-fusionner-tiles) · [The remote's own settings](#the-remotes-own-settings) · [Device states](#device-states) · [Backup, restore and Integration Manager](#backup-restore-and-integration-manager)
+  - [Smart Controls](#smart-controls) · [State icons](#state-icons) · [Sliders, quick menus and level pictures](#sliders-quick-menus-and-level-pictures) · [Controls](#controls) · [Return ↩ and page jumps](#return--and-page-jumps) · [Smart Launchers](#smart-launchers) · [Displays](#displays) · [Auto Widgets](#auto-widgets) · [Android apps](#android-apps) · [Guided tours](#guided-tours) · [Statistics](#statistics) · [Image Fusionner tiles](#image-fusionner-tiles) · [The remote's own settings](#the-remotes-own-settings) · [Device states](#device-states) · [Backup, restore and Integration Manager](#backup-restore-and-integration-manager)
 - [Install](#install)
 - [The builder](#the-builder) · [Entities](#entities) · [Rules reference](#rules-reference)
 - [Security](#security) · [Configuration](#configuration) · [Logs and removal](#logs-and-removal) · [Development](#development) · [Changes](#changes) · [Support](#support)
@@ -78,7 +78,7 @@ Steps with a check that each device answers, duplicate, delete (it says where th
 
 Per integration: what's on the remote and what it offers to add (**Add** adds it at once), remove, rename, enable / disable and reconnect. **+ Add an integration** opens [Integration Manager](https://github.com/JackJPowell/uc-intg-manager) if you have it, otherwise the web configurator.
 
-**App links** (Android TV): load a text file with one `market://launch?id=… = Name` per line. The apps show by name in What it does, the sequences and the guided setup ("select source · Tivimate"), and buttons that already use a link show its name. Apps the device already lists aren't added twice. Since a Google Play Store change, `market://launch?id=…` links no longer open apps on Android TV; put the app's own deep link in the file instead (for example `https://www.paramountplus.com/ = Paramount+`). You can find an app's deep link with `adb shell cmd package dump <package>` (under *Schemes*), or in the [Home Assistant deep-link guide](https://community.home-assistant.io/t/android-tv-remote-app-links-deep-linking-guide/567921).
+**Android TV apps:** an Android TV integration shows **Go to Android apps →**, which opens [Android apps](#android-apps) (open apps with a picture each, over network debugging). Since a Google Play Store change, `market://launch?id=…` app links no longer open apps on Android TV, so the old App links card is gone; names from links you loaded earlier still show in What it does and are kept in backups.
 
 ![Devices and integrations, with app links](docs/images/page-editor-devices.png)
 
@@ -150,6 +150,18 @@ Widgets on an activity's page that change by themselves, set up in **Icons & Sli
 **Pop-ups:** a branch can be shown **while it's true**, or only **for a few seconds** (1–60): when its conditions become true (*the Roku starts playing → its media widget for 8 s*), or each time a value changes while they're true (*the receiver's input changes → its input select for 5 s, and a new change starts the 5 s again*). Then it goes away again: a spot gives the place back to your icons, a Smart widget goes back to the branches below.
 
 Saving does the setup on the remote for you: Smart widgets are added to the remote and the activity and placed on their page, and the devices a spot shows are added to the activity. Each widget's card shows a preview of the page (with the widgets above it, so overlaps are visible), which branch is in use now, a ✓ / ✗ per condition, and the rule in words; the Device states panel marks the values your conditions check.
+
+### Android apps
+
+Open apps on an Android TV (an NVIDIA SHIELD, a Chromecast with Google TV, a Sony or Philips TV…) straight from the remote, with a picture for each one. Android no longer lets other devices open apps by a link, so this integration talks to the TV the way a developer's computer does, over **network debugging** (adb over the network). It has its own small adb client built in; nothing else needs installing.
+
+1. On the TV: **Settings → Device Preferences → About**, press **Build** 7 times to turn on Developer options; then **Developer options → Network debugging** (on some TVs *ADB debugging* or *USB debugging* plus *ADB over network*) **on**.
+2. In the builder: **Page Editor → Devices & integrations → Android apps → ＋ Add a TV**, with the TV's address. The TV shows **Allow network debugging?**: tick *Always allow from this computer* and press **Allow**. This is asked only once.
+3. **Scan** lists the apps the TV's home screen can open (system apps on request). Pick the ones you want, rename them, give them a picture from the remote's library, put them in **folders**, mark **★ favorites**, and **Try it** to open one on the TV.
+4. **Add to the remote** adds one media player entity per TV (*SHIELD Theater apps*). Its input list is your apps, its widget shows the app in front with its picture, and **Browse** opens a list of your apps with their pictures: Favorites, Recently used, All apps and your folders, with search. The D-pad, back, home and play/pause go to the TV too.
+5. **Make an apps page** puts that media widget and a button per app on a new page of an activity.
+
+The TV must have a fixed address (reserve it in your router). Wireless debugging with a pairing code (Android 11+ phones) isn't supported; use Network debugging. Pictures in Browse are served by the integration from the hub's address (`UC_SELF_PUBLIC_URL` overrides it). The TV's key stays with the integration (`android_key.json`); Settings on the TV → *Revoke debugging authorizations* removes it.
 
 ### Guided tours
 
@@ -324,7 +336,7 @@ For lists, `option` can also be `next` / `previous` (wraps around) or `up` / `do
 | `UC_SELF_RETURN_POLL_MS` | `2000` | How often activity states (↩ button), state-icon devices, slider values and menu conditions are read |
 | `UC_SELF_SLIDER_HOLD_MS` | `3000` | After you move a slider, device reports are ignored this long so a slow device can't jump it back |
 
-Files in the integration's config folder: `self_control.json` (address + API key), `smart_rules.json` (your rules; absent = defaults), `smart_vars.json` (remembered values), `return.json` (↩ settings and activity history), `state_icons.json` (state icons and each button's default look), `sliders_menus.json` (sliders, quick menus and their last values), `controls.json` (Controls), `states_seen.json` (values seen in the device states panel). The Page Editor adds `app_links.json` (Android TV app links) and keeps its remote backups on the remote (the newest two). The builder's **Backup** saves all of these except the login and the caches.
+Files in the integration's config folder: `self_control.json` (address + API key), `smart_rules.json` (your rules; absent = defaults), `smart_vars.json` (remembered values), `return.json` (↩ settings and activity history), `state_icons.json` (state icons and each button's default look), `sliders_menus.json` (sliders, quick menus and their last values), `controls.json` (Controls), `states_seen.json` (values seen in the device states panel). The Page Editor adds `app_links.json` (Android TV app links, from before 1.5.0); Android apps keeps `android_apps.json` (TVs and your app choices) and `android_key.json` (the integration's adb key, never in backups) and keeps its remote backups on the remote (the newest two). The builder's **Backup** saves all of these except the login and the caches.
 
 Each file is saved safely: the integration writes a new copy and then swaps it in, so a file is never half-written if the hub or remote loses power. The version before the last save is kept as `<name>.bak`, and a file that can't be read is loaded from its `.bak` instead (the log says so). If neither works, the damaged file is kept as `<name>.damaged-<time>` before anything new is saved.
 
@@ -357,6 +369,8 @@ src/bin/states.js                       device states panel (live values, values
 src/bin/coreevents.js                   the remote's own events (which activity was opened, every device change)
 src/bin/backup.js                       backup and restore
 src/bin/pages.js                        page jumps and start pages
+src/bin/adb.js                          small adb client (network debugging: key, Allow prompt, shell commands)
+src/bin/androidapps.js                  Android apps: scan, choices, launching, the apps media player and its Browse
 src/bin/default-rules.json              default Smart Controls (none)
 examples/                               example rules
 test/                                   fake Core API + Integration-API test client
@@ -381,6 +395,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.5.0:** **[Android apps](#android-apps)** (Page Editor › Devices & integrations): a built-in adb client that connects to an Android TV over network debugging, scans its apps, and adds one **apps media player** per TV with your picked apps as inputs, their pictures, the app in front on its widget, and a **Browse** screen with Favorites, Recently used, All apps, your folders and search. **Make an apps page** puts the widget and a button per app on an activity page. The old App links card is gone (Android stopped opening apps by link); Android TV integrations point to Android apps instead.
 - **1.4.10:** Page Editor › Entities: entities that aren't on the remote any more are shown in red with **Clean up**, which removes them from the activity together with the page items, keys, touch slider and Start/Stop steps that still use them.
 - **1.4.9:** Page Editor: a new **Activities → Entities** view lists what an activity includes, grouped by kind; **＋ Add entity** adds any device, sensor or light (also ones that are **not added yet** to the remote), and **✕** takes one out. Builder: every device drop-down lists **Not added yet** last; picking one adds it to the remote and picks it. **Reload devices** now asks your integrations for new entities, redraws every section and says what changed.
 - **1.4.8:** Page Editor: the **touch slider** picker now also lists devices that aren't in the activity yet and devices that are **not added yet** to the remote (for example a new slider or the Control entity of this integration); picking one adds it. Clean-up: unused code and styles removed, shared helpers in one place.
