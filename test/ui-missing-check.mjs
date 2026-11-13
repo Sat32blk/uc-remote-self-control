@@ -1,0 +1,62 @@
+// Browser check (not part of npm test): cleaning up an entity the remote no longer has.
+import fs from "node:fs"; import os from "node:os"; import path from "node:path";
+import { createRequire } from "node:module";
+const { chromium } = createRequire(import.meta.url)(process.env.PLAYWRIGHT || "playwright");
+import { startWebServer } from "../src/bin/web.js";
+import { CoreClient } from "../src/bin/core.js";
+import { startMockEditorCore, calls } from "./mock-editor-core.js";
+import * as MOCK from "./mock-editor-core.js";
+const mock = await startMockEditorCore(0);
+const addr = "127.0.0.1:" + mock.address().port;
+const core = new CoreClient(addr, { apiKey: "k" });
+const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "sc-ui-"));
+const port = 21500;
+startWebServer({ port, pagePath: new URL("../src/bin/web/builder.html", import.meta.url).pathname, editorPath: new URL("../src/bin/web/editor.html", import.meta.url).pathname, dataDir,
+  getCore: () => core, makePinClient: (pin) => new CoreClient(addr, { pin }), smart: () => null, controls: () => ({}), settings: {}, loadRulesText: () => ({ text: "{}" }), defaultRulesText: () => "{}",
+  saveRules: () => {}, validate: () => [], stateIcons: () => ({}), validateIcons: () => ({ errors: [] }), extras: () => ({}), controlsApi: {}, deviceStates: () => ({}), validateExtras: () => ({ errors: [] }),
+  returnSettings: async () => ({}), saveReturn: async () => [], onScreen: () => "uc.main.watch", version: "test", log: () => {}, warn: () => {} });
+await new Promise((r) => setTimeout(r, 300));
+const base = `http://127.0.0.1:${port}`;
+const login = await fetch(base + "/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: "1234" }) });
+const [name, value] = (login.headers.get("set-cookie") || "").split(";")[0].split("=");
+const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 1400, height: 1000 } });
+await ctx.addCookies([{ name, value, url: base }]);
+const pg = await ctx.newPage(); const errs = []; pg.on("pageerror", (e) => errs.push(e.message));
+// an entity the remote no longer has, still used in Watch Roku (page item, key, Start step)
+const OLD = "hass.main.light.old_porch";
+const W = MOCK.S.activities["uc.main.watch"];
+W.entity_ids.push(OLD);
+W.pages[0].items.push({ type: "text", text: "Porch", location: { x: 0, y: 4 }, size: { width: 1, height: 1 }, command: { entity_id: OLD, cmd_id: "light.toggle" } });
+W.buttons.push({ button: "CHANNEL_UP", short_press: { entity_id: OLD, cmd_id: "light.toggle" } });
+W.sequences.on.push({ type: "command", command: { entity_id: OLD, cmd_id: "light.on" } });
+await pg.addInitScript(() => { try { localStorage.setItem("scb_tour_offer", JSON.stringify({ off: true, seen: {} })); } catch {} });
+let fails = 0; const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fails++; };
+const SH = process.env.SHOTS;
+pg.on("dialog", async (d) => { console.log("DIALOG:", d.message().replace(/\n/g, " | ")); await d.accept(); });
+await pg.goto(base + process.env.EDITOR_PATH); await pg.waitForSelector("button.slider", { timeout: 15000 });
+await pg.selectOption("#act", "uc.main.watch"); await pg.waitForTimeout(300);
+await pg.click("#mode-pages"); await pg.click("#sub-ents");
+await pg.waitForSelector("#ent-card .entchip.missing");
+const chip = await pg.$eval("#ent-card .entchip.missing", (c) => c.textContent + " || " + c.title);
+console.log(chip);
+ok(/missing from the remote · in use/.test(chip), "missing entity shown as missing and in use");
+ok(await pg.$(".entmiss"), "note at the top with Clean up");
+await pg.screenshot({ path: SH + "/m1.png" });
+await pg.click("#ent-card .entchip.missing button.clean");
+await pg.waitForFunction(() => document.querySelector("#ent-card")?.textContent.includes("taken out of"), null, { timeout: 5000 });
+ok(!(await pg.$("#ent-card .entchip.missing")), "after Clean up it's no longer listed as missing");
+ok(await pg.$("#ent-card .entchip.gone"), "shown as taken out on save");
+await pg.screenshot({ path: SH + "/m2.png" });
+calls.length = 0;
+await pg.click("#save"); await pg.waitForTimeout(3000);
+const patches = calls.filter((c) => c.m === "PATCH" && c.p.startsWith("/activities/uc.main.watch"));
+const opt = patches.find((c) => c.b?.options)?.b.options || {};
+const pg1 = patches.find((c) => /ui\/pages\/pw1$/.test(c.p))?.b;
+console.log(JSON.stringify({ entity_ids: opt.entity_ids, on: opt.sequences?.on?.map((x) => x.command?.entity_id || x.type), keys: opt.button_mapping?.map((b) => b.button), page: pg1?.items?.map((i) => i.text || i.type) }));
+ok(opt.entity_ids && !opt.entity_ids.includes(OLD), "saved: not in the activity");
+ok(opt.sequences && !JSON.stringify(opt.sequences).includes(OLD), "saved: its Start step is gone");
+ok(!MOCK.S.activities["uc.main.watch"].buttons.some((b) => JSON.stringify(b).includes(OLD)), "saved: its key is cleared");
+ok(pg1 && !JSON.stringify(pg1).includes(OLD), "saved: its page item is gone");
+ok(!JSON.stringify(MOCK.S.activities["uc.main.watch"]).includes(OLD), "the remote has nothing left of it");
+ok(!errs.length, "no page errors " + errs.join("; "));
+await b.close(); process.exit(fails ? 1 : 0);
