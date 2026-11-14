@@ -153,13 +153,13 @@ Saving does the setup on the remote for you: Smart widgets are added to the remo
 
 ### Android apps
 
-Open apps on an Android TV (an NVIDIA SHIELD, a Chromecast with Google TV, a Sony or Philips TV…) straight from the remote, with a picture for each one. Android no longer lets other devices open apps by a link, so this integration talks to the TV the way a developer's computer does, over **network debugging** (adb over the network). It has its own small adb client built in; nothing else needs installing.
+Open apps on an Android TV (an NVIDIA SHIELD, a Chromecast with Google TV, a Sony or Philips TV…) straight from the remote. Android no longer lets other devices open apps by a link, so this integration talks to the TV the way a developer's computer does, over **network debugging** (adb over the network). It has its own small adb client built in; nothing else needs installing.
 
 1. On the TV: **Settings → Device Preferences → About**, press **Build** 7 times to turn on Developer options; then **Developer options → Network debugging** (on some TVs *ADB debugging* or *USB debugging* plus *ADB over network*) **on**.
 2. In the builder: **Page Editor → Devices & integrations → Android apps → ＋ Add a TV**, with the TV's address. The TV shows **Allow network debugging?**: tick *Always allow from this computer* and press **Allow**. This is asked only once.
-3. **Scan** lists the apps the TV's home screen can open (system apps on request). Pick the ones you want, rename them, give them a picture from the remote's library, put them in **folders**, mark **★ favorites**, and **Try it** to open one on the TV.
-4. **Add to the remote** adds one media player entity per TV (*SHIELD Theater apps*). Its input list is your apps, its widget shows the app in front with its picture, and **Browse** opens a list of your apps with their pictures: Favorites, Recently used, All apps and your folders, with search. The D-pad, back, home and play/pause go to the TV too.
-5. **Make an apps page** puts that media widget and a button per app on a new page of an activity.
+3. **Scan** lists the apps the TV's home screen can open (system apps on request). Pick the ones you want, rename them, put them in **folders**, mark **★ favorites**, and **Try it** to open one on the TV.
+4. **Add to the remote** adds one media player entity per TV (*SHIELD Theater apps*). Its input list is your apps, its widget shows the app in front with its picture, and **Browse** opens a list of your apps (with a picture where one in your library matches the app's name): Favorites, Recently used, All apps and your folders, with search. The D-pad, back, home and play/pause go to the TV too.
+5. **Add "<TV> apps" to [activity]** adds the entity to an activity (Save to remote keeps it); then put it on a page as a media widget, or use *select source · <app>* on buttons.
 
 The TV must have a fixed address (reserve it in your router). Wireless debugging with a pairing code (Android 11+ phones) isn't supported; use Network debugging. Pictures in Browse are served by the integration from the hub's address (`UC_SELF_PUBLIC_URL` overrides it). The TV's key stays with the integration (`android_key.json`); Settings on the TV → *Revoke debugging authorizations* removes it.
 
@@ -395,6 +395,7 @@ Built on the [Integration API](https://github.com/unfoldedcircle/integration-nod
 
 ## Changes
 
+- **1.5.1:** Android apps: the entity is **added to an activity** from the panel instead of making a page; the picture picker is gone (Browse still shows a matching picture where one exists).
 - **1.5.0:** **[Android apps](#android-apps)** (Page Editor › Devices & integrations): a built-in adb client that connects to an Android TV over network debugging, scans its apps, and adds one **apps media player** per TV with your picked apps as inputs, their pictures, the app in front on its widget, and a **Browse** screen with Favorites, Recently used, All apps, your folders and search. **Make an apps page** puts the widget and a button per app on an activity page. The old App links card is gone (Android stopped opening apps by link); Android TV integrations point to Android apps instead.
 - **1.4.10:** Page Editor › Entities: entities that aren't on the remote any more are shown in red with **Clean up**, which removes them from the activity together with the page items, keys, touch slider and Start/Stop steps that still use them.
 - **1.4.9:** Page Editor: a new **Activities → Entities** view lists what an activity includes, grouped by kind; **＋ Add entity** adds any device, sensor or light (also ones that are **not added yet** to the remote), and **✕** takes one out. Builder: every device drop-down lists **Not added yet** last; picking one adds it to the remote and picks it. **Reload devices** now asks your integrations for new entities, redraws every section and says what changed.

@@ -72,18 +72,20 @@ await pg.waitForFunction(() => /is on the remote with 3 apps/.test(document.quer
 const d = aa.devices[0];
 ok(aa.picked(d).map((a) => a.name).join() === "Netflix,YouTube,Plex" && d.apps.find((a) => a.pkg === "com.netflix.ninja").fav && d.apps.find((a) => a.pkg === "com.plexapp.android").folder === "Movies" && d.added, "saved: picks, favorite, folder; on the remote");
 await pg.screenshot({ path: SH + "/a3.png" });
-// make an apps page
+// add the apps entity to an activity
+ok(!(await pg.$('input[placeholder="picture…"]')), "no picture picker");
 await pg.click("text=Change apps");
-await pg.selectOption('select[aria-label="Activity for the apps page"]', "uc.main.watch");
-await pg.click("text=Make it");
-await pg.waitForFunction(() => document.querySelector("#dd-label")?.textContent === "Interface" && /app buttons/.test(document.body.textContent), null, { timeout: 5000 });
-await pg.screenshot({ path: SH + "/a4.png" });
-ok(await pg.evaluate(() => actId === "uc.main.watch" && page().name === "SHIELD Theater apps"), "the new page is shown, ready to edit");
-ok(!(await pg.isDisabled("#save")), "apps page added: Save to remote is enabled");
+ok(!(await pg.$("text=Make it")), "no apps page maker");
+await pg.selectOption('select[aria-label="Activity to add the apps to"]', "uc.main.watch");
+await pg.click('.aa-bar button:text-is("Add")');
+await pg.waitForFunction(() => /is added to .* when you press Save to remote/.test(document.body.textContent) && subView === "ents" && actId === "uc.main.watch", null, { timeout: 5000 });
+await pg.screenshot({ path: SH + "/a4.png", fullPage: true });
+ok(!(await pg.isDisabled("#save")), "added to the activity: Save to remote is enabled");
 calls.length = 0;
 await pg.click("#save"); await pg.waitForTimeout(3000);
-const made = calls.find((c) => c.m === "POST" && /\/activities\/uc\.main\.watch\/ui\/pages$/.test(c.p));
-console.log(JSON.stringify(made?.b?.items?.map((i) => i.type + ":" + (i.icon || i.text) + ":" + i.command?.params?.source)));
-ok(made && made.b.items.length === 4 && made.b.items[0].type === "media_player" && made.b.items[0].media_player_id === "self_control.main.aa_shield_theater" && made.b.items.slice(1).every((i) => i.command?.entity_id === "self_control.main.aa_shield_theater" && i.command.cmd_id === "media_player.select_source"), "the apps page: the apps widget, then one button per app (select source)");
+const patch = calls.find((c) => c.m === "PATCH" && /\/activities\/uc\.main\.watch$/.test(c.p));
+console.log(JSON.stringify(patch?.b));
+ok(patch && patch.b.options?.entity_ids?.includes("self_control.main.aa_shield_theater"), "saved: the apps entity is in the activity's entities");
+ok(!calls.some((c) => c.m === "POST" && /\/ui\/pages$/.test(c.p)), "no page was made");
 ok(!errs.length, "no page errors " + errs.join("; "));
 await b.close(); tv.server.close(); process.exit(fails ? 1 : 0);

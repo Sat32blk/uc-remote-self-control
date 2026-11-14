@@ -3608,36 +3608,32 @@ function aaCard(d) {
 function aaApps(d, onRemote) {
   const showSys = !!AA.showSys[d.id], list = d.apps.filter((a) => showSys || !a.sys || a.on);
   const folders = [...new Set(d.apps.map((a) => a.folder).filter(Boolean))];
-  const flId = "aa-fl-" + d.id, picId = "aa-pics";
+  const flId = "aa-fl-" + d.id;
   const changed = () => { d.dirty = true; };
   const appCard = (a) => {
-    const p = a.pic ? picOf("custom:" + a.pic) : null;
     return el("div", { class: "aa-app" + (a.on ? " on" : "") + (a.gone ? " gone" : "") },
       el("input", { type: "checkbox", checked: a.on, "aria-label": "Pick " + a.name, on: { change: (e) => { a.on = e.target.checked; changed(); renderDevices(); } } }),
-      el("span", { class: "aa-pic" }, p ? picThumb(p, 40) : el("span", { class: "thumb", style: "width:40px;height:40px;background:#374151;font-size:16px" }, a.name.slice(0, 1).toUpperCase())),
       el("span", { class: "aa-mid" },
         el("input", { class: "aa-name", value: a.name, "aria-label": "Name of " + a.pkg, maxlength: "40", on: { change: (e) => { a.name = e.target.value.trim() || a.name; changed(); } } }),
         el("span", { class: "aa-pkg", title: a.pkg }, a.gone ? "not on the TV any more · " + a.pkg : a.pkg),
         el("span", { class: "row", style: "gap:4px;flex-wrap:wrap" },
-          el("input", { class: "aa-small", list: picId, value: a.pic || "", placeholder: "picture…", "aria-label": "Picture of " + a.name, title: "A picture from your library (type to search)", on: { change: (e) => { a.pic = e.target.value.trim(); changed(); renderDevices(); } } }),
           el("input", { class: "aa-small", list: flId, value: a.folder || "", placeholder: "folder…", "aria-label": "Folder of " + a.name, title: "Apps with the same folder are grouped in Browse", on: { change: (e) => { a.folder = e.target.value.trim(); changed(); } } }),
           el("button", { class: "aa-fav" + (a.fav ? " on" : ""), type: "button", title: a.fav ? "In Favorites" : "Add to Favorites", "aria-pressed": String(!!a.fav), "aria-label": "Favorite " + a.name, on: { click: () => { a.fav = !a.fav; changed(); renderDevices(); } } }, a.fav ? "★" : "☆"),
           el("button", { class: "aa-try", type: "button", disabled: a.gone || d.status?.state !== "ok", on: { click: () => aaDo(d.id, "Opening…", async () => { await aaApi("/launch", { id: d.id, pkg: a.pkg }); aaSay(d.id, `${a.name} opened on ${d.name}.`); }) } }, "Try it"))));
   };
   const save = async (publish) => {
     await aaDo(d.id, publish ? "Adding…" : "Saving…", async () => {
-      const v = await aaApi("/apps", { id: d.id, apps: d.apps.map((a) => ({ pkg: a.pkg, on: a.on, fav: a.fav, name: a.name, folder: a.folder || "", pic: a.pic || "" })) });
+      const v = await aaApi("/apps", { id: d.id, apps: d.apps.map((a) => ({ pkg: a.pkg, on: a.on, fav: a.fav, name: a.name, folder: a.folder || "" })) });
       aaPut(v); d.dirty = false;
       if (!publish) { aaSay(d.id, d.added ? "Saved. The remote has the new list." : "Saved."); return; }
       const r = await aaApi("/publish", { id: d.id }); aaPut(r.device); AA.open[d.id] = false;
-      aaSay(d.id, `"${d.name} apps" is on the remote with ${r.device.apps.filter((x) => x.on).length} apps. Put it on a page as a media widget (its Browse lists your apps), or use "select source · <app>" on a button.`);
+      aaSay(d.id, `"${d.name} apps" is on the remote with ${r.device.apps.filter((x) => x.on).length} apps. Add it to an activity below, then put it on a page as a media widget (its Browse lists your apps) or use "select source · <app>" on a button.`);
       if (!DEV[r.entity] && !remoteRefuses()) { const keep = AA_KEY; await busy(async () => { await loadAll(); dvIntg = keep; renderAll(); setMode("dev"); }); }
     });
   };
   const acts = S.activities.filter((x) => x.editable);
-  const actSel = el("select", { "aria-label": "Activity for the apps page" }, ...acts.map((x) => el("option", { value: x.id }, x.name)));
+  const actSel = el("select", { "aria-label": "Activity to add the apps to" }, ...acts.map((x) => el("option", { value: x.id }, x.name)));
   return [
-    el("datalist", { id: picId }, ...PICS.filter((x) => String(x.id).startsWith("custom:") && !isFrame(x.file || "")).map((x) => el("option", { value: x.file || String(x.id).slice(7) }))),
     el("datalist", { id: flId }, ...folders.map((f) => el("option", { value: f }))),
     el("div", { class: "row aa-tools" },
       el("button", { class: "btn small", type: "button", on: { click: () => { d.apps.forEach((a) => { if (!a.sys && !a.gone) a.on = true; }); changed(); renderDevices(); } } }, "Pick all"),
@@ -3646,39 +3642,28 @@ function aaApps(d, onRemote) {
       el("span", { class: "hint", style: "margin:0 0 0 auto" }, `${d.apps.filter((a) => a.on).length} picked · ★ = Favorites · folders group them in Browse`)),
     el("div", { class: "aa-grid" }, ...list.map(appCard)),
     el("div", { class: "row aa-bar" },
-      el("span", { class: "row", style: "gap:6px" }, "Make an apps page in", actSel,
-        el("button", { class: "btn small", type: "button", disabled: !onRemote || !acts.length, title: onRemote ? "A new page with one button per picked app" : "Add it to the remote first", on: { click: () => aaMakePage(d, actSel.value) } }, "Make it")),
+      el("span", { class: "row", style: "gap:6px" }, `Add "${d.name} apps" to`, actSel,
+        el("button", { class: "btn small", type: "button", disabled: !onRemote || !acts.length, title: onRemote ? "Adds the apps entity to the activity (Save to remote to keep it)" : "Add it to the remote first", on: { click: () => aaAddToAct(d, actSel.value) } }, "Add")),
       el("span", { class: "row", style: "gap:6px" },
         d.added ? el("button", { class: "btn", type: "button", disabled: !!AA.busy[d.id], on: { click: () => save(false) } }, "Save") : "",
         el("button", { class: "btn primary", type: "button", disabled: !!AA.busy[d.id] || !d.apps.some((a) => a.on), on: { click: () => save(true) } }, d.added ? "Save and update the remote" : "Add to the remote")))
   ];
 }
-/** A new page in an activity: one button per picked app (its picture, or its name), each opening the app. */
-function aaMakePage(d, forAct) {
+/** Adds the TV's apps entity to an activity (kept when you press Save to remote). */
+function aaAddToAct(d, forAct) {
   const a = S.activities.find((x) => x.id === forAct), ent = AA.prefix + d.entity;
   if (!a || !DEV[ent]) return;
-  const apps = d.apps.filter((x) => x.on && !x.gone);
-  // the apps widget on top (what's open; tap it, then Browse, for every app), one button per app below
-  const w = GRIDDEF.w, top = 2, h = Math.max(GRIDDEF.h, top + Math.ceil(apps.length / w));
-  const pg = { id: nid("new_p"), name: `${d.name} apps`.slice(0, 30), grid: { w, h: Math.min(h, GRIDMAX.h) }, items: [], isNew: true };
-  pg.items.push({ id: nid("i"), type: "media_player", entity: ent, icon: null, text: "", loc: { x: 0, y: 0 }, size: { w, h: top }, cmd: null });
-  apps.slice(0, w * (pg.grid.h - top)).forEach((x, i) => {
-    const cmd = keyOf({ entity_id: ent, cmd_id: "media_player.select_source", params: { source: x.name } });
-    const pic = x.pic && PIC["custom:" + x.pic] ? "custom:" + x.pic : null;
-    pg.items.push({ id: nid("i"), type: pic ? "icon" : "text", icon: pic, text: pic ? "" : x.name.slice(0, 50), loc: { x: i % w, y: top + Math.floor(i / w) }, size: { w: 1, h: 1 }, cmd });
-  });
-  a.pages.push(pg);
-  if (!a.devices.includes(ent)) a.devices.push(ent);
-  log(`Page "${pg.name}" with the apps widget and ${pg.items.length - 1} app buttons added to ${a.name}`);
-  const nb = pg.items.length - 1;
-  const note = `Page "${pg.name}" added to ${a.name}: the apps widget and ${nb} app buttons${apps.length > nb ? ` (${apps.length - nb} more are in the widget's Browse)` : ""}. Move or resize them as you like, then press Save to remote.`;
+  const name = `${d.name} apps`;
+  if (a.devices.includes(ent)) { aaSay(d.id, `${a.name} already has "${name}".`); renderDevices(); return; }
+  a.devices.push(ent);
+  log(`${name} added to ${a.name}`);
+  const note = `"${name}" is added to ${a.name} when you press Save to remote. Then put it on a page as a media widget, or use it on buttons.`;
   aaSay(d.id, note);
-  // show the new page: Activities › Interface, that activity and page
-  setSub("pages"); setMode("pages");
-  actId = a.id; pageId = pg.id; selId = null;
+  // show it in that activity's Entities (blue = added when you save), where Save to remote is
+  ENTST.msg = note; ENTST.err = false;
+  actId = a.id; pageId = a.pages[0]?.id || null; selId = null;
   const as = $("#act"); if (as) as.value = a.id;
-  dirty(); renderAll();
-  msg(note, "ok");
+  setSub("ents"); setMode("pages"); dirty(); renderAll(); msg(note, "ok");
 }
 
 function renderDevices() {
