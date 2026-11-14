@@ -44,7 +44,7 @@ await ctx.addCookies([{ name, value, url: base }]);
 const pg = await ctx.newPage(); const errs = []; pg.on("pageerror", (e) => errs.push(e.message));
 await pg.addInitScript(() => { try { localStorage.setItem("scb_tour_offer", JSON.stringify({ off: true, seen: {} })); } catch {} });
 let fails = 0; const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fails++; };
-const SH = process.env.SHOTS;
+const SH = process.env.SHOTS || (await import("node:os")).tmpdir();
 await pg.goto(base + "/editor"); await pg.waitForSelector("button.slider", { timeout: 15000 });
 await pg.click("#mode-dev"); await pg.waitForTimeout(500);
 await pg.click("text=Android apps"); await pg.waitForSelector(".aa");
