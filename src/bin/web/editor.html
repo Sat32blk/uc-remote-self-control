@@ -489,12 +489,12 @@ details.more summary{cursor:pointer;font-weight:600}
 .aa-steps{margin:8px 0 0;padding-left:20px;font-size:13.5px}
 .aa-tools{gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .aa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;margin-top:8px}
-.aa-app{display:grid;grid-template-columns:auto 40px minmax(0,1fr);gap:8px;align-items:start;border:1px solid var(--line);border-radius:10px;padding:7px 9px}
+.aa-app{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;border:1px solid var(--line);border-radius:10px;padding:7px 9px}
 .aa-app.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
 .aa-app.gone{opacity:.6}
-.aa-app>input{margin-top:12px}
+.aa-app>input{margin-top:4px}
 .aa-mid{display:flex;flex-direction:column;gap:3px;min-width:0}
-.aa-name{font-weight:600;font-size:13.5px;border:1px solid transparent;background:transparent;padding:1px 4px;border-radius:6px}
+.aa-name{width:100%;box-sizing:border-box;font-weight:600;font-size:13.5px;border:1px solid transparent;background:transparent;padding:1px 4px;border-radius:6px}
 .aa-name:focus{border-color:var(--line2);background:var(--field)}
 .aa-pkg{font-size:11px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,monospace;padding-left:4px}
 .aa-small{width:108px;font-size:12px;padding:2px 5px;border:1px solid var(--line2);border-radius:6px;background:var(--field)}
@@ -3627,12 +3627,10 @@ function aaApps(d, onRemote) {
       aaPut(v); d.dirty = false;
       if (!publish) { aaSay(d.id, d.added ? "Saved. The remote has the new list." : "Saved."); return; }
       const r = await aaApi("/publish", { id: d.id }); aaPut(r.device); AA.open[d.id] = false;
-      aaSay(d.id, `"${d.name} apps" is on the remote with ${r.device.apps.filter((x) => x.on).length} apps. Add it to an activity below, then put it on a page as a media widget (its Browse lists your apps) or use "select source · <app>" on a button.`);
+      aaSay(d.id, `"${d.name} apps" is on the remote with ${r.device.apps.filter((x) => x.on).length} apps. Add it to an activity (Activities › Entities › Add entity), then put it on a page as a media widget or use "select source · <app>" on a button. Change apps here any time: Save updates it on the remote.`);
       if (!DEV[r.entity] && !remoteRefuses()) { const keep = AA_KEY; await busy(async () => { await loadAll(); dvIntg = keep; renderAll(); setMode("dev"); }); }
     });
   };
-  const acts = S.activities.filter((x) => x.editable);
-  const actSel = el("select", { "aria-label": "Activity to add the apps to" }, ...acts.map((x) => el("option", { value: x.id }, x.name)));
   return [
     el("datalist", { id: flId }, ...folders.map((f) => el("option", { value: f }))),
     el("div", { class: "row aa-tools" },
@@ -3642,28 +3640,9 @@ function aaApps(d, onRemote) {
       el("span", { class: "hint", style: "margin:0 0 0 auto" }, `${d.apps.filter((a) => a.on).length} picked · ★ = Favorites · folders group them in Browse`)),
     el("div", { class: "aa-grid" }, ...list.map(appCard)),
     el("div", { class: "row aa-bar" },
-      el("span", { class: "row", style: "gap:6px" }, `Add "${d.name} apps" to`, actSel,
-        el("button", { class: "btn small", type: "button", disabled: !onRemote || !acts.length, title: onRemote ? "Adds the apps entity to the activity (Save to remote to keep it)" : "Add it to the remote first", on: { click: () => aaAddToAct(d, actSel.value) } }, "Add")),
       el("span", { class: "row", style: "gap:6px" },
-        d.added ? el("button", { class: "btn", type: "button", disabled: !!AA.busy[d.id], on: { click: () => save(false) } }, "Save") : "",
         el("button", { class: "btn primary", type: "button", disabled: !!AA.busy[d.id] || !d.apps.some((a) => a.on), on: { click: () => save(true) } }, d.added ? "Save and update the remote" : "Add to the remote")))
   ];
-}
-/** Adds the TV's apps entity to an activity (kept when you press Save to remote). */
-function aaAddToAct(d, forAct) {
-  const a = S.activities.find((x) => x.id === forAct), ent = AA.prefix + d.entity;
-  if (!a || !DEV[ent]) return;
-  const name = `${d.name} apps`;
-  if (a.devices.includes(ent)) { aaSay(d.id, `${a.name} already has "${name}".`); renderDevices(); return; }
-  a.devices.push(ent);
-  log(`${name} added to ${a.name}`);
-  const note = `"${name}" is added to ${a.name} when you press Save to remote. Then put it on a page as a media widget, or use it on buttons.`;
-  aaSay(d.id, note);
-  // show it in that activity's Entities (blue = added when you save), where Save to remote is
-  ENTST.msg = note; ENTST.err = false;
-  actId = a.id; pageId = a.pages[0]?.id || null; selId = null;
-  const as = $("#act"); if (as) as.value = a.id;
-  setSub("ents"); setMode("pages"); dirty(); renderAll(); msg(note, "ok");
 }
 
 function renderDevices() {

@@ -72,20 +72,16 @@ await pg.waitForFunction(() => /is on the remote with 3 apps/.test(document.quer
 const d = aa.devices[0];
 ok(aa.picked(d).map((a) => a.name).join() === "Netflix,YouTube,Plex" && d.apps.find((a) => a.pkg === "com.netflix.ninja").fav && d.apps.find((a) => a.pkg === "com.plexapp.android").folder === "Movies" && d.added, "saved: picks, favorite, folder; on the remote");
 await pg.screenshot({ path: SH + "/a3.png" });
-// add the apps entity to an activity
+// no page maker, no picture picker, no add-to-activity: the entity is edited here
 ok(!(await pg.$('input[placeholder="picture…"]')), "no picture picker");
 await pg.click("text=Change apps");
-ok(!(await pg.$("text=Make it")), "no apps page maker");
-await pg.selectOption('select[aria-label="Activity to add the apps to"]', "uc.main.watch");
-await pg.click('.aa-bar button:text-is("Add")');
-await pg.waitForFunction(() => /is added to .* when you press Save to remote/.test(document.body.textContent) && subView === "ents" && actId === "uc.main.watch", null, { timeout: 5000 });
+ok(!(await pg.$("text=Make it")) && !(await pg.$('select[aria-label="Activity to add the apps to"]')), "no apps page maker, no add-to-activity");
+await pg.uncheck('input[aria-label="Pick YouTube"]'); await pg.check('input[aria-label="Pick Kodi"]');
+ok((await pg.$$('.aa-bar button')).length === 1, "one save button");
+await pg.click("text=Save and update the remote");
+await pg.waitForFunction(() => /is on the remote with 3 apps/.test(document.querySelector(".aa-dev")?.textContent || ""), null, { timeout: 5000 });
+ok(aa.picked(d).map((a) => a.name).join() === "Netflix,Plex,Kodi", "apps added and removed after it's on the remote: " + aa.picked(d).map((a) => a.name).join());
+ok(aa.attrs(d).source_list.join() === "Netflix,Plex,Kodi", "the entity's app list follows");
 await pg.screenshot({ path: SH + "/a4.png", fullPage: true });
-ok(!(await pg.isDisabled("#save")), "added to the activity: Save to remote is enabled");
-calls.length = 0;
-await pg.click("#save"); await pg.waitForTimeout(3000);
-const patch = calls.find((c) => c.m === "PATCH" && /\/activities\/uc\.main\.watch$/.test(c.p));
-console.log(JSON.stringify(patch?.b));
-ok(patch && patch.b.options?.entity_ids?.includes("self_control.main.aa_shield_theater"), "saved: the apps entity is in the activity's entities");
-ok(!calls.some((c) => c.m === "POST" && /\/ui\/pages$/.test(c.p)), "no page was made");
 ok(!errs.length, "no page errors " + errs.join("; "));
 await b.close(); tv.server.close(); process.exit(fails ? 1 : 0);
